@@ -190,6 +190,12 @@ export function EditorPage() {
                 >
                   导出 TXT
                 </button>
+                <button
+                  onClick={() => handleExport("html")}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                >
+                  导出 HTML
+                </button>
               </div>
             </div>
             <button

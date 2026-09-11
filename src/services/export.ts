@@ -1,5 +1,5 @@
 export interface ExportOptions {
-  format: "txt" | "markdown";
+  format: "txt" | "markdown" | "html";
   filename: string;
   content: string;
   title?: string;
@@ -14,14 +14,21 @@ export class ExportService {
     let mimeType: string;
     let extension: string;
 
-    if (format === "markdown") {
-      fileContent = this.toMarkdown(content, title, author);
-      mimeType = "text/markdown";
-      extension = "md";
-    } else {
-      fileContent = this.toPlainText(content, title, author);
-      mimeType = "text/plain";
-      extension = "txt";
+    switch (format) {
+      case "markdown":
+        fileContent = this.toMarkdown(content, title, author);
+        mimeType = "text/markdown";
+        extension = "md";
+        break;
+      case "html":
+        fileContent = this.toHTML(content, title, author);
+        mimeType = "text/html";
+        extension = "html";
+        break;
+      default:
+        fileContent = this.toPlainText(content, title, author);
+        mimeType = "text/plain";
+        extension = "txt";
     }
 
     const blob = new Blob([fileContent], { type: `${mimeType};charset=utf-8` });
@@ -47,6 +54,65 @@ export class ExportService {
 
     md += content;
     return md;
+  }
+
+  static toHTML(content: string, title?: string, author?: string): string {
+    let html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title || "小说"}</title>
+  <style>
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      line-height: 1.8;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .author {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .content {
+      text-indent: 2em;
+    }
+    p {
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>`;
+
+    if (title) {
+      html += `\n  <h1>${title}</h1>`;
+    }
+    if (author) {
+      html += `\n  <div class="author">作者：${author}</div>`;
+    }
+
+    html += `\n  <div class="content">`;
+    
+    // Convert HTML content to formatted HTML
+    const formattedContent = content
+      .replace(/<h1[^>]*>(.*?)<\/h1>/g, "\n<h2>$1</h2>")
+      .replace(/<h2[^>]*>(.*?)<\/h2>/g, "\n<h3>$1</h3>")
+      .replace(/<h3[^>]*>(.*?)<\/h3>/g, "\n<h4>$1</h4>")
+      .replace(/<p[^>]*>(.*?)<\/p>/g, "\n<p>$1</p>")
+      .replace(/<strong>(.*?)<\/strong>/g, "<strong>$1</strong>")
+      .replace(/<em>(.*?)<\/em>/g, "<em>$1</em>");
+    
+    html += formattedContent;
+    html += `\n  </div>\n</body>\n</html>`;
+
+    return html;
   }
 
   static toPlainText(content: string, title?: string, author?: string): string {
