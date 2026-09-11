@@ -1,17 +1,30 @@
-import { useState } from "react";
-import { Plus, BookOpen, Trash2, Download, PanelLeftOpen, PanelLeftClose } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Plus, BookOpen, Trash2, Download, PanelLeftOpen, PanelLeftClose, Check } from "lucide-react";
 import { NewProjectDialog, NewProject } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor } from "../components/editor";
 import { ChapterList } from "../components/chapter";
 import { exportService } from "../services";
+import { useAutoSave } from "../hooks";
 
 export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const { projects, currentProject, addProject, setCurrentProject, deleteProject, updateContent } = useProjectStore();
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const { projects, currentProject, addProject, setCurrentProject, deleteProject } = useProjectStore();
   const { currentChapter, setCurrentChapter, updateContent: updateChapterContent } = useChapterStore();
+
+  const handleSave = useCallback(() => {
+    setLastSaved(new Date());
+  }, []);
+
+  const { saveNow } = useAutoSave({
+    data: currentChapter,
+    onSave: handleSave,
+    interval: 30000,
+    enabled: !!currentChapter,
+  });
 
   const handleCreateProject = (project: NewProject) => {
     addProject(project);
@@ -163,11 +176,23 @@ export function EditorPage() {
 
         <div className="flex-1 overflow-hidden">
           {currentChapter ? (
-            <Editor
-              content={currentChapter.content}
-              placeholder={`开始写作 ${currentChapter.title}...`}
-              onUpdate={(content) => updateChapterContent(currentChapter.id, content)}
-            />
+            <div className="flex h-full flex-col">
+              <Editor
+                content={currentChapter.content}
+                placeholder={`开始写作 ${currentChapter.title}...`}
+                onUpdate={(content) => updateChapterContent(currentChapter.id, content)}
+              />
+              <div className="border-t border-[var(--color-border)] px-4 py-2 text-xs text-[var(--color-text-secondary)]">
+                {lastSaved ? (
+                  <span className="flex items-center gap-1">
+                    <Check size={12} className="text-green-500" />
+                    已保存 {lastSaved.toLocaleTimeString()}
+                  </span>
+                ) : (
+                  <span>自动保存已开启</span>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-4">
               <BookOpen size={48} className="text-[var(--color-text-secondary)]" />
