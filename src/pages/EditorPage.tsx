@@ -5,7 +5,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor } from "../components/editor";
 import { ChapterList } from "../components/chapter";
-import { exportService } from "../services";
+import { ExportService } from "../services";
 import { useAutoSave } from "../hooks";
 
 export function EditorPage() {
@@ -19,7 +19,7 @@ export function EditorPage() {
     setLastSaved(new Date());
   }, []);
 
-  const { saveNow } = useAutoSave({
+  const { saveNow: _saveNow } = useAutoSave({
     data: currentChapter,
     onSave: handleSave,
     interval: 30000,
@@ -38,7 +38,7 @@ export function EditorPage() {
     const content = currentChapter?.content || currentProject?.content || "";
     if (!content) return;
 
-    await exportService.exportToFile({
+    await ExportService.exportToFile({
       format,
       filename: currentChapter?.title || currentProject?.title || "未命名",
       content,

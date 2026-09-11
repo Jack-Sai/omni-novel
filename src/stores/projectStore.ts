@@ -29,6 +29,7 @@ export const useProjectStore = create<ProjectStore>()(
       currentProject: null,
       addProject: (project) => {
         const newProject: Project = {
+          id: crypto.randomUUID(),
           ...project,
           content: "",
           createdAt: new Date().toISOString(),
