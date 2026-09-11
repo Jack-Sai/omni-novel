@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Plus, BookOpen, Trash2, Download, PanelLeftOpen, PanelLeftClose, Check } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { Plus, BookOpen, Trash2, Download, PanelLeftOpen, PanelLeftClose, Check, BarChart3 } from "lucide-react";
 import { NewProjectDialog, NewProject } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
@@ -7,13 +7,15 @@ import { Editor } from "../components/editor";
 import { ChapterList } from "../components/chapter";
 import { ExportService } from "../services";
 import { useAutoSave } from "../hooks";
+import { WordStats } from "../components/ui";
 
 export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [showStats, setShowStats] = useState(false);
   const { projects, currentProject, addProject, setCurrentProject, deleteProject } = useProjectStore();
-  const { currentChapter, setCurrentChapter, updateContent: updateChapterContent } = useChapterStore();
+  const { chapters, currentChapter, setCurrentChapter, updateContent: updateChapterContent } = useChapterStore();
 
   const handleSave = useCallback(() => {
     setLastSaved(new Date());
@@ -25,6 +27,27 @@ export function EditorPage() {
     interval: 30000,
     enabled: !!currentChapter,
   });
+
+  const stats = useMemo(() => {
+    if (!currentProject) {
+      return { totalWords: 0, chapterWords: 0, averageWordsPerChapter: 0 };
+    }
+
+    const projectChapters = chapters.filter((c) => c.projectId === currentProject.id);
+    const totalWords = projectChapters.reduce((sum, c) => {
+      const text = c.content.replace(/<[^>]*>/g, "").replace(/\s/g, "");
+      return sum + text.length;
+    }, 0);
+
+    const chapterWords = currentChapter
+      ? currentChapter.content.replace(/<[^>]*>/g, "").replace(/\s/g, "").length
+      : 0;
+
+    const averageWordsPerChapter =
+      projectChapters.length > 0 ? Math.round(totalWords / projectChapters.length) : 0;
+
+    return { totalWords, chapterWords, averageWordsPerChapter };
+  }, [currentProject, chapters, currentChapter]);
 
   const handleCreateProject = (project: NewProject) => {
     addProject(project);
@@ -130,6 +153,17 @@ export function EditorPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowStats(!showStats)}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition ${
+                showStats
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]"
+                  : "border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)]"
+              }`}
+            >
+              <BarChart3 size={16} />
+              统计
+            </button>
             <div className="relative group">
               <button className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]">
                 <Download size={16} />
@@ -170,6 +204,18 @@ export function EditorPage() {
               projectId={currentProject.id}
               onSelectChapter={handleSelectChapter}
               currentChapterId={currentChapter?.id}
+            />
+          </div>
+        )}
+
+        {showStats && (
+          <div className="w-64 border-r border-[var(--color-border)] p-4">
+            <h3 className="mb-3 font-medium">字数统计</h3>
+            <WordStats
+              totalWords={stats.totalWords}
+              chapterWords={stats.chapterWords}
+              targetWords={100000}
+              averageWordsPerChapter={stats.averageWordsPerChapter}
             />
           </div>
         )}
