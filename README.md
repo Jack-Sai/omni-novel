@@ -1,6 +1,24 @@
+<div align="center">
+
+<img src="logo.png" alt="Omni Novel Logo" width="120" />
+
 # Omni Novel
 
 AI 驱动的小说创作桌面应用，基于 Tauri v2 + React + TypeScript 构建。
+
+[![GitHub Stars](https://img.shields.io/github/stars/Jack-Sai/omni-novel?style=flat&logo=github)](https://github.com/Jack-Sai/omni-novel/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/Jack-Sai/omni-novel?style=flat&logo=github)](https://github.com/Jack-Sai/omni-novel/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/Jack-Sai/omni-novel?style=flat&logo=github)](https://github.com/Jack-Sai/omni-novel/issues)
+[![GitHub License](https://img.shields.io/github/license/Jack-Sai/omni-novel?style=flat&logo=github)](https://github.com/Jack-Sai/omni-novel/blob/main/LICENSE)
+
+[![Tauri](https://img.shields.io/badge/Tauri-v2-blue?style=flat&logo=tauri)](https://tauri.app/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-8.0-646CFF?style=flat&logo=vite)](https://vitejs.dev/)
+
+</div>
+
+---
 
 ## 功能特性
 
@@ -62,5 +80,7 @@ omni-novel/
 ```
 
 ## 许可证
+
+[![MIT License](https://img.shields.io/badge/License-MIT-green?style=flat)](https://github.com/Jack-Sai/omni-novel/blob/main/LICENSE)
 
 MIT
