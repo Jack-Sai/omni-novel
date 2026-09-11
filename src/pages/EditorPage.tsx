@@ -58,7 +58,7 @@ export function EditorPage() {
     setCurrentChapter(chapter);
   };
 
-  const handleExport = async (format: "txt" | "markdown") => {
+  const handleExport = async (format: "txt" | "markdown" | "html") => {
     const content = currentChapter?.content || currentProject?.content || "";
     if (!content) return;
 

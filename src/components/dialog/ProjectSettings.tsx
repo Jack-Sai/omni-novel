@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import { useProjectStore, Project } from "../../stores/projectStore";
+import { useProjectStore } from "../../stores/projectStore";
 
 interface ProjectSettingsProps {
   open: boolean;

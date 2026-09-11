@@ -1,6 +1,6 @@
 [package]
 name = "omni-novel"
-version = "0.1.0"
+version = "1.0.0"
 description = "AI-powered novel writing desktop application"
 authors = ["JackSai"]
 edition = "2021"

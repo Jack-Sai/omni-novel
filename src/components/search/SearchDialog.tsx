@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, X, FileText, User, Map, BookOpen } from "lucide-react";
+import { Search, X, FileText, User, Map, Eye } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useChapterStore } from "../../stores/chapterStore";
 import { useCharacterStore } from "../../stores/characterStore";
 import { useWorldviewStore } from "../../stores/worldviewStore";
+import { useForeshadowingStore } from "../../stores/foreshadowingStore";
 import { useNavigate } from "react-router-dom";
 
 interface SearchResult {
   id: string;
-  type: "chapter" | "character" | "worldview";
+  type: "chapter" | "character" | "worldview" | "foreshadowing";
   title: string;
   content: string;
   matchIndex: number;
@@ -29,6 +30,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const { chapters } = useChapterStore();
   const { characters } = useCharacterStore();
   const { items: worldviewItems } = useWorldviewStore();
+  const { items: foreshadowingItems } = useForeshadowingStore();
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -98,8 +100,25 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         }
       });
 
+    // Search foreshadowing
+    foreshadowingItems
+      .filter((f) => f.projectId === currentProject.id)
+      .forEach((item) => {
+        const searchText = `${item.name} ${item.description} ${item.plantedContent} ${item.notes}`.toLowerCase();
+        const index = searchText.indexOf(lowerQuery);
+        if (index !== -1) {
+          searchResults.push({
+            id: item.id,
+            type: "foreshadowing",
+            title: item.name,
+            content: item.description || item.plantedContent || "",
+            matchIndex: index,
+          });
+        }
+      });
+
     setResults(searchResults.slice(0, 20));
-  }, [query, currentProject, chapters, characters, worldviewItems]);
+  }, [query, currentProject, chapters, characters, worldviewItems, foreshadowingItems]);
 
   const handleSelect = (result: SearchResult) => {
     onOpenChange(false);
@@ -115,6 +134,9 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       case "worldview":
         navigate("/worldview");
         break;
+      case "foreshadowing":
+        navigate("/foreshadowing");
+        break;
     }
   };
 
@@ -126,6 +148,8 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         return <User size={16} className="text-green-500" />;
       case "worldview":
         return <Map size={16} className="text-orange-500" />;
+      case "foreshadowing":
+        return <Eye size={16} className="text-purple-500" />;
     }
   };
 
