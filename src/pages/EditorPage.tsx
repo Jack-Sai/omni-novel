@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
-import { Plus, BookOpen, Trash2, Download, PanelLeftOpen, PanelLeftClose, Check, BarChart3 } from "lucide-react";
-import { NewProjectDialog, NewProject } from "../components/dialog";
+import { Plus, BookOpen, Trash2, Download, PanelLeftOpen, PanelLeftClose, Check, BarChart3, Settings } from "lucide-react";
+import { NewProjectDialog, NewProject, ProjectSettings } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor } from "../components/editor";
@@ -11,6 +11,7 @@ import { WordStats } from "../components/ui";
 
 export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
@@ -164,6 +165,13 @@ export function EditorPage() {
               <BarChart3 size={16} />
               统计
             </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
+            >
+              <Settings size={16} />
+              项目设置
+            </button>
             <div className="relative group">
               <button className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]">
                 <Download size={16} />
@@ -247,6 +255,8 @@ export function EditorPage() {
           )}
         </div>
       </div>
+
+      <ProjectSettings open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }
