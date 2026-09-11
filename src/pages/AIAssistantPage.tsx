@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Send, Bot, User } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Bot, User, Loader2 } from "lucide-react";
+import { ollama } from "../services";
 
 interface Message {
   id: string;
@@ -10,10 +11,26 @@ interface Message {
 export function AIAssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    checkConnection();
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const checkConnection = async () => {
+    const connected = await ollama.checkConnection();
+    setIsConnected(connected);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -21,25 +38,64 @@ export function AIAssistantPage() {
       content: input.trim(),
     };
 
-    setMessages([...messages, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setIsLoading(true);
 
-    // 模拟 AI 回复
-    setTimeout(() => {
+    try {
+      const chatMessages = [
+        { role: "system" as const, content: "你是一个专业的写作助手，擅长帮助作者进行小说创作。请用中文回复。" },
+        ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        { role: "user" as const, content: userMessage.content },
+      ];
+
+      const response = await ollama.chat(chatMessages);
+
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "这是一个模拟的 AI 回复。请配置本地模型（如 Ollama）以启用真实 AI 功能。",
+        content: response,
       };
       setMessages((prev) => [...prev, assistantMessage]);
-    }, 500);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "抱歉，无法连接到 AI 模型。请确保 Ollama 服务已启动。",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-[var(--color-border)] px-6 py-4">
-        <h1 className="text-2xl font-bold">AI 助手</h1>
-        <p className="text-sm text-[var(--color-text-secondary)]">与 AI 助手对话，获取创作灵感</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">AI 助手</h1>
+            <p className="text-sm text-[var(--color-text-secondary)]">与 AI 助手对话，获取创作灵感</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div
+              className={`h-2 w-2 rounded-full ${
+                isConnected === true
+                  ? "bg-green-500"
+                  : isConnected === false
+                  ? "bg-red-500"
+                  : "bg-yellow-500"
+              }`}
+            />
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              {isConnected === true
+                ? "Ollama 已连接"
+                : isConnected === false
+                ? "Ollama 未连接"
+                : "检测中..."}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-4">
@@ -47,6 +103,9 @@ export function AIAssistantPage() {
           <div className="flex h-full flex-col items-center justify-center gap-4">
             <Bot size={48} className="text-[var(--color-text-secondary)]" />
             <p className="text-[var(--color-text-secondary)]">开始与 AI 助手对话</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              需要先启动 Ollama 服务并下载模型
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -76,6 +135,18 @@ export function AIAssistantPage() {
                 )}
               </div>
             ))}
+            {isLoading && (
+              <div className="flex gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)]">
+                  <Bot size={16} />
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>思考中...</span>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
@@ -87,14 +158,15 @@ export function AIAssistantPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="输入你的问题..."
-            className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2 outline-none focus:border-[var(--color-primary)]"
+            disabled={isLoading}
+            className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2 outline-none focus:border-[var(--color-primary)] disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={!input.trim()}
+            disabled={!input.trim() || isLoading}
             className="flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-white transition hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Send size={16} />
+            {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
         </form>
       </div>
