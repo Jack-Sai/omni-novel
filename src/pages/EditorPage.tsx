@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, BookOpen, Trash2 } from "lucide-react";
 import { NewProjectDialog, NewProject } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
+import { Editor } from "../components/editor";
 
 export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -76,10 +77,25 @@ export function EditorPage() {
   }
 
   return (
-    <div className="flex h-full flex-col p-6">
-      <h1 className="mb-4 text-2xl font-bold">{currentProject.title}</h1>
-      <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-4">
-        <p className="text-[var(--color-text-secondary)]">开始写作...</p>
+    <div className="flex h-full flex-col">
+      <div className="border-b border-[var(--color-border)] px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">{currentProject.title}</h1>
+            {currentProject.author && (
+              <p className="text-sm text-[var(--color-text-secondary)]">{currentProject.author}</p>
+            )}
+          </div>
+          <button
+            onClick={() => setCurrentProject(null)}
+            className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
+          >
+            返回列表
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <Editor placeholder="开始你的创作..." />
       </div>
     </div>
   );
