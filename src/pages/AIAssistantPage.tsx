@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2 } from "lucide-react";
-import { ollama } from "../services";
+import { Send, Bot, User, Loader2, Sparkles, BookOpen, PenTool, Search } from "lucide-react";
+import { ollama, getSystemPrompt, PromptKey } from "../services";
 
 interface Message {
   id: string;
@@ -8,11 +8,19 @@ interface Message {
   content: string;
 }
 
+const quickActions = [
+  { key: "writer" as PromptKey, label: "通用对话", icon: Sparkles },
+  { key: "continuation" as PromptKey, label: "续写", icon: PenTool },
+  { key: "polish" as PromptKey, label: "润色", icon: BookOpen },
+  { key: "consistency" as PromptKey, label: "检查一致性", icon: Search },
+];
+
 export function AIAssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [currentPrompt, setCurrentPrompt] = useState<PromptKey>("writer");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,8 +51,9 @@ export function AIAssistantPage() {
     setIsLoading(true);
 
     try {
+      const systemPrompt = getSystemPrompt(currentPrompt);
       const chatMessages = [
-        { role: "system" as const, content: "你是一个专业的写作助手，擅长帮助作者进行小说创作。请用中文回复。" },
+        { role: "system" as const, content: systemPrompt },
         ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
         { role: "user" as const, content: userMessage.content },
       ];
@@ -67,6 +76,10 @@ export function AIAssistantPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleQuickAction = (key: PromptKey) => {
+    setCurrentPrompt(key);
   };
 
   return (
@@ -95,6 +108,23 @@ export function AIAssistantPage() {
                 : "检测中..."}
             </span>
           </div>
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          {quickActions.map((action) => (
+            <button
+              key={action.key}
+              onClick={() => handleQuickAction(action.key)}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
+                currentPrompt === action.key
+                  ? "bg-[var(--color-primary)] text-white"
+                  : "border border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)]"
+              }`}
+            >
+              <action.icon size={14} />
+              {action.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -126,7 +156,7 @@ export function AIAssistantPage() {
                       : "bg-[var(--color-bg-secondary)] text-[var(--color-text)]"
                   }`}
                 >
-                  {message.content}
+                  <div className="whitespace-pre-wrap">{message.content}</div>
                 </div>
                 {message.role === "user" && (
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]">
@@ -157,7 +187,7 @@ export function AIAssistantPage() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="输入你的问题..."
+            placeholder={`当前模式：${quickActions.find((a) => a.key === currentPrompt)?.label || "通用对话"}`}
             disabled={isLoading}
             className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2 outline-none focus:border-[var(--color-primary)] disabled:opacity-50"
           />
