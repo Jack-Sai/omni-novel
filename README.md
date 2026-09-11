@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.png" alt="Omni Novel Logo" width="120" />
+<img src="https://raw.githubusercontent.com/Jack-Sai/omni-novel/main/logo.png" alt="Omni Novel Logo" width="120" />
 
 # Omni Novel
 
