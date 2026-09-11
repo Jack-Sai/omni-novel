@@ -1,18 +1,17 @@
-import { useState } from "react";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 
-interface LayoutProps {
-  children: React.ReactNode;
-}
-
-export function Layout({ children }: LayoutProps) {
-  const [activeTab, setActiveTab] = useState("editor");
+export function Layout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const activeTab = location.pathname.split("/")[1] || "editor";
 
   return (
     <div className="flex h-screen bg-[var(--color-bg)]">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <Sidebar activeTab={activeTab} onTabChange={(tab) => navigate(`/${tab}`)} />
       <main className="flex-1 overflow-auto">
-        {children}
+        <Outlet />
       </main>
     </div>
   );
