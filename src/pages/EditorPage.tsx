@@ -1,15 +1,29 @@
 import { useState } from "react";
-import { Plus, BookOpen, Trash2 } from "lucide-react";
+import { Plus, BookOpen, Trash2, Download } from "lucide-react";
 import { NewProjectDialog, NewProject } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
 import { Editor } from "../components/editor";
+import { exportService } from "../services";
 
 export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editorContent, setEditorContent] = useState("");
   const { projects, currentProject, addProject, setCurrentProject, deleteProject } = useProjectStore();
 
   const handleCreateProject = (project: NewProject) => {
     addProject(project);
+  };
+
+  const handleExport = async (format: "txt" | "markdown") => {
+    if (!currentProject || !editorContent) return;
+
+    await exportService.exportToFile({
+      format,
+      filename: currentProject.title,
+      content: editorContent,
+      title: currentProject.title,
+      author: currentProject.author,
+    });
   };
 
   if (!currentProject) {
@@ -86,16 +100,43 @@ export function EditorPage() {
               <p className="text-sm text-[var(--color-text-secondary)]">{currentProject.author}</p>
             )}
           </div>
-          <button
-            onClick={() => setCurrentProject(null)}
-            className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
-          >
-            返回列表
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="relative group">
+              <button
+                className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
+              >
+                <Download size={16} />
+                导出
+              </button>
+              <div className="invisible group-hover:visible absolute right-0 top-full mt-1 w-36 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg z-10">
+                <button
+                  onClick={() => handleExport("markdown")}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                >
+                  导出 Markdown
+                </button>
+                <button
+                  onClick={() => handleExport("txt")}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                >
+                  导出 TXT
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => setCurrentProject(null)}
+              className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
+            >
+              返回列表
+            </button>
+          </div>
         </div>
       </div>
       <div className="flex-1 overflow-hidden">
-        <Editor placeholder="开始你的创作..." />
+        <Editor
+          placeholder="开始你的创作..."
+          onUpdate={setEditorContent}
+        />
       </div>
     </div>
   );
