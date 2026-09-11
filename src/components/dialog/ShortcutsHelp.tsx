@@ -24,6 +24,7 @@ const shortcuts = [
     { keys: ["Ctrl", "6"], description: "设置" },
   ]},
   { category: "通用", items: [
+    { keys: ["Ctrl", "K"], description: "搜索" },
     { keys: ["Ctrl", "N"], description: "新建项目" },
     { keys: ["Ctrl", "E"], description: "导出" },
     { keys: ["?"], description: "显示快捷键帮助" },

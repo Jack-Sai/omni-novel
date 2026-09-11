@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { ShortcutsHelp } from "../dialog";
+import { SearchDialog } from "../search";
 import { useKeyboardShortcuts, Shortcut } from "../../hooks";
 
 export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const activeTab = location.pathname.split("/")[1] || "editor";
 
@@ -18,6 +20,7 @@ export function Layout() {
     { key: "4", ctrl: true, description: "世界观", action: () => navigate("/worldview") },
     { key: "5", ctrl: true, description: "AI 助手", action: () => navigate("/ai") },
     { key: "6", ctrl: true, description: "设置", action: () => navigate("/settings") },
+    { key: "k", ctrl: true, description: "搜索", action: () => setSearchOpen(true) },
     { key: "?", description: "快捷键帮助", action: () => setShortcutsOpen(true) },
   ];
 
@@ -30,6 +33,7 @@ export function Layout() {
         <Outlet />
       </main>
       <ShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 }
