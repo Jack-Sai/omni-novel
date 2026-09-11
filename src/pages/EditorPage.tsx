@@ -1,27 +1,36 @@
-import { useState, useEffect } from "react";
-import { Plus, BookOpen, Trash2, Download } from "lucide-react";
+import { useState } from "react";
+import { Plus, BookOpen, Trash2, Download, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import { NewProjectDialog, NewProject } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
+import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor } from "../components/editor";
+import { ChapterList } from "../components/chapter";
 import { exportService } from "../services";
 
 export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { projects, currentProject, addProject, setCurrentProject, deleteProject, updateContent } = useProjectStore();
+  const { currentChapter, setCurrentChapter, updateContent: updateChapterContent } = useChapterStore();
 
   const handleCreateProject = (project: NewProject) => {
     addProject(project);
   };
 
+  const handleSelectChapter = (chapter: Chapter) => {
+    setCurrentChapter(chapter);
+  };
+
   const handleExport = async (format: "txt" | "markdown") => {
-    if (!currentProject || !currentProject.content) return;
+    const content = currentChapter?.content || currentProject?.content || "";
+    if (!content) return;
 
     await exportService.exportToFile({
       format,
-      filename: currentProject.title,
-      content: currentProject.content,
-      title: currentProject.title,
-      author: currentProject.author,
+      filename: currentChapter?.title || currentProject?.title || "未命名",
+      content,
+      title: currentChapter?.title || currentProject?.title,
+      author: currentProject?.author,
     });
   };
 
@@ -93,17 +102,23 @@ export function EditorPage() {
     <div className="flex h-full flex-col">
       <div className="border-b border-[var(--color-border)] px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">{currentProject.title}</h1>
-            {currentProject.author && (
-              <p className="text-sm text-[var(--color-text-secondary)]">{currentProject.author}</p>
-            )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="rounded p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+            >
+              {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+            </button>
+            <div>
+              <h1 className="text-xl font-bold">{currentProject.title}</h1>
+              {currentProject.author && (
+                <p className="text-sm text-[var(--color-text-secondary)]">{currentProject.author}</p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative group">
-              <button
-                className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
-              >
+              <button className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]">
                 <Download size={16} />
                 导出
               </button>
@@ -123,7 +138,10 @@ export function EditorPage() {
               </div>
             </div>
             <button
-              onClick={() => setCurrentProject(null)}
+              onClick={() => {
+                setCurrentProject(null);
+                setCurrentChapter(null);
+              }}
               className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
             >
               返回列表
@@ -131,12 +149,32 @@ export function EditorPage() {
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-hidden">
-        <Editor
-          content={currentProject.content}
-          placeholder="开始你的创作..."
-          onUpdate={(content) => updateContent(currentProject.id, content)}
-        />
+
+      <div className="flex flex-1 overflow-hidden">
+        {sidebarOpen && (
+          <div className="w-48 border-r border-[var(--color-border)]">
+            <ChapterList
+              projectId={currentProject.id}
+              onSelectChapter={handleSelectChapter}
+              currentChapterId={currentChapter?.id}
+            />
+          </div>
+        )}
+
+        <div className="flex-1 overflow-hidden">
+          {currentChapter ? (
+            <Editor
+              content={currentChapter.content}
+              placeholder={`开始写作 ${currentChapter.title}...`}
+              onUpdate={(content) => updateChapterContent(currentChapter.id, content)}
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-4">
+              <BookOpen size={48} className="text-[var(--color-text-secondary)]" />
+              <p className="text-[var(--color-text-secondary)]">选择一个章节开始写作</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
