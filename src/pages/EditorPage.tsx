@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, BookOpen, Trash2, Download } from "lucide-react";
 import { NewProjectDialog, NewProject } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
@@ -7,20 +7,19 @@ import { exportService } from "../services";
 
 export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editorContent, setEditorContent] = useState("");
-  const { projects, currentProject, addProject, setCurrentProject, deleteProject } = useProjectStore();
+  const { projects, currentProject, addProject, setCurrentProject, deleteProject, updateContent } = useProjectStore();
 
   const handleCreateProject = (project: NewProject) => {
     addProject(project);
   };
 
   const handleExport = async (format: "txt" | "markdown") => {
-    if (!currentProject || !editorContent) return;
+    if (!currentProject || !currentProject.content) return;
 
     await exportService.exportToFile({
       format,
       filename: currentProject.title,
-      content: editorContent,
+      content: currentProject.content,
       title: currentProject.title,
       author: currentProject.author,
     });
@@ -134,8 +133,9 @@ export function EditorPage() {
       </div>
       <div className="flex-1 overflow-hidden">
         <Editor
+          content={currentProject.content}
           placeholder="开始你的创作..."
-          onUpdate={setEditorContent}
+          onUpdate={(content) => updateContent(currentProject.id, content)}
         />
       </div>
     </div>
