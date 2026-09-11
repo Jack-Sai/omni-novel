@@ -38,3 +38,6 @@ src-tauri/gen/schemas
 # OS files
 Thumbs.db
 Desktop.ini
+
+# Memory files
+.opencode/
