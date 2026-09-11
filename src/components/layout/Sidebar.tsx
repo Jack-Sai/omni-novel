@@ -1,4 +1,4 @@
-import { BookOpen, FileText, Users, Map, Settings, Sparkles } from "lucide-react";
+import { BookOpen, FileText, Users, Map, Eye, Settings, Sparkles } from "lucide-react";
 import { ThemeToggle } from "../ui";
 
 interface SidebarProps {
@@ -11,6 +11,7 @@ const menuItems = [
   { id: "outline", icon: BookOpen, label: "大纲" },
   { id: "characters", icon: Users, label: "人物" },
   { id: "worldview", icon: Map, label: "世界观" },
+  { id: "foreshadowing", icon: Eye, label: "伏笔" },
   { id: "ai", icon: Sparkles, label: "AI 助手" },
   { id: "settings", icon: Settings, label: "设置" },
 ];
