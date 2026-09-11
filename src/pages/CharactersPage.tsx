@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, User, Trash2, ArrowLeft, Save } from "lucide-react";
+import { Plus, User, Trash2, ArrowLeft } from "lucide-react";
 import { useCharacterStore, Character } from "../stores/characterStore";
 import { useProjectStore } from "../stores/projectStore";
 

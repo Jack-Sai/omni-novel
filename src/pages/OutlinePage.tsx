@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, FileText, MapPin, Users } from "lucide-react";
-import { useOutlineStore, Volume, OutlineChapter, Scene } from "../stores/outlineStore";
+import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, FileText, MapPin } from "lucide-react";
+import { useOutlineStore } from "../stores/outlineStore";
 import { useProjectStore } from "../stores/projectStore";
 
 export function OutlinePage() {
