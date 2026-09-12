@@ -1,14 +1,19 @@
-import { useState } from "react";
-import { Save, Check } from "lucide-react";
+import { useState, useRef } from "react";
+import { Save, Check, Download, Upload, AlertTriangle } from "lucide-react";
 import { ThemeToggle } from "../components/ui";
 import { useSettingsStore } from "../stores/settingsStore";
-import { ollama } from "../services";
+import { useProjectStore } from "../stores/projectStore";
+import { ollama, BackupService } from "../services";
 
 export function SettingsPage() {
   const { ai, updateAISettings } = useSettingsStore();
+  const { currentProject } = useProjectStore();
   const [saved, setSaved] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importSuccess, setImportSuccess] = useState<boolean | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     ollama.updateConfig({
@@ -30,6 +35,34 @@ export function SettingsPage() {
       setModels([]);
     }
     setTesting(false);
+  };
+
+  const handleExportBackup = async () => {
+    await BackupService.exportBackup();
+  };
+
+  const handleExportProject = async () => {
+    if (currentProject) {
+      await BackupService.exportProject(currentProject.id);
+    }
+  };
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportSuccess(null);
+
+    const success = await BackupService.importBackup(file);
+    setImportSuccess(success);
+    setImporting(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    setTimeout(() => setImportSuccess(null), 3000);
   };
 
   return (
@@ -178,6 +211,72 @@ export function SettingsPage() {
                 step="256"
               />
               <p className="mt-1 text-xs text-[var(--color-text-secondary)]">单次生成的最大长度</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+          <h2 className="mb-3 font-semibold">数据备份与恢复</h2>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">导出所有数据</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">备份所有项目、章节、人物、世界观等数据</p>
+              </div>
+              <button
+                onClick={handleExportBackup}
+                className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg)]"
+              >
+                <Download size={16} />
+                导出备份
+              </button>
+            </div>
+
+            {currentProject && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">导出当前项目</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">仅备份当前项目的数据</p>
+                </div>
+                <button
+                  onClick={handleExportProject}
+                  className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg)]"
+                >
+                  <Download size={16} />
+                  导出项目
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">导入备份</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">从备份文件恢复数据（将覆盖当前数据）</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {importSuccess !== null && (
+                  <span className={`text-sm ${importSuccess ? "text-green-500" : "text-red-500"}`}>
+                    {importSuccess ? "导入成功" : "导入失败"}
+                  </span>
+                )}
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg)]">
+                  <Upload size={16} />
+                  {importing ? "导入中..." : "导入备份"}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportBackup}
+                    className="hidden"
+                    disabled={importing}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <p>导入备份将覆盖当前所有数据，请确保已备份重要数据。</p>
             </div>
           </div>
         </section>
