@@ -1,10 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, BookOpen, MoreVertical, Trash2, Edit, Calendar, LogOut, FileText } from "lucide-react";
+import { Plus, BookOpen, MoreVertical, Trash2, Edit, Calendar, FileText } from "lucide-react";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore } from "../stores/chapterStore";
-import { useUserStore } from "../stores/userStore";
-import { projectDb } from "../services/database";
 import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -25,7 +23,6 @@ function getWordCount(content: string): number {
 
 export function BookshelfPage() {
   const navigate = useNavigate();
-  const { currentUser, logout } = useUserStore();
   const { projects, setCurrentProject, deleteProject } = useProjectStore();
   const { chapters } = useChapterStore();
   const [showMenu, setShowMenu] = useState<string | null>(null);
@@ -41,36 +38,6 @@ export function BookshelfPage() {
     return wordCounts;
   }, [projects, chapters]);
 
-  useEffect(() => {
-    if (!currentUser) {
-      navigate("/login");
-      return;
-    }
-    loadProjects();
-  }, [currentUser, navigate]);
-
-  const loadProjects = async () => {
-    if (!currentUser) return;
-    try {
-      const userProjects = await projectDb.getByUserId(currentUser.id);
-      // 映射数据库字段名到 Zustand 接口
-      const mappedProjects = userProjects.map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        author: p.author || "",
-        genre: p.genre || "",
-        synopsis: p.synopsis || "",
-        content: p.content || "",
-        storagePath: p.storage_path || undefined,
-        createdAt: p.created_at,
-        updatedAt: p.updated_at,
-      }));
-      useProjectStore.setState({ projects: mappedProjects });
-    } catch (error) {
-      console.error("Failed to load projects:", error);
-    }
-  };
-
   const handleCreateProject = () => {
     navigate("/new-project");
   };
@@ -82,15 +49,9 @@ export function BookshelfPage() {
 
   const handleDeleteProject = async (projectId: string) => {
     if (confirm("确定要删除这个项目吗？")) {
-      await projectDb.delete(projectId);
       deleteProject(projectId);
       setShowMenu(null);
     }
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
   };
 
   const formatDate = (dateString: string) => {
@@ -107,14 +68,10 @@ export function BookshelfPage() {
         title="我的书架"
         description={`${projects.length} 部作品`}
         actions={
-          <>
-            <span className="text-sm text-ink-2">
-              {currentUser?.display_name || currentUser?.username}
-            </span>
-            <Button variant="ghost" size="icon-sm" onClick={handleLogout} title="退出登录">
-              <LogOut size={16} />
-            </Button>
-          </>
+          <Button variant="primary" onClick={handleCreateProject}>
+            <Plus size={15} />
+            新建作品
+          </Button>
         }
       />
 

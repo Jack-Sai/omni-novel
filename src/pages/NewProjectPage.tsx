@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useUserStore } from "../stores/userStore";
-import { projectDb, createProjectDir } from "../services";
+import { createProjectDir } from "../services";
 import { useProjectStore } from "../stores/projectStore";
 import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Section } from "../components/ui/Section";
@@ -30,8 +29,6 @@ const genres = [
 
 export function NewProjectPage() {
   const navigate = useNavigate();
-  const { currentUser } = useUserStore();
-  const { setCurrentProject } = useProjectStore();
 
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
@@ -66,32 +63,31 @@ export function NewProjectPage() {
       return;
     }
 
-    if (!currentUser) {
-      setError("请先登录");
-      return;
-    }
-
     setIsSubmitting(true);
     setError("");
 
     try {
-      const newProject = await projectDb.create({
-        user_id: currentUser.id,
+      // 直接创建项目到 Zustand store
+      const newProject = {
         title: title.trim(),
-        author: author.trim() || currentUser.display_name,
+        author: author.trim() || "匿名作者",
         genre,
         synopsis: synopsis.trim(),
-        storage_path: storagePath,
-      });
+        storagePath: storagePath || undefined,
+      };
 
-      if (newProject) {
+      // 使用 projectStore 的 addProject
+      useProjectStore.getState().addProject(newProject);
+      const currentProject = useProjectStore.getState().currentProject;
+
+      if (currentProject) {
         // 如果指定了存储路径，创建项目目录
         if (storagePath) {
           try {
             await createProjectDir(storagePath, title.trim(), {
-              id: newProject.id,
+              id: currentProject.id,
               title: title.trim(),
-              author: author.trim() || currentUser.display_name,
+              author: author.trim() || "匿名作者",
               genre,
               synopsis: synopsis.trim(),
               targetWords,
@@ -101,10 +97,6 @@ export function NewProjectPage() {
           }
         }
 
-        setCurrentProject({
-          ...newProject,
-          storagePath: storagePath || undefined,
-        } as any);
         navigate("/editor");
       }
     } catch (err) {
