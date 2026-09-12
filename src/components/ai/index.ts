@@ -1,1 +1,1 @@
-export { AIAction } from "./AIAction";
+export { AIPanel } from "./AIPanel";
