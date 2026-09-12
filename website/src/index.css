@@ -1,1 +1,270 @@
 @import "tailwindcss";
+
+/* ==========================================================================
+   Omni Novel 官网 · 设计系统
+   与桌面应用保持一致的令牌体系
+   ========================================================================== */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* --------------------------------------------------------------------------
+   语义令牌 → Tailwind 工具类
+   -------------------------------------------------------------------------- */
+@theme {
+  --color-canvas: var(--app-canvas);
+  --color-subtle: var(--app-subtle);
+  --color-surface: var(--app-surface);
+  --color-elevated: var(--app-elevated);
+  --color-hover: var(--app-hover);
+
+  --color-line: var(--app-line);
+  --color-line-strong: var(--app-line-strong);
+
+  --color-ink: var(--app-ink);
+  --color-ink-2: var(--app-ink-2);
+  --color-ink-3: var(--app-ink-3);
+  --color-ink-inverse: var(--app-ink-inverse);
+
+  --color-primary: var(--app-primary);
+  --color-primary-hover: var(--app-primary-hover);
+  --color-primary-soft: var(--app-primary-soft);
+  --color-primary-line: var(--app-primary-line);
+  --color-on-primary: var(--app-on-primary);
+
+  --color-success: var(--app-success);
+  --color-success-soft: var(--app-success-soft);
+  --color-success-line: var(--app-success-line);
+
+  --color-warning: var(--app-warning);
+  --color-warning-soft: var(--app-warning-soft);
+  --color-warning-line: var(--app-warning-line);
+
+  --color-danger: var(--app-danger);
+  --color-danger-soft: var(--app-danger-soft);
+  --color-danger-line: var(--app-danger-line);
+  --color-on-danger: var(--app-on-danger);
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+
+  --shadow-xs: 0 1px 2px 0 var(--app-shadow-color);
+  --shadow-sm: 0 1px 3px 0 var(--app-shadow-color), 0 1px 2px -1px var(--app-shadow-color);
+  --shadow-md: 0 6px 16px -4px var(--app-shadow-color-lg), 0 2px 6px -2px var(--app-shadow-color);
+  --shadow-lg: 0 16px 40px -8px var(--app-shadow-color-lg), 0 6px 14px -6px var(--app-shadow-color);
+  --shadow-xl: 0 32px 64px -16px var(--app-shadow-color-xl);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC",
+    system-ui, sans-serif;
+  --font-serif: "Source Han Serif SC", "Songti SC", "Noto Serif CJK SC", "SimSun",
+    Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Mono",
+    Menlo, Consolas, "Liberation Mono", monospace;
+
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* --------------------------------------------------------------------------
+   令牌取值（无层级，保证不被任何 layer 压掉）
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  --app-subtle: #f1f5f9;
+  --app-canvas: #f8fafc;
+  --app-surface: #ffffff;
+  --app-elevated: #ffffff;
+  --app-hover: #e8eef6;
+
+  --app-line: #e6ebf2;
+  --app-line-strong: #cbd5e1;
+
+  --app-ink: #0f172a;
+  --app-ink-2: #5b6b80;
+  --app-ink-3: #94a3b8;
+  --app-ink-inverse: #ffffff;
+
+  --app-primary: #2563eb;
+  --app-primary-hover: #1d4ed8;
+  --app-primary-soft: #eef4ff;
+  --app-primary-line: #c7d9fd;
+  --app-on-primary: #ffffff;
+
+  --app-success: #15803d;
+  --app-success-soft: #f0fdf4;
+  --app-success-line: #bbf7d0;
+
+  --app-warning: #b45309;
+  --app-warning-soft: #fffbeb;
+  --app-warning-line: #fde68a;
+
+  --app-danger: #dc2626;
+  --app-danger-soft: #fef2f2;
+  --app-danger-line: #fecaca;
+  --app-on-danger: #ffffff;
+
+  --app-shadow-color: rgb(15 23 42 / 0.05);
+  --app-shadow-color-lg: rgb(15 23 42 / 0.1);
+  --app-shadow-color-xl: rgb(15 23 42 / 0.18);
+
+  --app-ring: rgb(37 99 235 / 0.3);
+  --app-ring-danger: rgb(220 38 38 / 0.3);
+
+  --app-scrollbar: rgb(15 23 42 / 0.18);
+  --app-scrollbar-hover: rgb(15 23 42 / 0.32);
+
+  --app-scrim: rgb(15 23 42 / 0.4);
+  --app-selection: rgb(37 99 235 / 0.16);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --app-subtle: #0a0e15;
+  --app-canvas: #0e131b;
+  --app-surface: #161d28;
+  --app-elevated: #1c2532;
+  --app-hover: #202b3a;
+
+  --app-line: #242e3c;
+  --app-line-strong: #46566e;
+
+  --app-ink: #e9eef5;
+  --app-ink-2: #94a3b8;
+  --app-ink-3: #64748b;
+  --app-ink-inverse: #0c1017;
+
+  --app-primary: #3b82f6;
+  --app-primary-hover: #60a5fa;
+  --app-primary-soft: #15263d;
+  --app-primary-line: #1e3a5f;
+  --app-on-primary: #ffffff;
+
+  --app-success: #4ade80;
+  --app-success-soft: #0f2a1c;
+  --app-success-line: #1d4a30;
+
+  --app-warning: #fbbf24;
+  --app-warning-soft: #2c2310;
+  --app-warning-line: #4a3a15;
+
+  --app-danger: #f87171;
+  --app-danger-soft: #2d1618;
+  --app-danger-line: #4a2226;
+  --app-on-danger: #1c0e10;
+
+  --app-shadow-color: rgb(0 0 0 / 0.35);
+  --app-shadow-color-lg: rgb(0 0 0 / 0.45);
+  --app-shadow-color-xl: rgb(0 0 0 / 0.6);
+
+  --app-ring: rgb(96 165 250 / 0.45);
+  --app-ring-danger: rgb(248 113 113 / 0.45);
+
+  --app-scrollbar: rgb(255 255 255 / 0.14);
+  --app-scrollbar-hover: rgb(255 255 255 / 0.26);
+
+  --app-scrim: rgb(0 0 0 / 0.6);
+  --app-selection: rgb(96 165 250 / 0.26);
+}
+
+/* --------------------------------------------------------------------------
+   基础层
+   -------------------------------------------------------------------------- */
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--app-canvas);
+    color: var(--app-ink);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  ::selection {
+    background-color: var(--app-selection);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--app-primary);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--app-scrollbar) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--app-scrollbar);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--app-scrollbar-hover);
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   动效
+   -------------------------------------------------------------------------- */
+@keyframes omni-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes omni-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.omni-pop {
+  animation: omni-fade-up 160ms var(--ease-out-expo);
+}
+
+.omni-fade-in {
+  animation: omni-fade-in 300ms var(--ease-smooth);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
