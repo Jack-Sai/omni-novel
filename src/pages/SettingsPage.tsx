@@ -71,7 +71,7 @@ export function SettingsPage() {
       min: "0",
       max: "2",
       step: "0.1",
-      hint: "越高越随机",
+      hint: "控制输出随机性。0 = 确定性输出，越高越发散和创造性。推荐写作场景设 0.7~0.9",
       onChange: (v: string) => updateAISettings({ temperature: parseFloat(v) }),
     },
     {
@@ -80,7 +80,7 @@ export function SettingsPage() {
       min: "0",
       max: "1",
       step: "0.05",
-      hint: "采样范围",
+      hint: "核采样阈值。从概率累计达到 P 的词中采样。0.9 表示过滤掉最不靠谱的 10% 词汇",
       onChange: (v: string) => updateAISettings({ topP: parseFloat(v) }),
     },
     {
@@ -89,7 +89,7 @@ export function SettingsPage() {
       min: "1",
       max: "100",
       step: "1",
-      hint: "候选词数量",
+      hint: "每步仅从概率最高的 K 个候选词中选择。值越小输出越集中，越大越多样",
       onChange: (v: string) => updateAISettings({ topK: parseInt(v) }),
     },
     {
@@ -98,7 +98,7 @@ export function SettingsPage() {
       min: "1",
       max: "2",
       step: "0.1",
-      hint: "抑制重复用词",
+      hint: "惩罚已出现过的词，减少重复。1.0 = 不惩罚，1.1~1.3 适合大多数场景",
       onChange: (v: string) => updateAISettings({ repeatPenalty: parseFloat(v) }),
     },
   ];
@@ -198,7 +198,7 @@ export function SettingsPage() {
               ))}
             </div>
 
-            <Field label="最大 Token 数" hint="单次生成的最大长度">
+            <Field label="最大 Token 数" hint="单次生成的最大长度。1 中文字 ≈ 1.5~2 token，2048 ≈ 1000~1300 字">
               <Input
                 type="number"
                 value={ai.maxTokens}
