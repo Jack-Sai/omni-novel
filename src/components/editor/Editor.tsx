@@ -1,22 +1,24 @@
-import { useState } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { forwardRef, useImperativeHandle } from "react";
+import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount } from "@tiptap/extensions";
-import { Sparkles } from "lucide-react";
 import { Toolbar } from "./Toolbar";
-import { AIAction } from "../ai";
-import { Button } from "../ui";
+
+export interface EditorRef {
+  getEditor: () => TiptapEditor | null;
+}
 
 interface EditorProps {
   content?: string;
   onUpdate?: (content: string) => void;
+  onSelectionUpdate?: (selectedText: string) => void;
   placeholder?: string;
 }
 
-export function Editor({ content = "", onUpdate, placeholder = "开始写作…" }: EditorProps) {
-  const [showAI, setShowAI] = useState(false);
-  const [selectedText, setSelectedText] = useState("");
-
+export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
+  { content = "", onUpdate, onSelectionUpdate, placeholder = "开始写作…" },
+  ref,
+) {
   const editor = useEditor({
     extensions: [StarterKit, CharacterCount],
     content,
@@ -32,24 +34,16 @@ export function Editor({ content = "", onUpdate, placeholder = "开始写作…"
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;
       if (from !== to) {
-        setSelectedText(editor.state.doc.textBetween(from, to));
+        onSelectionUpdate?.(editor.state.doc.textBetween(from, to));
       } else {
-        setSelectedText("");
+        onSelectionUpdate?.("");
       }
     },
   });
 
-  const handleApplyAI = (result: string) => {
-    if (!editor) return;
-
-    const { from, to } = editor.state.selection;
-    if (from !== to) {
-      editor.chain().focus().deleteSelection().insertContent(result).run();
-    } else {
-      editor.chain().focus().insertContent(result).run();
-    }
-    onUpdate?.(editor.getHTML());
-  };
+  useImperativeHandle(ref, () => ({
+    getEditor: () => editor,
+  }));
 
   if (!editor) {
     return null;
@@ -59,27 +53,6 @@ export function Editor({ content = "", onUpdate, placeholder = "开始写作…"
     <div className="flex min-h-0 flex-1 flex-col bg-surface">
       <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface px-4 py-2">
         <Toolbar editor={editor} />
-
-        {/* 面板锚定在按钮下方，避免溢出到编辑区之外 */}
-        <div className="relative ml-auto shrink-0">
-          <Button
-            variant={showAI ? "primary" : "secondary"}
-            size="sm"
-            aria-pressed={showAI}
-            onClick={() => setShowAI(!showAI)}
-          >
-            <Sparkles size={13} />
-            AI 助手
-          </Button>
-
-          {showAI && (
-            <AIAction
-              selectedText={selectedText}
-              onApply={handleApplyAI}
-              onClose={() => setShowAI(false)}
-            />
-          )}
-        </div>
       </div>
 
       <div className="flex-1 overflow-auto bg-surface">
@@ -89,4 +62,4 @@ export function Editor({ content = "", onUpdate, placeholder = "开始写作…"
       </div>
     </div>
   );
-}
+});
