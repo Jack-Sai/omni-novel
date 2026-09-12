@@ -92,7 +92,7 @@ export function SettingsPage() {
   };
 
   const isOllama = ai.backend === "ollama";
-  const backendPreset = backendPresets[ai.backend];
+  const backendPreset = backendPresets[ai.backend ?? "ollama"];
 
   const sliders = [
     {
