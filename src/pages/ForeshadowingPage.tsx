@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Plus, Eye, Trash2, ArrowLeft, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import { useForeshadowingStore, Foreshadowing, ForeshadowingStatus } from "../stores/foreshadowingStore";
 import { useProjectStore } from "../stores/projectStore";
@@ -16,31 +16,36 @@ export function ForeshadowingPage() {
   const [newName, setNewName] = useState("");
   const [filterStatus, setFilterStatus] = useState<ForeshadowingStatus | "all">("all");
 
-  const projectItems = currentProject
-    ? items.filter((item) => item.projectId === currentProject.id)
-    : [];
+  const projectItems = useMemo(() => {
+    return currentProject
+      ? items.filter((item) => item.projectId === currentProject.id)
+      : [];
+  }, [items, currentProject]);
 
-  const filteredItems =
-    filterStatus === "all" ? projectItems : projectItems.filter((item) => item.status === filterStatus);
+  const filteredItems = useMemo(() => {
+    return filterStatus === "all" ? projectItems : projectItems.filter((item) => item.status === filterStatus);
+  }, [projectItems, filterStatus]);
 
-  const stats = {
-    total: projectItems.length,
-    planted: projectItems.filter((i) => i.status === "planted").length,
-    revealed: projectItems.filter((i) => i.status === "revealed").length,
-    abandoned: projectItems.filter((i) => i.status === "abandoned").length,
-  };
+  const stats = useMemo(() => {
+    return {
+      total: projectItems.length,
+      planted: projectItems.filter((i) => i.status === "planted").length,
+      revealed: projectItems.filter((i) => i.status === "revealed").length,
+      abandoned: projectItems.filter((i) => i.status === "abandoned").length,
+    };
+  }, [projectItems]);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     if (!newName.trim() || !currentProject) return;
     addItem(currentProject.id, newName.trim());
     setNewName("");
     setShowAdd(false);
-  };
+  }, [newName, currentProject, addItem]);
 
-  const handleUpdate = (updates: Partial<Foreshadowing>) => {
+  const handleUpdate = useCallback((updates: Partial<Foreshadowing>) => {
     if (!currentItem) return;
     updateItem(currentItem.id, updates);
-  };
+  }, [currentItem, updateItem]);
 
   if (!currentProject) {
     return (

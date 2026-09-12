@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Plus, Map, Trash2, ArrowLeft, Globe, Building2, Swords, Zap, Scroll, History } from "lucide-react";
 import { useWorldviewStore, WorldviewItem, WorldviewType, worldviewTypes } from "../stores/worldviewStore";
 import { useProjectStore } from "../stores/projectStore";
@@ -24,24 +24,27 @@ export function WorldviewPage() {
   const [newType, setNewType] = useState<WorldviewType>("location");
   const [filterType, setFilterType] = useState<WorldviewType | "all">("all");
 
-  const projectItems = currentProject
-    ? items.filter((item) => item.projectId === currentProject.id)
-    : [];
+  const projectItems = useMemo(() => {
+    return currentProject
+      ? items.filter((item) => item.projectId === currentProject.id)
+      : [];
+  }, [items, currentProject]);
 
-  const filteredItems =
-    filterType === "all" ? projectItems : projectItems.filter((item) => item.type === filterType);
+  const filteredItems = useMemo(() => {
+    return filterType === "all" ? projectItems : projectItems.filter((item) => item.type === filterType);
+  }, [projectItems, filterType]);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     if (!newName.trim() || !currentProject) return;
     addItem(currentProject.id, newName.trim(), newType);
     setNewName("");
     setShowAdd(false);
-  };
+  }, [newName, currentProject, addItem, newType]);
 
-  const handleUpdate = (updates: Partial<WorldviewItem>) => {
+  const handleUpdate = useCallback((updates: Partial<WorldviewItem>) => {
     if (!currentItem) return;
     updateItem(currentItem.id, updates);
-  };
+  }, [currentItem, updateItem]);
 
   if (!currentProject) {
     return (

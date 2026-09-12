@@ -25,12 +25,12 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-[var(--color-bg-secondary)]">
       <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-        <span className="font-medium">章节</span>
+        <span className="font-medium text-[var(--color-text)]">章节</span>
         <button
           onClick={() => setIsAdding(true)}
-          className="rounded p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
+          className="rounded-lg p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
         >
           <Plus size={16} />
         </button>
@@ -39,30 +39,47 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
       <div className="flex-1 overflow-auto">
         {projectChapters.length === 0 && !isAdding ? (
           <div className="flex h-full flex-col items-center justify-center p-4">
-            <FileText size={32} className="mb-2 text-[var(--color-text-secondary)]" />
+            <FileText size={40} className="mb-3 text-[var(--color-text-secondary)]" />
             <p className="text-sm text-[var(--color-text-secondary)]">暂无章节</p>
+            <button
+              onClick={() => setIsAdding(true)}
+              className="mt-3 text-sm text-[var(--color-primary)] hover:underline"
+            >
+              创建第一个章节
+            </button>
           </div>
         ) : (
           <div className="p-2">
-            {projectChapters.map((chapter) => (
+            {projectChapters.map((chapter, index) => (
               <div
                 key={chapter.id}
                 onClick={() => onSelectChapter(chapter)}
-                className={`group flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition
-                  ${
-                    currentChapterId === chapter.id
-                      ? "bg-[var(--color-primary-light)] text-[var(--color-primary)]"
-                      : "hover:bg-[var(--color-bg-secondary)]"
-                  }`}
+                className={`group flex items-center gap-3 rounded-lg px-3 py-3 cursor-pointer transition ${
+                  currentChapterId === chapter.id
+                    ? "bg-[var(--color-primary)] text-white"
+                    : "hover:bg-[var(--color-border)]"
+                }`}
               >
-                <GripVertical size={14} className="text-[var(--color-text-secondary)] opacity-0 group-hover:opacity-100" />
+                <GripVertical
+                  size={14}
+                  className={`${
+                    currentChapterId === chapter.id ? "text-white/70" : "text-[var(--color-text-secondary)]"
+                  } opacity-0 group-hover:opacity-100`}
+                />
+                <span className={`text-xs ${
+                  currentChapterId === chapter.id ? "text-white/70" : "text-[var(--color-text-secondary)]"
+                }`}>
+                  {index + 1}
+                </span>
                 <span className="flex-1 truncate text-sm">{chapter.title}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     deleteChapter(chapter.id);
                   }}
-                  className="rounded p-1 text-[var(--color-text-secondary)] opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100"
+                  className={`rounded p-1 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 ${
+                    currentChapterId === chapter.id ? "text-white/70 hover:bg-white/20 hover:text-white" : "text-[var(--color-text-secondary)]"
+                  }`}
                 >
                   <Trash2 size={12} />
                 </button>

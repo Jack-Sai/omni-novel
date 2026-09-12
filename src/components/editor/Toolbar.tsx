@@ -53,22 +53,20 @@ export function Toolbar({ editor }: ToolbarProps) {
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)] px-2 py-1">
+    <div className="flex flex-wrap items-center gap-1">
       {groups.map((group, groupIndex) => (
         <div key={groupIndex} className="flex items-center">
-          {groupIndex > 0 && <div className="mx-1 h-6 w-px bg-[var(--color-border)]" />}
+          {groupIndex > 0 && <div className="mx-2 h-5 w-px bg-[var(--color-border)]" />}
           {group.items.map((item, itemIndex) => (
             <button
               key={itemIndex}
               onClick={item.action}
               disabled={item.disabled}
-              className={`flex h-8 w-8 items-center justify-center rounded transition
-                ${
-                  item.active
-                    ? "bg-[var(--color-primary)] text-white"
-                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
-                }
-                ${item.disabled ? "cursor-not-allowed opacity-50" : ""}`}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                item.active
+                  ? "bg-[var(--color-primary)] text-white"
+                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
+              } ${item.disabled ? "cursor-not-allowed opacity-50" : ""}`}
               title={item.icon.displayName}
             >
               <item.icon size={16} />

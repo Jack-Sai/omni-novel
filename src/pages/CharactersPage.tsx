@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Plus, User, Trash2, ArrowLeft } from "lucide-react";
 import { useCharacterStore, Character } from "../stores/characterStore";
 import { useProjectStore } from "../stores/projectStore";
@@ -9,21 +9,23 @@ export function CharactersPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
 
-  const projectCharacters = currentProject
-    ? characters.filter((c) => c.projectId === currentProject.id)
-    : [];
+  const projectCharacters = useMemo(() => {
+    return currentProject
+      ? characters.filter((c) => c.projectId === currentProject.id)
+      : [];
+  }, [characters, currentProject]);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     if (!newName.trim() || !currentProject) return;
     addCharacter(currentProject.id, newName.trim());
     setNewName("");
     setShowAdd(false);
-  };
+  }, [newName, currentProject, addCharacter]);
 
-  const handleUpdate = (updates: Partial<Character>) => {
+  const handleUpdate = useCallback((updates: Partial<Character>) => {
     if (!currentCharacter) return;
     updateCharacter(currentCharacter.id, updates);
-  };
+  }, [currentCharacter, updateCharacter]);
 
   if (!currentProject) {
     return (

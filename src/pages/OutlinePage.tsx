@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, FileText, MapPin } from "lucide-react";
 import { useOutlineStore } from "../stores/outlineStore";
 import { useProjectStore } from "../stores/projectStore";
@@ -21,50 +21,56 @@ export function OutlinePage() {
   const [showAddScene, setShowAddScene] = useState<{ volumeId: string; chapterId: string } | null>(null);
   const [newTitle, setNewTitle] = useState("");
 
-  const projectVolumes = currentProject
-    ? volumes.filter((v) => v.projectId === currentProject.id).sort((a, b) => a.order - b.order)
-    : [];
+  const projectVolumes = useMemo(() => {
+    return currentProject
+      ? volumes.filter((v) => v.projectId === currentProject.id).sort((a, b) => a.order - b.order)
+      : [];
+  }, [volumes, currentProject]);
 
-  const toggleVolume = (id: string) => {
-    const newExpanded = new Set(expandedVolumes);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedVolumes(newExpanded);
-  };
+  const toggleVolume = useCallback((id: string) => {
+    setExpandedVolumes((prev) => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(id)) {
+        newExpanded.delete(id);
+      } else {
+        newExpanded.add(id);
+      }
+      return newExpanded;
+    });
+  }, []);
 
-  const toggleChapter = (id: string) => {
-    const newExpanded = new Set(expandedChapters);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedChapters(newExpanded);
-  };
+  const toggleChapter = useCallback((id: string) => {
+    setExpandedChapters((prev) => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(id)) {
+        newExpanded.delete(id);
+      } else {
+        newExpanded.add(id);
+      }
+      return newExpanded;
+    });
+  }, []);
 
-  const handleAddVolume = () => {
+  const handleAddVolume = useCallback(() => {
     if (!newTitle.trim() || !currentProject) return;
     addVolume(currentProject.id, newTitle.trim());
     setNewTitle("");
     setShowAddVolume(false);
-  };
+  }, [newTitle, currentProject, addVolume]);
 
-  const handleAddChapter = (volumeId: string) => {
+  const handleAddChapter = useCallback((volumeId: string) => {
     if (!newTitle.trim()) return;
     addChapter(volumeId, newTitle.trim());
     setNewTitle("");
     setShowAddChapter(null);
-  };
+  }, [newTitle, addChapter]);
 
-  const handleAddScene = (volumeId: string, chapterId: string) => {
+  const handleAddScene = useCallback((volumeId: string, chapterId: string) => {
     if (!newTitle.trim()) return;
     addScene(volumeId, chapterId, newTitle.trim());
     setNewTitle("");
     setShowAddScene(null);
-  };
+  }, [newTitle, addScene]);
 
   if (!currentProject) {
     return (

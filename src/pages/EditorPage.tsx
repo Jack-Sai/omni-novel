@@ -71,11 +71,19 @@ export function EditorPage() {
     });
   };
 
+  const handleExportAll = async (format: "txt" | "markdown" | "html" | "docx") => {
+    if (!currentProject) return;
+    await ExportService.exportProject(currentProject.id, format);
+  };
+
   if (!currentProject) {
     return (
       <div className="flex h-full flex-col p-6">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">我的项目</h1>
+          <div>
+            <h1 className="text-2xl font-bold">我的项目</h1>
+            <p className="text-sm text-[var(--color-text-secondary)]">管理您的小说创作项目</p>
+          </div>
           <button
             onClick={() => setDialogOpen(true)}
             className="flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-white transition hover:bg-[var(--color-primary-hover)]"
@@ -87,40 +95,52 @@ export function EditorPage() {
 
         {projects.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4">
-            <BookOpen size={48} className="text-[var(--color-text-secondary)]" />
-            <p className="text-[var(--color-text-secondary)]">还没有项目，开始创建吧</p>
+            <BookOpen size={64} className="text-[var(--color-text-secondary)]" />
+            <p className="text-lg text-[var(--color-text-secondary)]">还没有项目，开始创作吧</p>
+            <button
+              onClick={() => setDialogOpen(true)}
+              className="mt-4 flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-6 py-3 text-white transition hover:bg-[var(--color-primary-hover)]"
+            >
+              <Plus size={20} />
+              创建第一个项目
+            </button>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {projects.map((project) => (
               <div
                 key={project.id}
-                className="group relative cursor-pointer rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4 transition hover:border-[var(--color-primary)]"
+                className="group relative cursor-pointer rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 transition hover:border-[var(--color-primary)] hover:shadow-lg"
                 onClick={() => setCurrentProject(project)}
               >
-                <h3 className="mb-2 text-lg font-semibold">{project.title}</h3>
+                <div className="mb-3 flex items-start justify-between">
+                  <h3 className="text-lg font-semibold">{project.title}</h3>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteProject(project.id);
+                    }}
+                    className="rounded p-1 text-[var(--color-text-secondary)] opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
                 {project.author && (
-                  <p className="mb-1 text-sm text-[var(--color-text-secondary)]">作者：{project.author}</p>
+                  <p className="mb-2 text-sm text-[var(--color-text-secondary)]">作者：{project.author}</p>
                 )}
                 {project.genre && (
-                  <span className="mb-2 inline-block rounded-full bg-[var(--color-primary-light)] px-2 py-0.5 text-xs text-[var(--color-primary)]">
+                  <span className="mb-3 inline-block rounded-full bg-[var(--color-primary-light)] px-3 py-1 text-xs text-[var(--color-primary)]">
                     {project.genre}
                   </span>
                 )}
                 {project.synopsis && (
-                  <p className="mt-2 line-clamp-2 text-sm text-[var(--color-text-secondary)]">
+                  <p className="mt-3 line-clamp-3 text-sm text-[var(--color-text-secondary)]">
                     {project.synopsis}
                   </p>
                 )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteProject(project.id);
-                  }}
-                  className="absolute right-2 top-2 rounded p-1 text-[var(--color-text-secondary)] opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="mt-4 flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                  <span>创建于 {new Date(project.createdAt).toLocaleDateString()}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -137,29 +157,36 @@ export function EditorPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-[var(--color-border)] px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+        <div className="flex items-center justify-between px-6 py-3">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="rounded p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+              className="rounded-lg p-2 text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
             >
-              {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+              {sidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
             </button>
+            <div className="h-6 w-px bg-[var(--color-border)]"></div>
             <div>
               <h1 className="text-xl font-bold">{currentProject.title}</h1>
               {currentProject.author && (
-                <p className="text-sm text-[var(--color-text-secondary)]">{currentProject.author}</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">作者：{currentProject.author}</p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {lastSaved && (
+              <div className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+                <Check size={12} className="text-green-500" />
+                已保存 {lastSaved.toLocaleTimeString()}
+              </div>
+            )}
             <button
               onClick={() => setShowStats(!showStats)}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition ${
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
                 showStats
-                  ? "border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]"
-                  : "border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)]"
+                  ? "bg-[var(--color-primary)] text-white"
+                  : "bg-[var(--color-bg)] border border-[var(--color-border)] hover:bg-[var(--color-border)]"
               }`}
             >
               <BarChart3 size={16} />
@@ -167,40 +194,70 @@ export function EditorPage() {
             </button>
             <button
               onClick={() => setSettingsOpen(true)}
-              className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
+              className="flex items-center gap-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] px-3 py-2 text-sm transition hover:bg-[var(--color-border)]"
             >
               <Settings size={16} />
               项目设置
             </button>
             <div className="relative group">
-              <button className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]">
+              <button className="flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm text-white transition hover:bg-[var(--color-primary-hover)]">
                 <Download size={16} />
                 导出
               </button>
-              <div className="invisible group-hover:visible absolute right-0 top-full mt-1 w-36 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg z-10">
+              <div className="invisible group-hover:visible absolute right-0 top-full mt-1 w-48 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg z-10">
+                <div className="px-4 py-2 text-xs font-medium text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">
+                  当前章节
+                </div>
                 <button
                   onClick={() => handleExport("markdown")}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
                 >
                   导出 Markdown
                 </button>
                 <button
                   onClick={() => handleExport("txt")}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
                 >
                   导出 TXT
                 </button>
                 <button
                   onClick={() => handleExport("html")}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
                 >
                   导出 HTML
                 </button>
                 <button
                   onClick={() => handleExport("docx")}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
                 >
                   导出 DOCX
+                </button>
+                <div className="px-4 py-2 text-xs font-medium text-[var(--color-text-secondary)] border-b border-[var(--color-border)] border-t">
+                  整个项目
+                </div>
+                <button
+                  onClick={() => handleExportAll("markdown")}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                >
+                  批量导出 Markdown
+                </button>
+                <button
+                  onClick={() => handleExportAll("txt")}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                >
+                  批量导出 TXT
+                </button>
+                <button
+                  onClick={() => handleExportAll("html")}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                >
+                  批量导出 HTML
+                </button>
+                <button
+                  onClick={() => handleExportAll("docx")}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                >
+                  批量导出 DOCX
                 </button>
               </div>
             </div>
@@ -209,7 +266,7 @@ export function EditorPage() {
                 setCurrentProject(null);
                 setCurrentChapter(null);
               }}
-              className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
+              className="rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] px-3 py-2 text-sm transition hover:bg-[var(--color-border)]"
             >
               返回列表
             </button>
@@ -229,8 +286,8 @@ export function EditorPage() {
         )}
 
         {showStats && (
-          <div className="w-64 border-r border-[var(--color-border)] p-4">
-            <h3 className="mb-3 font-medium">字数统计</h3>
+          <div className="w-72 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+            <h3 className="mb-4 font-medium text-[var(--color-text)]">字数统计</h3>
             <WordStats
               totalWords={stats.totalWords}
               chapterWords={stats.chapterWords}
@@ -248,15 +305,23 @@ export function EditorPage() {
                 placeholder={`开始写作 ${currentChapter.title}...`}
                 onUpdate={(content) => updateChapterContent(currentChapter.id, content)}
               />
-              <div className="border-t border-[var(--color-border)] px-4 py-2 text-xs text-[var(--color-text-secondary)]">
-                {lastSaved ? (
-                  <span className="flex items-center gap-1">
-                    <Check size={12} className="text-green-500" />
-                    已保存 {lastSaved.toLocaleTimeString()}
-                  </span>
-                ) : (
-                  <span>自动保存已开启</span>
-                )}
+              <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-2 text-xs text-[var(--color-text-secondary)]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span>当前章节：{stats.chapterWords} 字</span>
+                    <span>项目总计：{stats.totalWords} 字</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {lastSaved ? (
+                      <>
+                        <Check size={12} className="text-green-500" />
+                        <span>已保存 {lastSaved.toLocaleTimeString()}</span>
+                      </>
+                    ) : (
+                      <span>自动保存已开启</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ) : (

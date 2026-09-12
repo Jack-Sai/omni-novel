@@ -24,7 +24,7 @@ export function Editor({ content = "", onUpdate, placeholder = "开始写作..."
     content,
     editorProps: {
       attributes: {
-        class: "prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[500px] p-4",
+        class: "prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[500px] p-8",
         "data-placeholder": placeholder,
       },
     },
@@ -63,24 +63,21 @@ export function Editor({ content = "", onUpdate, placeholder = "开始写作..."
   }
 
   return (
-    <div className="relative flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-2 py-1">
+    <div className="relative flex h-full flex-col bg-[var(--color-bg)]">
+      <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-2">
         <Toolbar editor={editor} />
         <div className="ml-auto">
           <button
             onClick={handleAIAction}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-[var(--color-primary)] hover:bg-[var(--color-primary-light)]"
+            className="flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-sm text-white transition hover:bg-[var(--color-primary-hover)]"
           >
             <Sparkles size={14} />
-            AI
+            AI 助手
           </button>
         </div>
       </div>
       <div className="flex-1 overflow-auto">
         <EditorContent editor={editor} className="h-full" />
-      </div>
-      <div className="border-t border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-secondary)]">
-        {editor.storage.characterCount.characters()} 字
       </div>
 
       {showAI && (
