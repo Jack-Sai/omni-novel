@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BookOpen, Loader2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Loader2, FolderOpen } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useUserStore } from "../stores/userStore";
 import { projectDb } from "../services/database";
 import { useProjectStore } from "../stores/projectStore";
@@ -33,8 +34,25 @@ export function NewProjectPage() {
   const [genre, setGenre] = useState("");
   const [synopsis, setSynopsis] = useState("");
   const [targetWords, setTargetWords] = useState(100000);
+  const [storagePath, setStoragePath] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const handleSelectPath = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "选择项目存储位置",
+      });
+      
+      if (selected) {
+        setStoragePath(selected as string);
+      }
+    } catch (err) {
+      console.error("Failed to select path:", err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +77,7 @@ export function NewProjectPage() {
         author: author.trim() || currentUser.display_name,
         genre,
         synopsis: synopsis.trim(),
+        storage_path: storagePath,
       });
 
       if (newProject) {
@@ -160,6 +179,37 @@ export function NewProjectPage() {
                     当前设置：{(targetWords / 10000).toFixed(0)}万字
                   </p>
                 </div>
+              </div>
+            </section>
+
+            {/* 存储设置 */}
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6">
+              <h2 className="mb-4 text-lg font-semibold text-[var(--color-text)]">存储设置</h2>
+              
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                  项目存储路径
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={storagePath}
+                    onChange={(e) => setStoragePath(e.target.value)}
+                    placeholder="留空则使用默认路径"
+                    className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSelectPath}
+                    className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 text-[var(--color-text)] transition hover:bg-[var(--color-border)]"
+                  >
+                    <FolderOpen className="h-5 w-5" />
+                    选择
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                  自定义项目文件的存储位置，方便备份和管理
+                </p>
               </div>
             </section>
 
