@@ -1,18 +1,45 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, BookOpen, MoreVertical, Trash2, Edit, Calendar, LogOut } from "lucide-react";
+import { Plus, BookOpen, MoreVertical, Trash2, Edit, Calendar, LogOut, FileText } from "lucide-react";
 import { useProjectStore } from "../stores/projectStore";
+import { useChapterStore } from "../stores/chapterStore";
 import { useUserStore } from "../stores/userStore";
 import { projectDb } from "../services/database";
 import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 
+const genreLabels: Record<string, string> = {
+  fantasy: "玄幻",
+  urban: "都市",
+  suspense: "悬疑",
+  scifi: "科幻",
+  romance: "言情",
+  historical: "历史",
+  other: "其他",
+};
+
+function getWordCount(content: string): number {
+  return content.replace(/<[^>]*>/g, "").replace(/\s/g, "").length;
+}
+
 export function BookshelfPage() {
   const navigate = useNavigate();
   const { currentUser, logout } = useUserStore();
   const { projects, setCurrentProject, deleteProject } = useProjectStore();
+  const { chapters } = useChapterStore();
   const [showMenu, setShowMenu] = useState<string | null>(null);
+
+  const projectWordCounts = useMemo(() => {
+    const wordCounts: Record<string, number> = {};
+    projects.forEach((project) => {
+      const projectChapters = chapters.filter((c) => c.projectId === project.id);
+      wordCounts[project.id] = projectChapters.reduce((sum, c) => {
+        return sum + getWordCount(c.content);
+      }, 0);
+    });
+    return wordCounts;
+  }, [projects, chapters]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -183,11 +210,17 @@ export function BookshelfPage() {
                 )}
 
                 <div className="mt-auto flex items-center justify-between text-xs text-ink-3">
-                  {project.genre && (
-                    <span className="rounded-full bg-primary-soft px-2 py-0.5 text-primary">
-                      {project.genre}
+                  <div className="flex items-center gap-2">
+                    {project.genre && (
+                      <span className="rounded-full bg-primary-soft px-2 py-0.5 text-primary">
+                        {genreLabels[project.genre] ?? project.genre}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      {(projectWordCounts[project.id] || 0).toLocaleString()} 字
                     </span>
-                  )}
+                  </div>
                   <div className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
                     {formatDate((project as any).updated_at || (project as any).created_at || project.updatedAt || project.createdAt)}
