@@ -4,12 +4,14 @@ import {
   Check,
   Database,
   Download,
+  ExternalLink,
   Info,
   Palette,
   Save,
   Sparkles,
   Upload,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useProjectStore } from "../stores/projectStore";
 import { ollama, BackupService } from "../services";
@@ -276,11 +278,20 @@ export function SettingsPage() {
           <Section title="关于" icon={Info}>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
               <dt className="text-ink-3">版本</dt>
-              <dd className="text-ink">Omni Novel v0.1.0</dd>
+              <dd className="text-ink">Omni Novel v1.0.0</dd>
               <dt className="text-ink-3">简介</dt>
               <dd className="text-ink">AI 驱动的小说创作桌面应用</dd>
-              <dt className="text-ink-3">技术栈</dt>
-              <dd className="text-ink">Tauri v2 · React 19 · TypeScript · Tailwind v4</dd>
+              <dt className="text-ink-3">项目地址</dt>
+              <dd>
+                <button
+                  type="button"
+                  onClick={() => openUrl("https://github.com/Jack-Sai/omni-novel")}
+                  className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                >
+                  github.com/Jack-Sai/omni-novel
+                  <ExternalLink size={12} />
+                </button>
+              </dd>
             </dl>
           </Section>
         </div>
