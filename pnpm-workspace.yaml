@@ -1,0 +1,7 @@
+packages:
+  - video
+  - website
+
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
