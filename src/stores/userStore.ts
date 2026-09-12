@@ -38,21 +38,18 @@ export const useUserStore = create<UserStore>()((set, get) => ({
   error: null,
 
   init: async () => {
-    set({ isLoading: true, error: null });
     try {
       // 从 localStorage 获取当前用户 ID
       const savedUserId = localStorage.getItem("currentUserId");
       if (savedUserId) {
         const user = await userDb.getById(savedUserId);
         if (user) {
-          set({ currentUser: user as User, isLoading: false });
+          set({ currentUser: user as User });
           return;
         }
       }
-      set({ isLoading: false });
     } catch (error) {
       console.error("Failed to initialize user:", error);
-      set({ error: "Failed to load user", isLoading: false });
     }
   },
 

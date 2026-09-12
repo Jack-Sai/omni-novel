@@ -3,13 +3,21 @@ import Database from "@tauri-apps/plugin-sql";
 const DB_NAME = "omni-novel.db";
 
 let dbInstance: Database | null = null;
+let dbInitializing: Promise<Database> | null = null;
 
 export const getDatabase = async (): Promise<Database> => {
-  if (!dbInstance) {
-    dbInstance = await Database.load(`sqlite:${DB_NAME}`);
-    await initializeTables(dbInstance);
-  }
-  return dbInstance;
+  if (dbInstance) return dbInstance;
+  if (dbInitializing) return dbInitializing;
+
+  dbInitializing = (async () => {
+    const db = await Database.load(`sqlite:${DB_NAME}`);
+    await initializeTables(db);
+    dbInstance = db;
+    dbInitializing = null;
+    return db;
+  })();
+
+  return dbInitializing;
 };
 
 export const closeDatabase = async (): Promise<void> => {
@@ -201,6 +209,20 @@ async function initializeTables(db: Database) {
   `);
 
   console.log("Database tables initialized successfully");
+
+  // Schema migration: 确保 users 表有 phone 和 password 列
+  try {
+    const columns = await db.select<{ name: string }[]>("PRAGMA table_info(users)");
+    const columnNames = columns.map((c) => c.name);
+    if (!columnNames.includes("phone")) {
+      await db.execute("ALTER TABLE users ADD COLUMN phone TEXT");
+    }
+    if (!columnNames.includes("password")) {
+      await db.execute("ALTER TABLE users ADD COLUMN password TEXT DEFAULT ''");
+    }
+  } catch (e) {
+    console.warn("Schema migration warning:", e);
+  }
 }
 
 // 用户相关操作
