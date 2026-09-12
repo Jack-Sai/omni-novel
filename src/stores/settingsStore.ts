@@ -31,7 +31,7 @@ const defaultAISettings: AISettings = {
   topK: 40,
   repeatPenalty: 1.1,
   maxTokens: 2048,
-  think: false,
+  think: true,
 };
 
 export const useSettingsStore = create<SettingsStore>()(

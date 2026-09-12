@@ -25,9 +25,15 @@ import {
   PageBody,
   PageHeader,
   Section,
+  SegmentedControl,
   SettingRow,
   ThemeToggle,
 } from "../components/ui";
+
+const backendItems = (Object.keys(backendPresets) as BackendType[]).map((key) => ({
+  value: key,
+  label: backendPresets[key].label,
+}));
 
 export function SettingsPage() {
   const { ai, updateAISettings } = useSettingsStore();
@@ -91,8 +97,9 @@ export function SettingsPage() {
     setTimeout(() => setImportSuccess(null), 3000);
   };
 
-  const isOllama = ai.backend === "ollama";
-  const backendPreset = backendPresets[ai.backend ?? "ollama"];
+  const currentBackend = ai.backend ?? "ollama";
+  const backendPreset = backendPresets[currentBackend];
+  const isOllama = currentBackend === "ollama";
 
   const sliders = [
     {
@@ -150,13 +157,11 @@ export function SettingsPage() {
         }
       />
 
-      <PageBody width="reading">
-        <div className="space-y-4">
+      <PageBody padded>
+        <div className="mx-auto w-full max-w-4xl space-y-4">
           {/* 外观 */}
           <Section title="外观" icon={Palette}>
-            <SettingRow title="主题" description="选择亮色、暗色或跟随系统">
-              <ThemeToggle />
-            </SettingRow>
+            <ThemeToggle />
           </Section>
 
           {/* AI 模型 */}
@@ -168,23 +173,12 @@ export function SettingsPage() {
           >
             {/* 后端类型选择 */}
             <Field label="推理后端" hint="选择本地模型服务类型">
-              <div className="flex gap-2">
-                {(Object.keys(backendPresets) as BackendType[]).map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => handleBackendChange(type)}
-                    className={
-                      "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors " +
-                      (ai.backend === type
-                        ? "border-primary-line bg-primary-soft text-primary"
-                        : "border-line text-ink-2 hover:border-line-strong hover:bg-hover hover:text-ink")
-                    }
-                  >
-                    {backendPresets[type].label}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl
+                items={backendItems}
+                value={currentBackend}
+                onChange={handleBackendChange}
+                variant="segment"
+              />
             </Field>
 
             {/* 端点地址 */}
@@ -196,7 +190,7 @@ export function SettingsPage() {
               />
             </Field>
 
-            {/* API Key（仅 OpenAI 兼容模式） */}
+            {/* API Key（仅非 Ollama） */}
             {!isOllama && (
               <Field label="API Key" hint="可选，某些服务需要认证">
                 <Input
@@ -324,14 +318,8 @@ export function SettingsPage() {
             {!isOllama && (
               <div className="rounded-lg border border-line bg-subtle p-3">
                 <p className="text-[12px] leading-relaxed text-ink-2">
-                  <strong>OpenAI 兼容模式</strong>支持以下框架：
+                  <strong>{backendPreset.label}</strong> — {backendPreset.description}
                 </p>
-                <ul className="mt-1.5 list-inside list-disc text-[12px] text-ink-3">
-                  <li>llama.cpp（启动时加 <code>--chat</code> 参数）</li>
-                  <li>vLLM（默认端口 8000）</li>
-                  <li>LM Studio（默认端口 1234）</li>
-                  <li>LocalAI、Text Generation WebUI 等</li>
-                </ul>
               </div>
             )}
           </Section>
