@@ -1,7 +1,14 @@
+import { Header } from "./components/Header";
+
 function App() {
   return (
     <div className="min-h-screen bg-canvas text-ink">
-      <h1 className="text-2xl font-semibold p-8">Omni Novel 官网</h1>
+      <Header />
+      <main className="pt-16">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <h1 className="text-3xl font-semibold">Omni Novel 官网</h1>
+        </div>
+      </main>
     </div>
   );
 }
