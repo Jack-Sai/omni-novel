@@ -14,6 +14,8 @@ export interface GenerateOptions {
   topK?: number;
   repeatPenalty?: number;
   numPredict?: number;
+  /** 关闭模型内部思考/推理，节省上下文并加快响应速度 */
+  think?: boolean;
 }
 
 const DEFAULT_CONFIG: OllamaConfig = {
@@ -58,6 +60,7 @@ export class OllamaService {
         model: this.config.model,
         messages,
         stream: false,
+        think: options?.think ?? false,
         options: {
           temperature: options?.temperature ?? 0.7,
           top_p: options?.topP ?? 0.9,
@@ -88,6 +91,7 @@ export class OllamaService {
         model: this.config.model,
         messages,
         stream: true,
+        think: options?.think ?? false,
         options: {
           temperature: options?.temperature ?? 0.7,
           top_p: options?.topP ?? 0.9,

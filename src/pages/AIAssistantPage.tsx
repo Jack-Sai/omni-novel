@@ -10,6 +10,7 @@ import {
   User,
 } from "lucide-react";
 import { ollama, getSystemPrompt, PromptKey } from "../services";
+import { useSettingsStore } from "../stores/settingsStore";
 import {
   Badge,
   Button,
@@ -46,6 +47,7 @@ const connectionState: Record<
 };
 
 export function AIAssistantPage() {
+  const { ai } = useSettingsStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -88,7 +90,14 @@ export function AIAssistantPage() {
         { role: "user" as const, content: userMessage.content },
       ];
 
-      const response = await ollama.chat(chatMessages);
+      const response = await ollama.chat(chatMessages, {
+        temperature: ai.temperature,
+        topP: ai.topP,
+        topK: ai.topK,
+        repeatPenalty: ai.repeatPenalty,
+        numPredict: ai.maxTokens,
+        think: ai.think,
+      });
 
       setMessages((prev) => [
         ...prev,

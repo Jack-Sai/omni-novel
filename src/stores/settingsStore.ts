@@ -9,6 +9,8 @@ export interface AISettings {
   topK: number;
   repeatPenalty: number;
   maxTokens: number;
+  /** 关闭模型内部思考/推理，节省上下文并加快响应速度 */
+  think: boolean;
 }
 
 interface SettingsStore {
@@ -24,6 +26,7 @@ const defaultAISettings: AISettings = {
   topK: 40,
   repeatPenalty: 1.1,
   maxTokens: 2048,
+  think: false,
 };
 
 export const useSettingsStore = create<SettingsStore>()(

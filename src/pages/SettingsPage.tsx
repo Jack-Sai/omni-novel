@@ -219,6 +219,27 @@ export function SettingsPage() {
                 step="256"
               />
             </Field>
+
+            <SettingRow
+              title="关闭思考"
+              description="关闭模型内部推理过程，节省上下文窗口并加快响应速度。推荐开启"
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={ai.think}
+                onClick={() => updateAISettings({ think: !ai.think })}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                  ai.think ? "bg-primary" : "bg-line-strong"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                    ai.think ? "translate-x-5.5" : "translate-x-0.5"
+                  } mt-0.5`}
+                />
+              </button>
+            </SettingRow>
           </Section>
 
           {/* 数据备份 */}
