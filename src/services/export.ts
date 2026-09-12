@@ -254,6 +254,60 @@ export class ExportService {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
+
+  static async exportMultipleFiles(
+    files: Array<{ filename: string; content: string; title?: string; author?: string }>,
+    format: "txt" | "markdown" | "html" | "docx"
+  ): Promise<void> {
+    for (const file of files) {
+      await this.exportToFile({
+        format,
+        filename: file.filename,
+        content: file.content,
+        title: file.title,
+        author: file.author,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  static async exportProject(
+    projectId: string,
+    format: "txt" | "markdown" | "html" | "docx"
+  ): Promise<void> {
+    const { useProjectStore } = await import("../stores/projectStore");
+    const { useChapterStore } = await import("../stores/chapterStore");
+
+    const projects = useProjectStore.getState().projects;
+    const chapters = useChapterStore.getState().chapters;
+
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+
+    const projectChapters = chapters
+      .filter((c) => c.projectId === projectId)
+      .sort((a, b) => a.order - b.order);
+
+    if (projectChapters.length === 0) {
+      await this.exportToFile({
+        format,
+        filename: project.title,
+        content: project.content || "",
+        title: project.title,
+        author: project.author,
+      });
+      return;
+    }
+
+    const files = projectChapters.map((chapter) => ({
+      filename: `${project.title}-${chapter.title}`,
+      content: chapter.content,
+      title: chapter.title,
+      author: project.author,
+    }));
+
+    await this.exportMultipleFiles(files, format);
+  }
 }
 
 export const exportService = new ExportService();
