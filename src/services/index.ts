@@ -9,3 +9,15 @@ export type { BackupData } from "./backup";
 
 export { systemPrompts, getSystemPrompt } from "./prompts";
 export type { PromptKey } from "./prompts";
+
+export {
+  getDatabase,
+  closeDatabase,
+  userDb,
+  projectDb,
+  chapterDb,
+  characterDb,
+  worldviewDb,
+  foreshadowingDb,
+  settingsDb,
+} from "./database";
