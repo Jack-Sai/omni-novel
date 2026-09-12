@@ -1,6 +1,6 @@
 import { BookOpen, Eye, FileText, Map, Settings, Users, LayoutGrid } from "lucide-react";
 import type { ElementType } from "react";
-import { ThemeToggle } from "../ui";
+import { ThemeSwitcher } from "../ui";
 import { cn } from "../../lib/cn";
 
 interface SidebarProps {
@@ -99,8 +99,8 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="border-t border-line p-3">
-        <ThemeToggle className="w-full" />
+      <div className="border-t border-line px-3 py-2.5">
+        <ThemeSwitcher className="w-full" />
       </div>
     </aside>
   );

@@ -18,6 +18,8 @@ export interface SegmentedControlProps<T extends string = string> {
    */
   variant?: "segment" | "chip";
   size?: "sm" | "md";
+  /** 让每个选项均分容器宽度 */
+  fill?: boolean;
   className?: string;
 }
 
@@ -27,26 +29,20 @@ export function SegmentedControl<T extends string = string>({
   onChange,
   variant = "chip",
   size = "md",
+  fill = false,
   className,
 }: SegmentedControlProps<T>) {
   const isSegment = variant === "segment";
-
-  const itemBase = cn(
-    "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium",
-    "transition-colors duration-150",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
-    size === "sm" ? "h-8 px-3 text-[13px]" : "h-9 px-3.5 text-sm",
-    isSegment ? "rounded-lg" : "rounded-full border",
-  );
 
   return (
     <div
       role="group"
       className={cn(
-        "flex flex-wrap items-center",
+        "flex items-center",
         isSegment
           ? "inline-flex gap-1 rounded-xl border border-line bg-subtle p-1"
           : "gap-2",
+        fill && "w-full",
         className,
       )}
     >
@@ -61,7 +57,12 @@ export function SegmentedControl<T extends string = string>({
             aria-pressed={active}
             onClick={() => onChange(item.value)}
             className={cn(
-              itemBase,
+              "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium",
+              "transition-colors duration-150",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+              size === "sm" ? "h-8 px-3 text-[13px]" : "h-9 px-3.5 text-sm",
+              isSegment ? "rounded-lg" : "rounded-full border",
+              fill && "flex-1",
               isSegment
                 ? active
                   ? "bg-surface text-ink shadow-xs"

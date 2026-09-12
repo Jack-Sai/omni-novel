@@ -178,6 +178,8 @@ export function SettingsPage() {
                 value={currentBackend}
                 onChange={handleBackendChange}
                 variant="segment"
+                fill
+                size="sm"
               />
             </Field>
 
