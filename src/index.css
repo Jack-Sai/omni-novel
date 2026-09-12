@@ -273,6 +273,29 @@
    组件层
    -------------------------------------------------------------------------- */
 @layer components {
+  /* 下拉选择框：统一主题样式 */
+  select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: var(--app-surface);
+    border: 1px solid var(--app-line);
+    border-radius: var(--radius-lg);
+    color: var(--app-ink);
+    cursor: pointer;
+    transition: border-color 150ms var(--ease-smooth), box-shadow 150ms var(--ease-smooth);
+  }
+
+  select:hover {
+    border-color: var(--app-line-strong);
+  }
+
+  select:focus {
+    outline: none;
+    border-color: var(--app-primary);
+    box-shadow: 0 0 0 3px var(--app-ring);
+  }
+
   /* 范围滑块：需要压过 preflight 的原生外观 */
   input[type="range"] {
     -webkit-appearance: none;

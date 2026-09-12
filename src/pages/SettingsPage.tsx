@@ -5,6 +5,7 @@ import {
   Database,
   Download,
   ExternalLink,
+  FileText,
   Info,
   Palette,
   Save,
@@ -36,7 +37,7 @@ const backendItems = (Object.keys(backendPresets) as BackendType[]).map((key) =>
 }));
 
 export function SettingsPage() {
-  const { ai, updateAISettings } = useSettingsStore();
+  const { ai, editor, updateAISettings, updateEditorSettings } = useSettingsStore();
   const { currentProject } = useProjectStore();
   const [saved, setSaved] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -162,6 +163,71 @@ export function SettingsPage() {
           {/* 外观 */}
           <Section title="外观" icon={Palette}>
             <ThemeToggle />
+          </Section>
+
+          {/* 编辑器 */}
+          <Section
+            title="编辑器"
+            description="写作体验与自动保存"
+            icon={FileText}
+            contentClassName="space-y-5"
+          >
+            <SettingRow
+              title="自动保存"
+              description="编辑时自动保存到磁盘，防止内容丢失"
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={editor.autoSaveEnabled}
+                onClick={() => updateEditorSettings({ autoSaveEnabled: !editor.autoSaveEnabled })}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                  editor.autoSaveEnabled ? "bg-primary" : "bg-line-strong"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                    editor.autoSaveEnabled ? "translate-x-5.5" : "translate-x-0.5"
+                  } mt-0.5`}
+                />
+              </button>
+            </SettingRow>
+
+            {editor.autoSaveEnabled && (
+              <Field
+                label={`自动保存间隔 · ${editor.autoSaveInterval / 1000} 秒`}
+                hint="单位：秒。范围 10~300 秒"
+              >
+                <input
+                  type="range"
+                  min="10000"
+                  max="300000"
+                  step="5000"
+                  value={editor.autoSaveInterval}
+                  onChange={(e) =>
+                    updateEditorSettings({ autoSaveInterval: parseInt(e.target.value) })
+                  }
+                  className="w-full"
+                />
+              </Field>
+            )}
+
+            <Field
+              label={`编辑器宽度 · ${editor.editorWidth} 字`}
+              hint="正文区域的推荐字符宽度，影响阅读体验"
+            >
+              <input
+                type="range"
+                min="30"
+                max="60"
+                step="2"
+                value={editor.editorWidth}
+                onChange={(e) =>
+                  updateEditorSettings({ editorWidth: parseInt(e.target.value) })
+                }
+                className="w-full"
+              />
+            </Field>
           </Section>
 
           {/* AI 模型 */}
@@ -395,6 +461,17 @@ export function SettingsPage() {
               <dd className="text-ink">Omni Novel v1.0.0</dd>
               <dt className="text-ink-3">简介</dt>
               <dd className="text-ink">AI 驱动的小说创作桌面应用</dd>
+              <dt className="text-ink-3">开发者</dt>
+              <dd>
+                <button
+                  type="button"
+                  onClick={() => openUrl("https://github.com/Jack-Sai")}
+                  className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                >
+                  Jack
+                  <ExternalLink size={12} />
+                </button>
+              </dd>
               <dt className="text-ink-3">项目地址</dt>
               <dd>
                 <button

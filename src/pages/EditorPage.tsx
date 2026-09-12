@@ -9,11 +9,10 @@ import {
   PanelLeftOpen,
   Plus,
   Save,
-  Settings,
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { NewProjectDialog, NewProject, ProjectSettings } from "../components/dialog";
+import { NewProjectDialog, NewProject } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor, type EditorRef } from "../components/editor";
@@ -21,6 +20,7 @@ import { AIPanel } from "../components/ai";
 import { ChapterList } from "../components/chapter";
 import { ExportService, saveChapter, titleToFilename } from "../services";
 import { useAutoSave } from "../hooks";
+import { useSettingsStore } from "../stores/settingsStore";
 import {
   Badge,
   Button,
@@ -50,7 +50,6 @@ const genreLabels: Record<string, string> = {
 
 export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -65,6 +64,8 @@ export function EditorPage() {
     setCurrentChapter,
     updateContent: updateChapterContent,
   } = useChapterStore();
+
+  const { editor } = useSettingsStore();
 
   const handleSave = useCallback(async () => {
     if (!currentChapter || !currentProject) return;
@@ -85,8 +86,8 @@ export function EditorPage() {
   const { saveNow } = useAutoSave({
     data: currentChapter,
     onSave: handleSave,
-    interval: 30000,
-    enabled: !!currentChapter,
+    interval: editor.autoSaveInterval,
+    enabled: !!currentChapter && editor.autoSaveEnabled,
   });
 
   const stats = useMemo(() => {
@@ -265,10 +266,6 @@ export function EditorPage() {
               <Sparkles size={15} />
               AI
             </Button>
-            <Button variant="secondary" onClick={() => setSettingsOpen(true)}>
-              <Settings size={15} />
-              项目设置
-            </Button>
 
             <Menu>
               <MenuTrigger asChild>
@@ -386,8 +383,6 @@ export function EditorPage() {
           />
         )}
       </div>
-
-      <ProjectSettings open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Page>
   );
 }
