@@ -1,7 +1,4 @@
-export interface OllamaConfig {
-  baseUrl: string;
-  model: string;
-}
+import type { AIService, AIServiceConfig } from "./aiService";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -18,15 +15,16 @@ export interface GenerateOptions {
   think?: boolean;
 }
 
-const DEFAULT_CONFIG: OllamaConfig = {
+const DEFAULT_CONFIG: AIServiceConfig = {
+  backend: "ollama",
   baseUrl: "http://localhost:11434",
   model: "qwen2.5:7b",
 };
 
-export class OllamaService {
-  private config: OllamaConfig;
+export class OllamaService implements AIService {
+  private config: AIServiceConfig;
 
-  constructor(config?: Partial<OllamaConfig>) {
+  constructor(config?: Partial<AIServiceConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
@@ -135,11 +133,11 @@ export class OllamaService {
     return fullContent;
   }
 
-  updateConfig(config: Partial<OllamaConfig>) {
+  updateConfig(config: Partial<AIServiceConfig>): void {
     this.config = { ...this.config, ...config };
   }
 
-  getConfig(): OllamaConfig {
+  getConfig(): AIServiceConfig {
     return { ...this.config };
   }
 }

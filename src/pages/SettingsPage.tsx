@@ -14,7 +14,8 @@ import {
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useProjectStore } from "../stores/projectStore";
-import { ollama, BackupService } from "../services";
+import { createAIService, backendPresets, type BackendType } from "../services/aiService";
+import { BackupService } from "../services";
 import {
   Badge,
   Button,
@@ -27,6 +28,7 @@ import {
   SettingRow,
   ThemeToggle,
 } from "../components/ui";
+
 export function SettingsPage() {
   const { ai, updateAISettings } = useSettingsStore();
   const { currentProject } = useProjectStore();
@@ -39,17 +41,37 @@ export function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
-    ollama.updateConfig({ baseUrl: ai.baseUrl, model: ai.model });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleBackendChange = (backend: BackendType) => {
+    const preset = backendPresets[backend];
+    updateAISettings({
+      backend,
+      baseUrl: preset.defaultUrl,
+      model: preset.defaultModel,
+    });
+    setModels([]);
+    setTestResult(null);
   };
 
   const handleTestConnection = async () => {
     setTesting(true);
     setTestResult(null);
-    ollama.updateConfig({ baseUrl: ai.baseUrl, model: ai.model });
-    const connected = await ollama.checkConnection();
-    setModels(connected ? await ollama.listModels() : []);
+
+    const service = createAIService({
+      backend: ai.backend,
+      baseUrl: ai.baseUrl,
+      model: ai.model,
+      apiKey: ai.apiKey,
+    });
+
+    const connected = await service.checkConnection();
+    if (connected) {
+      const detectedModels = await service.listModels();
+      setModels(detectedModels);
+    }
     setTestResult(connected ? "success" : "failure");
     setTesting(false);
   };
@@ -68,6 +90,9 @@ export function SettingsPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
     setTimeout(() => setImportSuccess(null), 3000);
   };
+
+  const isOllama = ai.backend === "ollama";
+  const backendPreset = backendPresets[ai.backend];
 
   const sliders = [
     {
@@ -88,15 +113,19 @@ export function SettingsPage() {
       hint: "核采样阈值。从概率累计达到 P 的词中采样。0.9 表示过滤掉最不靠谱的 10% 词汇",
       onChange: (v: string) => updateAISettings({ topP: parseFloat(v) }),
     },
-    {
-      label: "Top K",
-      value: ai.topK,
-      min: "1",
-      max: "100",
-      step: "1",
-      hint: "每步仅从概率最高的 K 个候选词中选择。值越小输出越集中，越大越多样",
-      onChange: (v: string) => updateAISettings({ topK: parseInt(v) }),
-    },
+    ...(isOllama
+      ? [
+          {
+            label: "Top K",
+            value: ai.topK,
+            min: "1",
+            max: "100",
+            step: "1",
+            hint: "每步仅从概率最高的 K 个候选词中选择。值越小输出越集中，越大越多样",
+            onChange: (v: string) => updateAISettings({ topK: parseInt(v) }),
+          },
+        ]
+      : []),
     {
       label: "重复惩罚",
       value: ai.repeatPenalty,
@@ -133,24 +162,59 @@ export function SettingsPage() {
           {/* AI 模型 */}
           <Section
             title="AI 模型"
-            description="本地 Ollama 服务"
+            description={backendPreset.description}
             icon={Sparkles}
             contentClassName="space-y-5"
           >
-            <Field label="模型端点" hint="例如 http://localhost:11434">
+            {/* 后端类型选择 */}
+            <Field label="推理后端" hint="选择本地模型服务类型">
+              <div className="flex gap-2">
+                {(Object.keys(backendPresets) as BackendType[]).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => handleBackendChange(type)}
+                    className={
+                      "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors " +
+                      (ai.backend === type
+                        ? "border-primary-line bg-primary-soft text-primary"
+                        : "border-line text-ink-2 hover:border-line-strong hover:bg-hover hover:text-ink")
+                    }
+                  >
+                    {backendPresets[type].label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            {/* 端点地址 */}
+            <Field label="模型端点" hint={`例如 ${backendPreset.defaultUrl}`}>
               <Input
                 value={ai.baseUrl}
                 onChange={(e) => updateAISettings({ baseUrl: e.target.value })}
-                placeholder="Ollama 端点地址"
+                placeholder={backendPreset.defaultUrl}
               />
             </Field>
 
+            {/* API Key（仅 OpenAI 兼容模式） */}
+            {!isOllama && (
+              <Field label="API Key" hint="可选，某些服务需要认证">
+                <Input
+                  type="password"
+                  value={ai.apiKey}
+                  onChange={(e) => updateAISettings({ apiKey: e.target.value })}
+                  placeholder="留空则不需要认证"
+                />
+              </Field>
+            )}
+
+            {/* 模型名称 */}
             <Field label="模型名称">
               <div className="flex gap-2">
                 <Input
                   value={ai.model}
                   onChange={(e) => updateAISettings({ model: e.target.value })}
-                  placeholder="输入模型名称"
+                  placeholder={isOllama ? "例如 qwen2.5:7b" : "例如 default"}
                   className="flex-1"
                 />
                 <Button
@@ -166,10 +230,13 @@ export function SettingsPage() {
                 <p className="mt-1.5 text-[13px] text-success">连接成功，模型可用</p>
               )}
               {testResult === "failure" && (
-                <p className="mt-1.5 text-[13px] text-danger">连接失败，请检查端点地址和 Ollama 服务是否已启动</p>
+                <p className="mt-1.5 text-[13px] text-danger">
+                  连接失败，请检查端点地址和服务是否已启动
+                </p>
               )}
             </Field>
 
+            {/* 模型列表 */}
             {models.length > 0 && (
               <div className="omni-pop">
                 <p className="mb-2 text-[12px] text-ink-3">检测到 {models.length} 个可用模型</p>
@@ -193,9 +260,14 @@ export function SettingsPage() {
               </div>
             )}
 
+            {/* 参数滑块 */}
             <div className="grid gap-5 sm:grid-cols-2">
               {sliders.map((slider) => (
-                <Field key={slider.label} label={`${slider.label} · ${slider.value}`} hint={slider.hint}>
+                <Field
+                  key={slider.label}
+                  label={`${slider.label} · ${slider.value}`}
+                  hint={slider.hint}
+                >
                   <input
                     type="range"
                     min={slider.min}
@@ -209,7 +281,11 @@ export function SettingsPage() {
               ))}
             </div>
 
-            <Field label="最大 Token 数" hint="单次生成的最大长度。1 中文字 ≈ 1.5~2 token，2048 ≈ 1000~1300 字">
+            {/* 最大 Token 数 */}
+            <Field
+              label="最大 Token 数"
+              hint="单次生成的最大长度。1 中文字 ≈ 1.5~2 token，2048 ≈ 1000~1300 字"
+            >
               <Input
                 type="number"
                 value={ai.maxTokens}
@@ -220,26 +296,44 @@ export function SettingsPage() {
               />
             </Field>
 
-            <SettingRow
-              title="关闭思考"
-              description="关闭模型内部推理过程，节省上下文窗口并加快响应速度。推荐开启"
-            >
-              <button
-                type="button"
-                role="switch"
-                aria-checked={ai.think}
-                onClick={() => updateAISettings({ think: !ai.think })}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-                  ai.think ? "bg-primary" : "bg-line-strong"
-                }`}
+            {/* 关闭思考（仅 Ollama） */}
+            {isOllama && (
+              <SettingRow
+                title="关闭思考"
+                description="关闭模型内部推理过程，节省上下文窗口并加快响应速度。推荐开启"
               >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
-                    ai.think ? "translate-x-5.5" : "translate-x-0.5"
-                  } mt-0.5`}
-                />
-              </button>
-            </SettingRow>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={ai.think}
+                  onClick={() => updateAISettings({ think: !ai.think })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                    ai.think ? "bg-primary" : "bg-line-strong"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                      ai.think ? "translate-x-5.5" : "translate-x-0.5"
+                    } mt-0.5`}
+                  />
+                </button>
+              </SettingRow>
+            )}
+
+            {/* 后端说明 */}
+            {!isOllama && (
+              <div className="rounded-lg border border-line bg-subtle p-3">
+                <p className="text-[12px] leading-relaxed text-ink-2">
+                  <strong>OpenAI 兼容模式</strong>支持以下框架：
+                </p>
+                <ul className="mt-1.5 list-inside list-disc text-[12px] text-ink-3">
+                  <li>llama.cpp（启动时加 <code>--chat</code> 参数）</li>
+                  <li>vLLM（默认端口 8000）</li>
+                  <li>LM Studio（默认端口 1234）</li>
+                  <li>LocalAI、Text Generation WebUI 等</li>
+                </ul>
+              </div>
+            )}
           </Section>
 
           {/* 数据备份 */}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { Editor } from "@tiptap/react";
 import {
   Bot,
@@ -9,9 +9,9 @@ import {
   Send,
   Sparkles,
   User,
-  X,
 } from "lucide-react";
-import { ollama, getSystemPrompt, type PromptKey } from "../../services";
+import { getSystemPrompt, type PromptKey } from "../../services";
+import { createAIService } from "../../services/aiService";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { Button, Input } from "../ui";
 import { cn } from "../../lib/cn";
@@ -53,18 +53,27 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+
+  // 根据设置创建 AI 服务实例
+  const aiService = useMemo(() => {
+    return createAIService({
+      backend: ai.backend,
+      baseUrl: ai.baseUrl,
+      model: ai.model,
+      apiKey: ai.apiKey,
+    });
+  }, [ai.backend, ai.baseUrl, ai.model, ai.apiKey]);
 
   useEffect(() => {
     checkConnection();
-  }, []);
+  }, [aiService]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const checkConnection = async () => {
-    const connected = await ollama.checkConnection();
+    const connected = await aiService.checkConnection();
     setIsConnected(connected);
   };
 
@@ -104,7 +113,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           { id: assistantId, role: "assistant", content: "", action: action.key, canApply: true, applyMode: action.applyMode },
         ]);
 
-        await ollama.chatStream(
+        await aiService.chatStream(
           [
             { role: "system", content: systemPrompt },
             ...messages
@@ -136,14 +145,14 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           {
             id: crypto.randomUUID(),
             role: "assistant",
-            content: "抱歉，无法连接到 AI 模型。请确保 Ollama 服务已启动。",
+            content: "抱歉，无法连接到 AI 模型。请确保服务已启动。",
           },
         ]);
       } finally {
         setIsLoading(false);
       }
     },
-    [isLoading, selectedText, chapterContent, messages, ai],
+    [isLoading, selectedText, chapterContent, messages, ai, aiService],
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -179,7 +188,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
         { id: assistantId, role: "assistant", content: "" },
       ]);
 
-      await ollama.chatStream(
+      await aiService.chatStream(
         chatMessages,
         {
           temperature: ai.temperature,
@@ -204,7 +213,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "抱歉，无法连接到 AI 模型。请确保 Ollama 服务已启动。",
+          content: "抱歉，无法连接到 AI 模型。请确保服务已启动。",
         },
       ]);
     } finally {

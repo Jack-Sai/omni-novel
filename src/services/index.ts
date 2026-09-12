@@ -1,5 +1,10 @@
 export { OllamaService, ollama } from "./ollama";
-export type { OllamaConfig, ChatMessage, GenerateOptions } from "./ollama";
+export type { ChatMessage, GenerateOptions } from "./ollama";
+
+export { createAIService, backendPresets } from "./aiService";
+export type { AIService, AIServiceConfig, BackendType } from "./aiService";
+
+export { OpenAICompatService } from "./openaiCompat";
 
 export { ExportService } from "./export";
 export type { ExportOptions } from "./export";

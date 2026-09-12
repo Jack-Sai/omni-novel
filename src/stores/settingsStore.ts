@@ -1,9 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { BackendType } from "../services/aiService";
 
 export interface AISettings {
+  backend: BackendType;
   baseUrl: string;
   model: string;
+  apiKey: string;
   temperature: number;
   topP: number;
   topK: number;
@@ -19,8 +22,10 @@ interface SettingsStore {
 }
 
 const defaultAISettings: AISettings = {
+  backend: "ollama",
   baseUrl: "http://localhost:11434",
   model: "qwen2.5:7b",
+  apiKey: "",
   temperature: 0.7,
   topP: 0.9,
   topK: 40,
