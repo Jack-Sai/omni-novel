@@ -41,3 +41,28 @@ Desktop.ini
 
 # Memory files
 .opencode/
+
+# Video files (Remotion)
+video/node_modules/
+video/dist/
+video/.cache/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Package lock files (using pnpm)
+package-lock.json
+yarn.lock
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm dependencies
+.npm
+
+# Optional REPL history
+.node_repl_history
