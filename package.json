@@ -20,6 +20,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-sql": "^2.4.1",
     "@tiptap/extension-character-count": "^3.31.3",
+    "@tiptap/extensions": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "clsx": "^2.1.1",

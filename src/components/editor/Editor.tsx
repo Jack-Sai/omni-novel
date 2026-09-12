@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import CharacterCount from "@tiptap/extension-character-count";
+import { CharacterCount } from "@tiptap/extensions";
 import { Sparkles } from "lucide-react";
 import { Toolbar } from "./Toolbar";
 import { AIAction } from "../ai";
