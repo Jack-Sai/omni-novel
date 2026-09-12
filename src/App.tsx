@@ -3,6 +3,7 @@ import { Layout } from "./components/layout";
 import { LoginPage } from "./pages/LoginPage";
 import {
   BookshelfPage,
+  NewProjectPage,
   EditorPage,
   OutlinePage,
   CharactersPage,
@@ -20,6 +21,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/bookshelf" replace />} />
           <Route path="bookshelf" element={<BookshelfPage />} />
+          <Route path="new-project" element={<NewProjectPage />} />
           <Route path="editor" element={<EditorPage />} />
           <Route path="outline" element={<OutlinePage />} />
           <Route path="characters" element={<CharactersPage />} />
