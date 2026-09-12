@@ -29,6 +29,10 @@ export {
   saveMetadata,
   loadMetadata,
   listChapters,
+  listVolumes,
   titleToFilename,
+  isNovelProject,
+  saveDraft,
+  saveExport,
 } from "./fileStorage";
 export type { ProjectMetadata } from "./fileStorage";

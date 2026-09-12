@@ -26,7 +26,19 @@ export function BookshelfPage() {
     if (!currentUser) return;
     try {
       const userProjects = await projectDb.getByUserId(currentUser.id);
-      useProjectStore.setState({ projects: userProjects as any[] });
+      // 映射数据库字段名到 Zustand 接口
+      const mappedProjects = userProjects.map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        author: p.author || "",
+        genre: p.genre || "",
+        synopsis: p.synopsis || "",
+        content: p.content || "",
+        storagePath: p.storage_path || undefined,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at,
+      }));
+      useProjectStore.setState({ projects: mappedProjects });
     } catch (error) {
       console.error("Failed to load projects:", error);
     }

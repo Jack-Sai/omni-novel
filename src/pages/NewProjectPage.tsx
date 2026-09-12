@@ -88,7 +88,14 @@ export function NewProjectPage() {
         // 如果指定了存储路径，创建项目目录
         if (storagePath) {
           try {
-            await createProjectDir(storagePath, title.trim());
+            await createProjectDir(storagePath, title.trim(), {
+              id: newProject.id,
+              title: title.trim(),
+              author: author.trim() || currentUser.display_name,
+              genre,
+              synopsis: synopsis.trim(),
+              targetWords,
+            });
           } catch (err) {
             console.error("Failed to create project directory:", err);
           }
