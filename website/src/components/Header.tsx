@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Menu, X, Download } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 const GITHUB_URL = "https://github.com/Jack-Sai/omni-novel";
 const RELEASE_URL = "https://github.com/Jack-Sai/omni-novel/releases";
@@ -49,6 +50,8 @@ export function Header() {
             </svg>
           </a>
 
+          <ThemeToggle />
+
           <a
             href={RELEASE_URL}
             target="_blank"
@@ -87,14 +90,17 @@ export function Header() {
 
             <div className="h-px bg-line my-2" />
 
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-2.5 text-[14px] text-ink-2 hover:text-ink rounded-lg hover:bg-hover transition-colors duration-150 no-underline"
-            >
-              GitHub
-            </a>
+            <div className="flex items-center justify-between px-3 py-2.5">
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[14px] text-ink-2 hover:text-ink transition-colors duration-150 no-underline"
+              >
+                GitHub
+              </a>
+              <ThemeToggle />
+            </div>
 
             <a
               href={RELEASE_URL}
