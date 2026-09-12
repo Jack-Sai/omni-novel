@@ -14,6 +14,8 @@ export interface Character {
   goals: string;
   conflicts: string;
   relationships: string;
+  abilities: string;
+  weaknesses: string;
   notes: string;
   tags: string[];
   createdAt: string;
@@ -49,6 +51,8 @@ export const useCharacterStore = create<CharacterStore>()(
           goals: "",
           conflicts: "",
           relationships: "",
+          abilities: "",
+          weaknesses: "",
           notes: "",
           tags: [],
           createdAt: new Date().toISOString(),
@@ -64,7 +68,7 @@ export const useCharacterStore = create<CharacterStore>()(
         set((state) => {
           const updatedAt = new Date().toISOString();
           const characters = state.characters.map((c) =>
-            c.id === id ? { ...c, ...updates, updatedAt } : c
+            c.id === id ? { ...c, ...updates, updatedAt } : c,
           );
           const currentCharacter =
             state.currentCharacter?.id === id
@@ -83,6 +87,6 @@ export const useCharacterStore = create<CharacterStore>()(
     }),
     {
       name: "omni-novel-characters",
-    }
-  )
+    },
+  ),
 );

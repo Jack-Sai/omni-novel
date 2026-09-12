@@ -216,6 +216,39 @@ export function CharactersPage() {
               />
             </Field>
 
+            <Field label="能力特长">
+              <Textarea
+                value={(currentCharacter as any).abilities || ""}
+                onChange={(e) => handleUpdate({ abilities: e.target.value } as any)}
+                rows={2}
+                placeholder="特殊能力、技能、天赋"
+              />
+            </Field>
+
+            <Field label="弱点缺陷">
+              <Textarea
+                value={(currentCharacter as any).weaknesses || ""}
+                onChange={(e) => handleUpdate({ weaknesses: e.target.value } as any)}
+                rows={2}
+                placeholder="性格缺陷、身体弱点、心理阴影"
+              />
+            </Field>
+
+            <Field label="标签" hint="多个标签用英文逗号分隔">
+              <Input
+                value={currentCharacter.tags.join(", ")}
+                onChange={(e) =>
+                  handleUpdate({
+                    tags: e.target.value
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder="例如：主角, 反派, 喜剧角色"
+              />
+            </Field>
+
             <Field label="备注">
               <Textarea
                 value={currentCharacter.notes}
