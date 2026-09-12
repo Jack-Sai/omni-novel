@@ -18,7 +18,7 @@ import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor, type EditorRef } from "../components/editor";
 import { AIPanel } from "../components/ai";
 import { ChapterList } from "../components/chapter";
-import { ExportService } from "../services";
+import { ExportService, saveChapter, titleToFilename } from "../services";
 import { useAutoSave } from "../hooks";
 import {
   Badge,
@@ -65,9 +65,21 @@ export function EditorPage() {
     updateContent: updateChapterContent,
   } = useChapterStore();
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
+    if (!currentChapter || !currentProject) return;
+
     setLastSaved(new Date());
-  }, []);
+
+    // 保存到磁盘
+    if (currentProject.storagePath) {
+      try {
+        const filename = titleToFilename(currentChapter.title);
+        await saveChapter(currentProject.storagePath, filename, currentChapter.content);
+      } catch (err) {
+        console.error("Failed to save chapter to disk:", err);
+      }
+    }
+  }, [currentChapter, currentProject]);
 
   useAutoSave({
     data: currentChapter,
