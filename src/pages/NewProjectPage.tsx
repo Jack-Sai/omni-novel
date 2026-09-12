@@ -152,10 +152,9 @@ export function NewProjectPage() {
                   value={targetWords}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     const v = parseInt(e.target.value);
-                    if (!isNaN(v)) setTargetWords(v);
+                    if (!isNaN(v) && v >= 10000) setTargetWords(v);
                   }}
                   min={10000}
-                  step={10000}
                 />
               </Field>
             </div>
