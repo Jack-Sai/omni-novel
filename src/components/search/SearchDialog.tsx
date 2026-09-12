@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, X, FileText, User, Map, Eye } from "lucide-react";
+import { Eye, FileText, Map, Search, User, X } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useChapterStore } from "../../stores/chapterStore";
 import { useCharacterStore } from "../../stores/characterStore";
 import { useWorldviewStore } from "../../stores/worldviewStore";
 import { useForeshadowingStore } from "../../stores/foreshadowingStore";
 import { useNavigate } from "react-router-dom";
+import { Badge, Button, Dialog, Kbd, type BadgeVariant } from "../ui";
+import { cn } from "../../lib/cn";
 
 interface SearchResult {
   id: string;
@@ -20,6 +22,16 @@ interface SearchDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const typeMeta: Record<
+  SearchResult["type"],
+  { label: string; icon: typeof FileText; tone: BadgeVariant; path: string }
+> = {
+  chapter: { label: "章节", icon: FileText, tone: "primary", path: "/editor" },
+  character: { label: "人物", icon: User, tone: "success", path: "/characters" },
+  worldview: { label: "设定", icon: Map, tone: "warning", path: "/worldview" },
+  foreshadowing: { label: "伏笔", icon: Eye, tone: "neutral", path: "/foreshadowing" },
+};
+
 export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -33,9 +45,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const { items: foreshadowingItems } = useForeshadowingStore();
 
   useEffect(() => {
-    if (open && inputRef.current) {
-      inputRef.current.focus();
-    }
+    if (open && inputRef.current) inputRef.current.focus();
   }, [open]);
 
   useEffect(() => {
@@ -44,186 +54,175 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       return;
     }
 
-    const searchResults: SearchResult[] = [];
+    const found: SearchResult[] = [];
     const lowerQuery = query.toLowerCase();
 
-    // Search chapters
+    const matches = (haystack: string) => haystack.toLowerCase().indexOf(lowerQuery);
+
     chapters
       .filter((c) => c.projectId === currentProject.id)
       .forEach((chapter) => {
-        const contentText = chapter.content.replace(/<[^>]*>/g, "");
-        const index = contentText.toLowerCase().indexOf(lowerQuery);
-        if (index !== -1) {
-          const start = Math.max(0, index - 20);
-          const end = Math.min(contentText.length, index + query.length + 20);
-          searchResults.push({
-            id: chapter.id,
-            type: "chapter",
-            title: chapter.title,
-            content: (start > 0 ? "..." : "") + contentText.slice(start, end) + (end < contentText.length ? "..." : ""),
-            matchIndex: index,
-          });
-        }
+        const text = chapter.content.replace(/<[^>]*>/g, "");
+        const index = matches(text);
+        if (index === -1) return;
+
+        const start = Math.max(0, index - 20);
+        const end = Math.min(text.length, index + query.length + 20);
+        found.push({
+          id: chapter.id,
+          type: "chapter",
+          title: chapter.title,
+          content:
+            (start > 0 ? "…" : "") +
+            text.slice(start, end) +
+            (end < text.length ? "…" : ""),
+          matchIndex: index,
+        });
       });
 
-    // Search characters
     characters
       .filter((c) => c.projectId === currentProject.id)
       .forEach((character) => {
-        const searchText = `${character.name} ${character.personality} ${character.background}`.toLowerCase();
-        const index = searchText.indexOf(lowerQuery);
-        if (index !== -1) {
-          searchResults.push({
-            id: character.id,
-            type: "character",
-            title: character.name,
-            content: character.personality || character.background || "",
-            matchIndex: index,
-          });
-        }
+        const index = matches(
+          `${character.name} ${character.personality} ${character.background}`,
+        );
+        if (index === -1) return;
+        found.push({
+          id: character.id,
+          type: "character",
+          title: character.name,
+          content: character.personality || character.background || "",
+          matchIndex: index,
+        });
       });
 
-    // Search worldview
     worldviewItems
       .filter((w) => w.projectId === currentProject.id)
       .forEach((item) => {
-        const searchText = `${item.name} ${item.description} ${item.details}`.toLowerCase();
-        const index = searchText.indexOf(lowerQuery);
-        if (index !== -1) {
-          searchResults.push({
-            id: item.id,
-            type: "worldview",
-            title: item.name,
-            content: item.description || item.details || "",
-            matchIndex: index,
-          });
-        }
+        const index = matches(`${item.name} ${item.description} ${item.details}`);
+        if (index === -1) return;
+        found.push({
+          id: item.id,
+          type: "worldview",
+          title: item.name,
+          content: item.description || item.details || "",
+          matchIndex: index,
+        });
       });
 
-    // Search foreshadowing
     foreshadowingItems
       .filter((f) => f.projectId === currentProject.id)
       .forEach((item) => {
-        const searchText = `${item.name} ${item.description} ${item.plantedContent} ${item.notes}`.toLowerCase();
-        const index = searchText.indexOf(lowerQuery);
-        if (index !== -1) {
-          searchResults.push({
-            id: item.id,
-            type: "foreshadowing",
-            title: item.name,
-            content: item.description || item.plantedContent || "",
-            matchIndex: index,
-          });
-        }
+        const index = matches(
+          `${item.name} ${item.description} ${item.plantedContent} ${item.notes}`,
+        );
+        if (index === -1) return;
+        found.push({
+          id: item.id,
+          type: "foreshadowing",
+          title: item.name,
+          content: item.description || item.plantedContent || "",
+          matchIndex: index,
+        });
       });
 
-    setResults(searchResults.slice(0, 20));
+    setResults(found.slice(0, 20));
   }, [query, currentProject, chapters, characters, worldviewItems, foreshadowingItems]);
 
   const handleSelect = (result: SearchResult) => {
     onOpenChange(false);
     setQuery("");
-
-    switch (result.type) {
-      case "chapter":
-        navigate("/editor");
-        break;
-      case "character":
-        navigate("/characters");
-        break;
-      case "worldview":
-        navigate("/worldview");
-        break;
-      case "foreshadowing":
-        navigate("/foreshadowing");
-        break;
-    }
+    navigate(typeMeta[result.type].path);
   };
-
-  const getTypeIcon = (type: SearchResult["type"]) => {
-    switch (type) {
-      case "chapter":
-        return <FileText size={16} className="text-blue-500" />;
-      case "character":
-        return <User size={16} className="text-green-500" />;
-      case "worldview":
-        return <Map size={16} className="text-orange-500" />;
-      case "foreshadowing":
-        return <Eye size={16} className="text-purple-500" />;
-    }
-  };
-
-  const getTypeLabel = (type: SearchResult["type"]) => {
-    switch (type) {
-      case "chapter":
-        return "章节";
-      case "character":
-        return "人物";
-      case "worldview":
-        return "设定";
-    }
-  };
-
-  if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[20vh]">
-      <div className="w-[90%] max-w-xl rounded-xl bg-[var(--color-bg)] shadow-2xl">
-        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
-          <Search size={20} className="text-[var(--color-text-secondary)]" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索章节、人物、设定..."
-            className="flex-1 bg-transparent outline-none"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") onOpenChange(false);
-            }}
-          />
-          {query && (
-            <button onClick={() => setQuery("")} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text)]">
-              <X size={16} />
-            </button>
-          )}
-        </div>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="搜索"
+      position="top"
+      hideHeader
+      flush
+      size="xl"
+      className="shadow-xl"
+    >
+      <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+        <Search size={16} className="shrink-0 text-ink-3" aria-hidden />
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="搜索章节、人物、设定、伏笔…"
+          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-3"
+        />
+        {query && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="清空搜索"
+            onClick={() => setQuery("")}
+          >
+            <X size={14} />
+          </Button>
+        )}
+      </div>
 
-        <div className="max-h-80 overflow-auto p-2">
-          {results.length === 0 && query.trim() ? (
-            <div className="py-8 text-center text-[var(--color-text-secondary)]">
-              没有找到匹配的内容
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {results.map((result) => (
+      <div className="max-h-[52vh] overflow-auto p-1.5">
+        {!currentProject ? (
+          <p className="px-3 py-8 text-center text-[13px] text-ink-3">
+            请先选择一个项目后再搜索
+          </p>
+        ) : !query.trim() ? (
+          <p className="px-3 py-8 text-center text-[13px] text-ink-3">
+            输入关键词开始搜索当前项目内的所有内容
+          </p>
+        ) : results.length === 0 ? (
+          <p className="px-3 py-8 text-center text-[13px] text-ink-3">
+            没有找到匹配的内容
+          </p>
+        ) : (
+          <div className="space-y-0.5">
+            {results.map((result) => {
+              const meta = typeMeta[result.type];
+              const Icon = meta.icon;
+
+              return (
                 <button
                   key={`${result.type}-${result.id}`}
+                  type="button"
                   onClick={() => handleSelect(result)}
-                  className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-[var(--color-bg-secondary)]"
+                  className={cn(
+                    "flex w-full items-start gap-3 rounded-md px-3 py-2 text-left",
+                    "transition-colors duration-150 hover:bg-hover",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+                  )}
                 >
-                  <div className="mt-0.5">{getTypeIcon(result.type)}</div>
-                  <div className="flex-1 min-w-0">
+                  <Icon size={15} className="mt-0.5 shrink-0 text-ink-3" aria-hidden />
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{result.title}</span>
-                      <span className="text-xs text-[var(--color-text-secondary)]">{getTypeLabel(result.type)}</span>
+                      <span className="truncate text-[13px] font-medium text-ink">
+                        {result.title || "未命名"}
+                      </span>
+                      <Badge variant={meta.tone} size="sm">
+                        {meta.label}
+                      </Badge>
                     </div>
                     {result.content && (
-                      <p className="mt-1 text-sm text-[var(--color-text-secondary)] truncate">
-                        {result.content}
-                      </p>
+                      <p className="mt-0.5 truncate text-[12px] text-ink-2">{result.content}</p>
                     )}
                   </div>
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-[var(--color-border)] px-4 py-2 text-xs text-[var(--color-text-secondary)]">
-          按 ESC 关闭
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </div>
+
+      <div className="flex items-center gap-2 border-t border-line px-4 py-2 text-[11px] text-ink-3">
+        <Kbd>Esc</Kbd>
+        <span>关闭</span>
+        {results.length > 0 && <span className="ml-auto">{results.length} 条结果</span>}
+      </div>
+    </Dialog>
   );
 }

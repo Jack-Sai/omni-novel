@@ -5,6 +5,7 @@ import CharacterCount from "@tiptap/extension-character-count";
 import { Sparkles } from "lucide-react";
 import { Toolbar } from "./Toolbar";
 import { AIAction } from "../ai";
+import { Button } from "../ui";
 
 interface EditorProps {
   content?: string;
@@ -12,19 +13,16 @@ interface EditorProps {
   placeholder?: string;
 }
 
-export function Editor({ content = "", onUpdate, placeholder = "开始写作..." }: EditorProps) {
+export function Editor({ content = "", onUpdate, placeholder = "开始写作…" }: EditorProps) {
   const [showAI, setShowAI] = useState(false);
   const [selectedText, setSelectedText] = useState("");
 
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      CharacterCount,
-    ],
+    extensions: [StarterKit, CharacterCount],
     content,
     editorProps: {
       attributes: {
-        class: "prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[500px] p-8",
+        class: "tiptap",
         "data-placeholder": placeholder,
       },
     },
@@ -34,17 +32,12 @@ export function Editor({ content = "", onUpdate, placeholder = "开始写作..."
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;
       if (from !== to) {
-        const text = editor.state.doc.textBetween(from, to);
-        setSelectedText(text);
+        setSelectedText(editor.state.doc.textBetween(from, to));
       } else {
         setSelectedText("");
       }
     },
   });
-
-  const handleAIAction = () => {
-    setShowAI(!showAI);
-  };
 
   const handleApplyAI = (result: string) => {
     if (!editor) return;
@@ -63,30 +56,37 @@ export function Editor({ content = "", onUpdate, placeholder = "开始写作..."
   }
 
   return (
-    <div className="relative flex h-full flex-col bg-[var(--color-bg)]">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-2">
+    <div className="flex min-h-0 flex-1 flex-col bg-surface">
+      <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface px-4 py-2">
         <Toolbar editor={editor} />
-        <div className="ml-auto">
-          <button
-            onClick={handleAIAction}
-            className="flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-sm text-white transition hover:bg-[var(--color-primary-hover)]"
+
+        {/* 面板锚定在按钮下方，避免溢出到编辑区之外 */}
+        <div className="relative ml-auto shrink-0">
+          <Button
+            variant={showAI ? "primary" : "secondary"}
+            size="sm"
+            aria-pressed={showAI}
+            onClick={() => setShowAI(!showAI)}
           >
-            <Sparkles size={14} />
+            <Sparkles size={13} />
             AI 助手
-          </button>
+          </Button>
+
+          {showAI && (
+            <AIAction
+              selectedText={selectedText}
+              onApply={handleApplyAI}
+              onClose={() => setShowAI(false)}
+            />
+          )}
         </div>
       </div>
-      <div className="flex-1 overflow-auto">
-        <EditorContent editor={editor} className="h-full" />
-      </div>
 
-      {showAI && (
-        <AIAction
-          selectedText={selectedText}
-          onApply={handleApplyAI}
-          onClose={() => setShowAI(false)}
-        />
-      )}
+      <div className="flex-1 overflow-auto bg-surface">
+        <div className="mx-auto w-full max-w-[var(--app-reading-measure)] px-8 py-12 pb-32">
+          <EditorContent editor={editor} />
+        </div>
+      </div>
     </div>
   );
 }

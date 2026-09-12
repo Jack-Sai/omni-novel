@@ -1,32 +1,47 @@
 import { Sun, Moon, Monitor } from "lucide-react";
 import { useThemeStore } from "../../stores/themeStore";
+import { cn } from "../../lib/cn";
 
-export function ThemeToggle() {
+const themes = [
+  { value: "light", icon: Sun, label: "亮色" },
+  { value: "dark", icon: Moon, label: "暗色" },
+  { value: "system", icon: Monitor, label: "跟随系统" },
+] as const;
+
+export function ThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useThemeStore();
 
-  const themes = [
-    { value: "light" as const, icon: Sun, label: "亮色" },
-    { value: "dark" as const, icon: Moon, label: "暗色" },
-    { value: "system" as const, icon: Monitor, label: "跟随系统" },
-  ];
-
   return (
-    <div className="flex gap-1 rounded-lg border border-[var(--color-border)] p-1">
-      {themes.map(({ value, icon: Icon, label }) => (
-        <button
-          key={value}
-          onClick={() => setTheme(value)}
-          className={`flex h-8 w-8 items-center justify-center rounded-md transition
-            ${
-              theme === value
-                ? "bg-[var(--color-primary)] text-white"
-                : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-            }`}
-          title={label}
-        >
-          <Icon size={16} />
-        </button>
-      ))}
+    <div
+      role="group"
+      aria-label="主题"
+      className={cn(
+        "inline-flex items-center gap-1 rounded-xl border border-line bg-surface p-1",
+        className,
+      )}
+    >
+      {themes.map(({ value, icon: Icon, label }) => {
+        const active = theme === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTheme(value)}
+            title={label}
+            aria-label={label}
+            aria-pressed={active}
+            className={cn(
+              "flex h-8 flex-1 items-center justify-center rounded-lg transition-colors duration-150",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+              active
+                ? "bg-primary-soft text-primary"
+                : "text-ink-3 hover:bg-hover hover:text-ink",
+            )}
+          >
+            <Icon size={16} />
+          </button>
+        );
+      })}
     </div>
   );
 }

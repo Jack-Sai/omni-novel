@@ -1,53 +1,68 @@
 import { useState, useMemo, useCallback } from "react";
-import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, FileText, MapPin } from "lucide-react";
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  MapPin,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useOutlineStore } from "../stores/outlineStore";
 import { useProjectStore } from "../stores/projectStore";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  Page,
+  PageBody,
+  PageHeader,
+  type BadgeVariant,
+} from "../components/ui";
+
+const statusMap: Record<string, { label: string; tone: BadgeVariant }> = {
+  completed: { label: "已完成", tone: "success" },
+  writing: { label: "写作中", tone: "warning" },
+  draft: { label: "草稿", tone: "neutral" },
+};
 
 export function OutlinePage() {
   const { currentProject } = useProjectStore();
-  const {
-    volumes,
-    addVolume,
-    deleteVolume,
-    addChapter,
-    deleteChapter,
-    addScene,
-    deleteScene,
-  } = useOutlineStore();
+  const { volumes, addVolume, deleteVolume, addChapter, deleteChapter, addScene, deleteScene } =
+    useOutlineStore();
   const [expandedVolumes, setExpandedVolumes] = useState<Set<string>>(new Set());
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
   const [showAddVolume, setShowAddVolume] = useState(false);
   const [showAddChapter, setShowAddChapter] = useState<string | null>(null);
-  const [showAddScene, setShowAddScene] = useState<{ volumeId: string; chapterId: string } | null>(null);
+  const [showAddScene, setShowAddScene] = useState<{
+    volumeId: string;
+    chapterId: string;
+  } | null>(null);
   const [newTitle, setNewTitle] = useState("");
 
-  const projectVolumes = useMemo(() => {
-    return currentProject
-      ? volumes.filter((v) => v.projectId === currentProject.id).sort((a, b) => a.order - b.order)
-      : [];
-  }, [volumes, currentProject]);
+  const projectVolumes = useMemo(
+    () =>
+      currentProject
+        ? volumes.filter((v) => v.projectId === currentProject.id).sort((a, b) => a.order - b.order)
+        : [],
+    [volumes, currentProject],
+  );
 
   const toggleVolume = useCallback((id: string) => {
     setExpandedVolumes((prev) => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(id)) {
-        newExpanded.delete(id);
-      } else {
-        newExpanded.add(id);
-      }
-      return newExpanded;
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
     });
   }, []);
 
   const toggleChapter = useCallback((id: string) => {
     setExpandedChapters((prev) => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(id)) {
-        newExpanded.delete(id);
-      } else {
-        newExpanded.add(id);
-      }
-      return newExpanded;
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
     });
   }, []);
 
@@ -58,229 +73,310 @@ export function OutlinePage() {
     setShowAddVolume(false);
   }, [newTitle, currentProject, addVolume]);
 
-  const handleAddChapter = useCallback((volumeId: string) => {
-    if (!newTitle.trim()) return;
-    addChapter(volumeId, newTitle.trim());
-    setNewTitle("");
-    setShowAddChapter(null);
-  }, [newTitle, addChapter]);
+  const handleAddChapter = useCallback(
+    (volumeId: string) => {
+      if (!newTitle.trim()) return;
+      addChapter(volumeId, newTitle.trim());
+      setNewTitle("");
+      setShowAddChapter(null);
+    },
+    [newTitle, addChapter],
+  );
 
-  const handleAddScene = useCallback((volumeId: string, chapterId: string) => {
-    if (!newTitle.trim()) return;
-    addScene(volumeId, chapterId, newTitle.trim());
-    setNewTitle("");
-    setShowAddScene(null);
-  }, [newTitle, addScene]);
+  const handleAddScene = useCallback(
+    (volumeId: string, chapterId: string) => {
+      if (!newTitle.trim()) return;
+      addScene(volumeId, chapterId, newTitle.trim());
+      setNewTitle("");
+      setShowAddScene(null);
+    },
+    [newTitle, addScene],
+  );
 
+  /* ---------------- 未选择项目 ---------------- */
   if (!currentProject) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
-        <BookOpen size={48} className="text-[var(--color-text-secondary)]" />
-        <p className="text-[var(--color-text-secondary)]">请先选择一个项目</p>
-      </div>
+      <Page>
+        <PageHeader title="大纲管理" />
+        <PageBody>
+          <EmptyState
+            icon={BookOpen}
+            title="请先选择一个项目"
+            description="在编辑器中打开或创建一个项目后，即可梳理卷、章、场景结构。"
+          />
+        </PageBody>
+      </Page>
     );
   }
 
+  const chapterCount = projectVolumes.reduce((sum, v) => sum + v.chapters.length, 0);
+
   return (
-    <div className="flex h-full flex-col p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">大纲管理</h1>
-        <button
-          onClick={() => setShowAddVolume(true)}
-          className="flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-white transition hover:bg-[var(--color-primary-hover)]"
-        >
-          <Plus size={18} />
-          添加卷
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        title="大纲管理"
+        description={`${projectVolumes.length} 卷 · ${chapterCount} 章`}
+        actions={
+          <Button variant="primary" onClick={() => setShowAddVolume(true)}>
+            <Plus size={15} />
+            添加卷
+          </Button>
+        }
+      />
 
-      {showAddVolume && (
-        <div className="mb-4 flex gap-2">
-          <input
-            type="text"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAddVolume()}
-            autoFocus
-            placeholder="输入卷名..."
-            className="flex-1 rounded-lg border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 py-2 outline-none"
-          />
-          <button
-            onClick={handleAddVolume}
-            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-white transition hover:bg-[var(--color-primary-hover)]"
-          >
-            添加
-          </button>
-          <button
-            onClick={() => setShowAddVolume(false)}
-            className="rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg-secondary)]"
-          >
-            取消
-          </button>
-        </div>
-      )}
-
-      {projectVolumes.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <BookOpen size={48} className="text-[var(--color-text-secondary)]" />
-          <p className="text-[var(--color-text-secondary)]">还没有大纲，开始规划吧</p>
-        </div>
-      ) : (
+      <PageBody>
         <div className="space-y-3">
-          {projectVolumes.map((volume) => (
-            <div
-              key={volume.id}
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
-            >
-              <div className="group flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => toggleVolume(volume.id)} className="text-[var(--color-text-secondary)]">
-                    {expandedVolumes.has(volume.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                  </button>
-                  <span className="font-medium">{volume.title}</span>
-                  <span className="text-sm text-[var(--color-text-secondary)]">
-                    ({volume.chapters.length} 章)
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setShowAddChapter(volume.id)}
-                    className="rounded p-1 text-[var(--color-text-secondary)] opacity-0 transition hover:bg-[var(--color-border)] group-hover:opacity-100"
-                    title="添加章节"
-                  >
-                    <Plus size={16} />
-                  </button>
-                  <button
-                    onClick={() => deleteVolume(volume.id)}
-                    className="rounded p-1 text-[var(--color-text-secondary)] opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
+          {showAddVolume && (
+            <Card className="omni-pop flex flex-wrap items-center gap-2">
+              <Input
+                autoFocus
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddVolume();
+                  if (e.key === "Escape") setShowAddVolume(false);
+                }}
+                placeholder="输入卷名，回车创建"
+                className="min-w-40 flex-1"
+              />
+              <Button variant="primary" onClick={handleAddVolume} disabled={!newTitle.trim()}>
+                添加
+              </Button>
+              <Button variant="ghost" onClick={() => setShowAddVolume(false)}>
+                取消
+              </Button>
+            </Card>
+          )}
 
-              {showAddChapter === volume.id && (
-                <div className="border-t border-[var(--color-border)] px-4 py-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddChapter(volume.id)}
-                      autoFocus
-                      placeholder="输入章节标题..."
-                      className="flex-1 rounded-lg border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 py-1.5 text-sm outline-none"
-                    />
-                    <button
-                      onClick={() => handleAddChapter(volume.id)}
-                      className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-sm text-white transition hover:bg-[var(--color-primary-hover)]"
+          {projectVolumes.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title="还没有大纲"
+              description="先立卷，再拆章，最后落到场景 —— 长篇小说不容易跑偏。"
+              action={
+                <Button variant="primary" onClick={() => setShowAddVolume(true)}>
+                  <Plus size={15} />
+                  添加第一卷
+                </Button>
+              }
+              className="py-16"
+            />
+          ) : (
+            projectVolumes.map((volume) => {
+              const volumeOpen = expandedVolumes.has(volume.id);
+
+              return (
+                <Card key={volume.id} padded={false} className="overflow-hidden">
+                  {/* 卷头 */}
+                  <div className="group flex items-center gap-2 px-3 py-2.5">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={volumeOpen ? "折叠" : "展开"}
+                      aria-expanded={volumeOpen}
+                      onClick={() => toggleVolume(volume.id)}
                     >
-                      添加
-                    </button>
-                    <button
-                      onClick={() => setShowAddChapter(null)}
-                      className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:bg-[var(--color-bg-secondary)]"
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              )}
+                      {volumeOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                    </Button>
+                    <BookOpen size={15} className="shrink-0 text-ink-3" aria-hidden />
+                    <span className="truncate text-sm font-medium text-ink">{volume.title}</span>
+                    <span className="shrink-0 text-[12px] tabular-nums text-ink-3">
+                      {volume.chapters.length} 章
+                    </span>
 
-              {expandedVolumes.has(volume.id) && volume.chapters.length > 0 && (
-                <div className="border-t border-[var(--color-border)] px-4 py-2">
-                  {volume.chapters.map((chapter, index) => (
-                    <div key={chapter.id} className="mb-2">
-                      <div className="group flex items-center justify-between rounded px-3 py-2 transition hover:bg-[var(--color-bg)]">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => toggleChapter(chapter.id)} className="text-[var(--color-text-secondary)]">
-                            {expandedChapters.has(chapter.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          </button>
-                          <FileText size={14} className="text-[var(--color-text-secondary)]" />
-                          <span>第{index + 1}章 {chapter.title}</span>
-                          <span className={`rounded px-1.5 py-0.5 text-xs ${
-                            chapter.status === "completed"
-                              ? "bg-green-100 text-green-700"
-                              : chapter.status === "writing"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}>
-                            {chapter.status === "completed" ? "已完成" : chapter.status === "writing" ? "写作中" : "草稿"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setShowAddScene({ volumeId: volume.id, chapterId: chapter.id })}
-                            className="rounded p-1 text-[var(--color-text-secondary)] opacity-0 transition hover:bg-[var(--color-border)] group-hover:opacity-100"
-                          >
-                            <Plus size={12} />
-                          </button>
-                          <button
-                            onClick={() => deleteChapter(volume.id, chapter.id)}
-                            className="rounded p-1 text-[var(--color-text-secondary)] opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {showAddScene?.volumeId === volume.id && showAddScene.chapterId === chapter.id && (
-                        <div className="ml-8 py-1">
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={newTitle}
-                              onChange={(e) => setNewTitle(e.target.value)}
-                              onKeyDown={(e) => e.key === "Enter" && handleAddScene(volume.id, chapter.id)}
-                              autoFocus
-                              placeholder="输入场景标题..."
-                              className="flex-1 rounded-lg border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 py-1 text-xs outline-none"
-                            />
-                            <button
-                              onClick={() => handleAddScene(volume.id, chapter.id)}
-                              className="rounded bg-[var(--color-primary)] px-2 py-1 text-xs text-white"
-                            >
-                              添加
-                            </button>
-                            <button
-                              onClick={() => setShowAddScene(null)}
-                              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs"
-                            >
-                              取消
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {expandedChapters.has(chapter.id) && chapter.scenes.length > 0 && (
-                        <div className="ml-8 space-y-1 py-1">
-                          {chapter.scenes.map((scene, sceneIndex) => (
-                            <div
-                              key={scene.id}
-                              className="group flex items-center justify-between rounded px-2 py-1 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]"
-                            >
-                              <div className="flex items-center gap-2">
-                                <MapPin size={12} />
-                                <span>场景{sceneIndex + 1}: {scene.title}</span>
-                              </div>
-                              <button
-                                onClick={() => deleteScene(volume.id, chapter.id, scene.id)}
-                                className="rounded p-0.5 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100"
-                              >
-                                <Trash2 size={10} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                    <div className="ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="添加章节"
+                        onClick={() => setShowAddChapter(volume.id)}
+                      >
+                        <Plus size={14} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="删除卷"
+                        className="hover:bg-danger-soft hover:text-danger"
+                        onClick={() => deleteVolume(volume.id)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                  </div>
+
+                  {/* 新增章节 */}
+                  {showAddChapter === volume.id && (
+                    <div className="omni-pop border-t border-line bg-subtle px-3 py-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          autoFocus
+                          inputSize="sm"
+                          value={newTitle}
+                          onChange={(e) => setNewTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleAddChapter(volume.id);
+                            if (e.key === "Escape") setShowAddChapter(null);
+                          }}
+                          placeholder="输入章节标题，回车创建"
+                          className="min-w-40 flex-1"
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleAddChapter(volume.id)}
+                          disabled={!newTitle.trim()}
+                        >
+                          添加
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setShowAddChapter(null)}>
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 章节列表 */}
+                  {volumeOpen && volume.chapters.length > 0 && (
+                    <div className="border-t border-line px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        {volume.chapters.map((chapter, index) => {
+                          const chapterOpen = expandedChapters.has(chapter.id);
+                          const status = statusMap[chapter.status] ?? statusMap.draft;
+
+                          return (
+                            <div key={chapter.id}>
+                              <div className="group/ch flex items-center gap-2.5 rounded-lg py-2 pl-7 pr-2 transition-colors hover:bg-hover">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={chapterOpen ? "折叠" : "展开"}
+                                  aria-expanded={chapterOpen}
+                                  onClick={() => toggleChapter(chapter.id)}
+                                  className="h-6 w-6"
+                                >
+                                  {chapterOpen ? (
+                                    <ChevronDown size={13} />
+                                  ) : (
+                                    <ChevronRight size={13} />
+                                  )}
+                                </Button>
+                                <span className="w-10 shrink-0 text-[12px] tabular-nums text-ink-3">
+                                  第 {index + 1} 章
+                                </span>
+                                <FileText size={14} className="shrink-0 text-ink-3" aria-hidden />
+                                <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
+                                  {chapter.title}
+                                </span>
+                                <Badge variant={status.tone} size="sm">
+                                  {status.label}
+                                </Badge>
+
+                                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/ch:opacity-100 focus-within:opacity-100">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="添加场景"
+                                    className="h-6 w-6"
+                                    onClick={() =>
+                                      setShowAddScene({
+                                        volumeId: volume.id,
+                                        chapterId: chapter.id,
+                                      })
+                                    }
+                                  >
+                                    <Plus size={12} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="删除章节"
+                                    className="h-6 w-6 hover:bg-danger-soft hover:text-danger"
+                                    onClick={() => deleteChapter(volume.id, chapter.id)}
+                                  >
+                                    <Trash2 size={12} />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* 新增场景 */}
+                              {showAddScene?.volumeId === volume.id &&
+                                showAddScene.chapterId === chapter.id && (
+                                  <div className="omni-pop ml-14 mt-1.5 flex flex-wrap items-center gap-2 pb-1.5">
+                                    <Input
+                                      autoFocus
+                                      inputSize="sm"
+                                      value={newTitle}
+                                      onChange={(e) => setNewTitle(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter")
+                                          handleAddScene(volume.id, chapter.id);
+                                        if (e.key === "Escape") setShowAddScene(null);
+                                      }}
+                                      placeholder="输入场景标题，回车创建"
+                                      className="min-w-36 flex-1"
+                                    />
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={() => handleAddScene(volume.id, chapter.id)}
+                                      disabled={!newTitle.trim()}
+                                    >
+                                      添加
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setShowAddScene(null)}
+                                    >
+                                      取消
+                                    </Button>
+                                  </div>
+                                )}
+
+                              {/* 场景列表 */}
+                              {chapterOpen && chapter.scenes.length > 0 && (
+                                <div className="ml-14 space-y-0.5 border-l border-line py-1.5 pl-4">
+                                  {chapter.scenes.map((scene, sceneIndex) => (
+                                    <div
+                                      key={scene.id}
+                                      className="group/sc flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-hover"
+                                    >
+                                      <MapPin
+                                        size={12}
+                                        className="shrink-0 text-ink-3"
+                                        aria-hidden
+                                      />
+                                      <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">
+                                        场景 {sceneIndex + 1}：{scene.title}
+                                      </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="删除场景"
+                                        className="h-5 w-5 opacity-0 transition-opacity group-hover/sc:opacity-100 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100"
+                                        onClick={() =>
+                                          deleteScene(volume.id, chapter.id, scene.id)
+                                        }
+                                      >
+                                        <Trash2 size={11} />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })
+          )}
         </div>
-      )}
-    </div>
+      </PageBody>
+    </Page>
   );
 }

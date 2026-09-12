@@ -1,10 +1,30 @@
 import { useState, useRef } from "react";
-import { Save, Check, Download, Upload, AlertTriangle } from "lucide-react";
-import { ThemeToggle } from "../components/ui";
+import {
+  AlertTriangle,
+  Check,
+  Database,
+  Download,
+  Info,
+  Palette,
+  Save,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useProjectStore } from "../stores/projectStore";
 import { ollama, BackupService } from "../services";
-
+import {
+  Badge,
+  Button,
+  Field,
+  Input,
+  Page,
+  PageBody,
+  PageHeader,
+  Section,
+  SettingRow,
+  ThemeToggle,
+} from "../components/ui";
 export function SettingsPage() {
   const { ai, updateAISettings } = useSettingsStore();
   const { currentProject } = useProjectStore();
@@ -16,10 +36,7 @@ export function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
-    ollama.updateConfig({
-      baseUrl: ai.baseUrl,
-      model: ai.model,
-    });
+    ollama.updateConfig({ baseUrl: ai.baseUrl, model: ai.model });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -28,23 +45,8 @@ export function SettingsPage() {
     setTesting(true);
     ollama.updateConfig({ baseUrl: ai.baseUrl, model: ai.model });
     const connected = await ollama.checkConnection();
-    if (connected) {
-      const modelList = await ollama.listModels();
-      setModels(modelList);
-    } else {
-      setModels([]);
-    }
+    setModels(connected ? await ollama.listModels() : []);
     setTesting(false);
-  };
-
-  const handleExportBackup = async () => {
-    await BackupService.exportBackup();
-  };
-
-  const handleExportProject = async () => {
-    if (currentProject) {
-      await BackupService.exportProject(currentProject.id);
-    }
   };
 
   const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,238 +60,231 @@ export function SettingsPage() {
     setImportSuccess(success);
     setImporting(false);
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setTimeout(() => setImportSuccess(null), 3000);
   };
 
+  const sliders = [
+    {
+      label: "Temperature",
+      value: ai.temperature,
+      min: "0",
+      max: "2",
+      step: "0.1",
+      hint: "越高越随机",
+      onChange: (v: string) => updateAISettings({ temperature: parseFloat(v) }),
+    },
+    {
+      label: "Top P",
+      value: ai.topP,
+      min: "0",
+      max: "1",
+      step: "0.05",
+      hint: "采样范围",
+      onChange: (v: string) => updateAISettings({ topP: parseFloat(v) }),
+    },
+    {
+      label: "Top K",
+      value: ai.topK,
+      min: "1",
+      max: "100",
+      step: "1",
+      hint: "候选词数量",
+      onChange: (v: string) => updateAISettings({ topK: parseInt(v) }),
+    },
+    {
+      label: "重复惩罚",
+      value: ai.repeatPenalty,
+      min: "1",
+      max: "2",
+      step: "0.1",
+      hint: "抑制重复用词",
+      onChange: (v: string) => updateAISettings({ repeatPenalty: parseFloat(v) }),
+    },
+  ];
+
   return (
-    <div className="flex h-full flex-col p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">设置</h1>
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-white transition hover:bg-[var(--color-primary-hover)]"
-        >
-          {saved ? <Check size={16} /> : <Save size={16} />}
-          {saved ? "已保存" : "保存设置"}
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        title="设置"
+        description="模型、外观与数据备份"
+        actions={
+          <Button variant="primary" onClick={handleSave}>
+            {saved ? <Check size={15} /> : <Save size={15} />}
+            {saved ? "已保存" : "保存设置"}
+          </Button>
+        }
+      />
 
-      <div className="space-y-6">
-        <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
-          <h2 className="mb-3 font-semibold">外观</h2>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">主题</p>
-              <p className="text-sm text-[var(--color-text-secondary)]">选择亮色、暗色或跟随系统</p>
-            </div>
-            <ThemeToggle />
-          </div>
-        </section>
+      <PageBody width="reading">
+        <div className="space-y-4">
+          {/* 外观 */}
+          <Section title="外观" icon={Palette}>
+            <SettingRow title="主题" description="选择亮色、暗色或跟随系统">
+              <ThemeToggle />
+            </SettingRow>
+          </Section>
 
-        <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
-          <h2 className="mb-3 font-semibold">AI 模型</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium">模型端点</label>
-              <input
-                type="text"
+          {/* AI 模型 */}
+          <Section
+            title="AI 模型"
+            description="本地 Ollama 服务"
+            icon={Sparkles}
+            contentClassName="space-y-5"
+          >
+            <Field label="模型端点" hint="例如 http://localhost:11434">
+              <Input
                 value={ai.baseUrl}
                 onChange={(e) => updateAISettings({ baseUrl: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
                 placeholder="Ollama 端点地址"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">模型名称</label>
+            <Field label="模型名称">
               <div className="flex gap-2">
-                <input
-                  type="text"
+                <Input
                   value={ai.model}
                   onChange={(e) => updateAISettings({ model: e.target.value })}
-                  className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
                   placeholder="输入模型名称"
+                  className="flex-1"
                 />
-                <button
+                <Button
+                  variant="secondary"
+                  loading={testing}
                   onClick={handleTestConnection}
-                  disabled={testing}
-                  className="rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg)] disabled:opacity-50"
+                  className="shrink-0"
                 >
-                  {testing ? "检测中..." : "检测连接"}
-                </button>
+                  {testing ? "检测中" : "检测连接"}
+                </Button>
               </div>
-              {models.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
+            </Field>
+
+            {models.length > 0 && (
+              <div className="omni-pop">
+                <p className="mb-2 text-[12px] text-ink-3">检测到 {models.length} 个可用模型</p>
+                <div className="flex flex-wrap gap-1.5">
                   {models.map((model) => (
                     <button
                       key={model}
+                      type="button"
                       onClick={() => updateAISettings({ model })}
-                      className={`rounded-full px-3 py-1 text-xs transition ${
-                        ai.model === model
-                          ? "bg-[var(--color-primary)] text-white"
-                          : "border border-[var(--color-border)] hover:bg-[var(--color-bg)]"
-                      }`}
+                      className={
+                        "rounded-full border px-2.5 py-1 text-xs transition-colors " +
+                        (ai.model === model
+                          ? "border-primary-line bg-primary-soft font-medium text-primary"
+                          : "border-line text-ink-2 hover:border-line-strong hover:bg-hover hover:text-ink")
+                      }
                     >
                       {model}
                     </button>
                   ))}
                 </div>
-              )}
+              </div>
+            )}
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              {sliders.map((slider) => (
+                <Field key={slider.label} label={`${slider.label} · ${slider.value}`} hint={slider.hint}>
+                  <input
+                    type="range"
+                    min={slider.min}
+                    max={slider.max}
+                    step={slider.step}
+                    value={slider.value}
+                    onChange={(e) => slider.onChange(e.target.value)}
+                    className="w-full"
+                  />
+                </Field>
+              ))}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium">Temperature ({ai.temperature})</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value={ai.temperature}
-                  onChange={(e) => updateAISettings({ temperature: parseFloat(e.target.value) })}
-                  className="w-full"
-                />
-                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">创造性（越高越随机）</p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">Top P ({ai.topP})</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={ai.topP}
-                  onChange={(e) => updateAISettings({ topP: parseFloat(e.target.value) })}
-                  className="w-full"
-                />
-                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">采样范围</p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">Top K ({ai.topK})</label>
-                <input
-                  type="range"
-                  min="1"
-                  max="100"
-                  step="1"
-                  value={ai.topK}
-                  onChange={(e) => updateAISettings({ topK: parseInt(e.target.value) })}
-                  className="w-full"
-                />
-                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">候选词数量</p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">重复惩罚 ({ai.repeatPenalty})</label>
-                <input
-                  type="range"
-                  min="1"
-                  max="2"
-                  step="0.1"
-                  value={ai.repeatPenalty}
-                  onChange={(e) => updateAISettings({ repeatPenalty: parseFloat(e.target.value) })}
-                  className="w-full"
-                />
-                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">避免重复</p>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">最大 Token 数</label>
-              <input
+            <Field label="最大 Token 数" hint="单次生成的最大长度">
+              <Input
                 type="number"
                 value={ai.maxTokens}
                 onChange={(e) => updateAISettings({ maxTokens: parseInt(e.target.value) })}
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
                 min="256"
                 max="8192"
                 step="256"
               />
-              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">单次生成的最大长度</p>
-            </div>
-          </div>
-        </section>
+            </Field>
+          </Section>
 
-        <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
-          <h2 className="mb-3 font-semibold">数据备份与恢复</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">导出所有数据</p>
-                <p className="text-sm text-[var(--color-text-secondary)]">备份所有项目、章节、人物、世界观等数据</p>
-              </div>
-              <button
-                onClick={handleExportBackup}
-                className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg)]"
-              >
-                <Download size={16} />
+          {/* 数据备份 */}
+          <Section
+            title="数据备份与恢复"
+            icon={Database}
+            contentClassName="space-y-4"
+          >
+            <SettingRow
+              title="导出所有数据"
+              description="备份全部项目、章节、人物、世界观等数据"
+            >
+              <Button variant="secondary" onClick={() => BackupService.exportBackup()}>
+                <Download size={15} />
                 导出备份
-              </button>
-            </div>
+              </Button>
+            </SettingRow>
 
             {currentProject && (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">导出当前项目</p>
-                  <p className="text-sm text-[var(--color-text-secondary)]">仅备份当前项目的数据</p>
-                </div>
-                <button
-                  onClick={handleExportProject}
-                  className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg)]"
+              <SettingRow title="导出当前项目" description={`仅备份「${currentProject.title}」`}>
+                <Button
+                  variant="secondary"
+                  onClick={() => BackupService.exportProject(currentProject.id)}
                 >
-                  <Download size={16} />
+                  <Download size={15} />
                   导出项目
-                </button>
-              </div>
+                </Button>
+              </SettingRow>
             )}
 
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">导入备份</p>
-                <p className="text-sm text-[var(--color-text-secondary)]">从备份文件恢复数据（将覆盖当前数据）</p>
-              </div>
+            <SettingRow title="导入备份" description="从备份文件恢复，将覆盖当前数据">
               <div className="flex items-center gap-2">
                 {importSuccess !== null && (
-                  <span className={`text-sm ${importSuccess ? "text-green-500" : "text-red-500"}`}>
+                  <Badge variant={importSuccess ? "success" : "danger"}>
                     {importSuccess ? "导入成功" : "导入失败"}
-                  </span>
+                  </Badge>
                 )}
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg)]">
-                  <Upload size={16} />
-                  {importing ? "导入中..." : "导入备份"}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json"
-                    onChange={handleImportBackup}
-                    className="hidden"
-                    disabled={importing}
-                  />
-                </label>
+                <Button
+                  variant="secondary"
+                  loading={importing}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={15} />
+                  {importing ? "导入中" : "导入备份"}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportBackup}
+                  className="hidden"
+                  disabled={importing}
+                />
               </div>
-            </div>
+            </SettingRow>
 
-            <div className="flex items-start gap-2 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-              <p>导入备份将覆盖当前所有数据，请确保已备份重要数据。</p>
+            <div className="flex items-start gap-2 rounded-lg border border-warning-line bg-warning-soft p-3">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" aria-hidden />
+              <p className="text-[12px] leading-relaxed text-warning">
+                导入备份会覆盖当前所有数据，操作前请确认已导出重要内容。
+              </p>
             </div>
-          </div>
-        </section>
+          </Section>
 
-        <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
-          <h2 className="mb-3 font-semibold">关于</h2>
-          <div className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-            <p>Omni Novel v0.1.0</p>
-            <p>AI 驱动的小说创作桌面应用</p>
-            <p>技术栈：Tauri v2 + React 19 + TypeScript</p>
-          </div>
-        </section>
-      </div>
-    </div>
+          {/* 关于 */}
+          <Section title="关于" icon={Info}>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
+              <dt className="text-ink-3">版本</dt>
+              <dd className="text-ink">Omni Novel v0.1.0</dd>
+              <dt className="text-ink-3">简介</dt>
+              <dd className="text-ink">AI 驱动的小说创作桌面应用</dd>
+              <dt className="text-ink-3">技术栈</dt>
+              <dd className="text-ink">Tauri v2 · React 19 · TypeScript · Tailwind v4</dd>
+            </dl>
+          </Section>
+        </div>
+      </PageBody>
+    </Page>
   );
 }

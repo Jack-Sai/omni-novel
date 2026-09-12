@@ -1,19 +1,66 @@
 import { useState, useMemo, useCallback } from "react";
-import { Plus, User, Trash2, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, User, Users } from "lucide-react";
 import { useCharacterStore, Character } from "../stores/characterStore";
 import { useProjectStore } from "../stores/projectStore";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  Page,
+  PageBody,
+  PageHeader,
+  Select,
+  Textarea,
+} from "../components/ui";
+import { cn } from "../lib/cn";
+
+const genderLabel: Record<string, string> = {
+  male: "男",
+  female: "女",
+  other: "其他",
+};
+
+function CharacterAvatar({ name, size = 40 }: { name: string; size?: number }) {
+  const initial = name?.trim()?.[0];
+
+  return (
+    <div
+      style={{ width: size, height: size }}
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full",
+        "bg-primary-soft text-primary",
+      )}
+    >
+      {initial ? (
+        <span className="text-sm font-semibold">{initial}</span>
+      ) : (
+        <User size={size * 0.45} aria-hidden />
+      )}
+    </div>
+  );
+}
 
 export function CharactersPage() {
   const { currentProject } = useProjectStore();
-  const { characters, currentCharacter, addCharacter, setCurrentCharacter, updateCharacter, deleteCharacter } = useCharacterStore();
+  const {
+    characters,
+    currentCharacter,
+    addCharacter,
+    setCurrentCharacter,
+    updateCharacter,
+    deleteCharacter,
+  } = useCharacterStore();
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
 
-  const projectCharacters = useMemo(() => {
-    return currentProject
-      ? characters.filter((c) => c.projectId === currentProject.id)
-      : [];
-  }, [characters, currentProject]);
+  const projectCharacters = useMemo(
+    () =>
+      currentProject ? characters.filter((c) => c.projectId === currentProject.id) : [],
+    [characters, currentProject],
+  );
 
   const handleAdd = useCallback(() => {
     if (!newName.trim() || !currentProject) return;
@@ -22,258 +69,286 @@ export function CharactersPage() {
     setShowAdd(false);
   }, [newName, currentProject, addCharacter]);
 
-  const handleUpdate = useCallback((updates: Partial<Character>) => {
-    if (!currentCharacter) return;
-    updateCharacter(currentCharacter.id, updates);
-  }, [currentCharacter, updateCharacter]);
+  const handleUpdate = useCallback(
+    (updates: Partial<Character>) => {
+      if (!currentCharacter) return;
+      updateCharacter(currentCharacter.id, updates);
+    },
+    [currentCharacter, updateCharacter],
+  );
 
+  /* ---------------- 未选择项目 ---------------- */
   if (!currentProject) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
-        <User size={48} className="text-[var(--color-text-secondary)]" />
-        <p className="text-[var(--color-text-secondary)]">请先选择一个项目</p>
-      </div>
+      <Page>
+        <PageHeader title="人物管理" />
+        <PageBody>
+          <EmptyState
+            icon={Users}
+            title="请先选择一个项目"
+            description="在编辑器中打开或创建一个项目后，即可建立人物档案。"
+          />
+        </PageBody>
+      </Page>
     );
   }
 
+  /* ---------------- 编辑详情 ---------------- */
   if (currentCharacter) {
     return (
-      <div className="flex h-full flex-col p-6">
-        <div className="mb-6 flex items-center gap-4">
-          <button
-            onClick={() => setCurrentCharacter(null)}
-            className="rounded p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="text-2xl font-bold">编辑人物</h1>
-        </div>
+      <Page>
+        <PageHeader
+          leading={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="返回列表"
+              onClick={() => setCurrentCharacter(null)}
+            >
+              <ArrowLeft size={16} />
+            </Button>
+          }
+          title={currentCharacter.name || "未命名人物"}
+          description={
+            [
+              currentCharacter.gender ? genderLabel[currentCharacter.gender] : null,
+              currentCharacter.age || null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "人物档案"
+          }
+        />
+        <PageBody width="reading">
+          <div className="space-y-5">
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field label="姓名">
+                <Input
+                  value={currentCharacter.name}
+                  onChange={(e) => handleUpdate({ name: e.target.value })}
+                  placeholder="人物姓名"
+                />
+              </Field>
+              <Field label="别名" hint="多个别名用英文逗号分隔">
+                <Input
+                  value={currentCharacter.aliases.join(", ")}
+                  onChange={(e) =>
+                    handleUpdate({
+                      aliases: e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="例如：凌少, 守陵人"
+                />
+              </Field>
+              <Field label="性别">
+                <Select
+                  value={currentCharacter.gender}
+                  onChange={(e) => handleUpdate({ gender: e.target.value })}
+                >
+                  <option value="">未指定</option>
+                  <option value="male">男</option>
+                  <option value="female">女</option>
+                  <option value="other">其他</option>
+                </Select>
+              </Field>
+              <Field label="年龄">
+                <Input
+                  value={currentCharacter.age}
+                  onChange={(e) => handleUpdate({ age: e.target.value })}
+                  placeholder="例如：24 或 二十余岁"
+                />
+              </Field>
+            </div>
 
-        <div className="flex-1 space-y-4 overflow-auto">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium">姓名</label>
-              <input
-                type="text"
-                value={currentCharacter.name}
-                onChange={(e) => handleUpdate({ name: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
+            <Field label="外貌描写">
+              <Textarea
+                value={currentCharacter.appearance}
+                onChange={(e) => handleUpdate({ appearance: e.target.value })}
+                rows={3}
+                placeholder="五官、身形、衣着习惯、辨识度特征"
               />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">别名</label>
-              <input
-                type="text"
-                value={currentCharacter.aliases.join(", ")}
-                onChange={(e) => handleUpdate({ aliases: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
-                placeholder="用逗号分隔"
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
+            </Field>
+
+            <Field label="性格特点">
+              <Textarea
+                value={currentCharacter.personality}
+                onChange={(e) => handleUpdate({ personality: e.target.value })}
+                rows={3}
+                placeholder="核心性格、行为倾向、口癖"
               />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">性别</label>
-              <select
-                value={currentCharacter.gender}
-                onChange={(e) => handleUpdate({ gender: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-              >
-                <option value="">未指定</option>
-                <option value="male">男</option>
-                <option value="female">女</option>
-                <option value="other">其他</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">年龄</label>
-              <input
-                type="text"
-                value={currentCharacter.age}
-                onChange={(e) => handleUpdate({ age: e.target.value })}
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
+            </Field>
+
+            <Field label="背景故事">
+              <Textarea
+                value={currentCharacter.background}
+                onChange={(e) => handleUpdate({ background: e.target.value })}
+                rows={4}
+                placeholder="出身、经历、转折事件"
               />
-            </div>
-          </div>
+            </Field>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">外貌描写</label>
-            <textarea
-              value={currentCharacter.appearance}
-              onChange={(e) => handleUpdate({ appearance: e.target.value })}
-              rows={3}
-              className="w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-              placeholder="描述人物的外貌特征..."
-            />
-          </div>
+            <Field label="目标动机">
+              <Textarea
+                value={currentCharacter.goals}
+                onChange={(e) => handleUpdate({ goals: e.target.value })}
+                rows={2}
+                placeholder="想要什么，为什么想要"
+              />
+            </Field>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">性格特点</label>
-            <textarea
-              value={currentCharacter.personality}
-              onChange={(e) => handleUpdate({ personality: e.target.value })}
-              rows={3}
-              className="w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-              placeholder="描述人物的性格..."
-            />
-          </div>
+            <Field label="冲突矛盾">
+              <Textarea
+                value={currentCharacter.conflicts}
+                onChange={(e) => handleUpdate({ conflicts: e.target.value })}
+                rows={2}
+                placeholder="内在矛盾与外在阻力"
+              />
+            </Field>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">背景故事</label>
-            <textarea
-              value={currentCharacter.background}
-              onChange={(e) => handleUpdate({ background: e.target.value })}
-              rows={4}
-              className="w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-              placeholder="人物的过去经历..."
-            />
-          </div>
+            <Field label="人际关系">
+              <Textarea
+                value={currentCharacter.relationships}
+                onChange={(e) => handleUpdate({ relationships: e.target.value })}
+                rows={3}
+                placeholder="与其他人物之间的羁绊与对立"
+              />
+            </Field>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">目标动机</label>
-            <textarea
-              value={currentCharacter.goals}
-              onChange={(e) => handleUpdate({ goals: e.target.value })}
-              rows={2}
-              className="w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-              placeholder="人物想要什么？为什么？"
-            />
+            <Field label="备注">
+              <Textarea
+                value={currentCharacter.notes}
+                onChange={(e) => handleUpdate({ notes: e.target.value })}
+                rows={2}
+                placeholder="其他备注信息"
+              />
+            </Field>
           </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">冲突矛盾</label>
-            <textarea
-              value={currentCharacter.conflicts}
-              onChange={(e) => handleUpdate({ conflicts: e.target.value })}
-              rows={2}
-              className="w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-              placeholder="人物面临的冲突..."
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">人际关系</label>
-            <textarea
-              value={currentCharacter.relationships}
-              onChange={(e) => handleUpdate({ relationships: e.target.value })}
-              rows={3}
-              className="w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-              placeholder="与其他人物的关系..."
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">备注</label>
-            <textarea
-              value={currentCharacter.notes}
-              onChange={(e) => handleUpdate({ notes: e.target.value })}
-              rows={2}
-              className="w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-              placeholder="其他备注信息..."
-            />
-          </div>
-        </div>
-      </div>
+        </PageBody>
+      </Page>
     );
   }
 
+  /* ---------------- 列表 ---------------- */
   return (
-    <div className="flex h-full flex-col p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">人物管理</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-white transition hover:bg-[var(--color-primary-hover)]"
-        >
-          <Plus size={18} />
-          添加人物
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        title="人物管理"
+        description={`共 ${projectCharacters.length} 位人物`}
+        actions={
+          <Button variant="primary" onClick={() => setShowAdd(true)}>
+            <Plus size={15} />
+            添加人物
+          </Button>
+        }
+      />
 
-      {showAdd && (
-        <div className="mb-4 flex gap-2">
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            autoFocus
-            placeholder="输入人物姓名..."
-            className="flex-1 rounded-lg border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 py-2 outline-none"
-          />
-          <button
-            onClick={handleAdd}
-            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-white transition hover:bg-[var(--color-primary-hover)]"
-          >
-            添加
-          </button>
-          <button
-            onClick={() => setShowAdd(false)}
-            className="rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:bg-[var(--color-bg-secondary)]"
-          >
-            取消
-          </button>
-        </div>
-      )}
+      <PageBody>
+        <div className="space-y-4">
+          {showAdd && (
+            <Card className="omni-pop flex flex-wrap items-center gap-2">
+              <Input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAdd();
+                  if (e.key === "Escape") setShowAdd(false);
+                }}
+                placeholder="输入人物姓名，回车创建"
+                className="min-w-40 flex-1"
+              />
+              <Button variant="primary" onClick={handleAdd} disabled={!newName.trim()}>
+                添加
+              </Button>
+              <Button variant="ghost" onClick={() => setShowAdd(false)}>
+                取消
+              </Button>
+            </Card>
+          )}
 
-      {projectCharacters.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <User size={48} className="text-[var(--color-text-secondary)]" />
-          <p className="text-[var(--color-text-secondary)]">还没有人物，开始创建吧</p>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projectCharacters.map((character) => (
-            <div
-              key={character.id}
-              className="group relative cursor-pointer rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4 transition hover:border-[var(--color-primary)]"
-              onClick={() => setCurrentCharacter(character)}
-            >
-              <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)]">
-                  <User size={24} />
-                </div>
-                <div>
-                  <h3 className="font-semibold">{character.name}</h3>
-                  {character.gender && (
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      {character.gender === "male" ? "男" : character.gender === "female" ? "女" : "其他"}
-                      {character.age && ` · ${character.age}`}
+          {projectCharacters.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="还没有人物"
+              description="为每个角色建立档案，写作时随时核对性格与关系。"
+              action={
+                <Button variant="primary" onClick={() => setShowAdd(true)}>
+                  <Plus size={15} />
+                  创建第一个人物
+                </Button>
+              }
+              className="py-16"
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {projectCharacters.map((character) => (
+                <Card
+                  key={character.id}
+                  interactive
+                  className="group relative"
+                  onClick={() => setCurrentCharacter(character)}
+                >
+                  <div className="flex items-start gap-3">
+                    <CharacterAvatar name={character.name} />
+                    <div className="min-w-0 flex-1 pr-6">
+                      <h3 className="truncate text-sm font-medium text-ink">
+                        {character.name || "未命名人物"}
+                      </h3>
+                      <p className="mt-0.5 text-[12px] text-ink-3">
+                        {[
+                          character.gender ? genderLabel[character.gender] : null,
+                          character.age || null,
+                          character.aliases.length > 0
+                            ? `${character.aliases.length} 个别名`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "尚未补充信息"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {character.personality && (
+                    <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-ink-2">
+                      {character.personality}
                     </p>
                   )}
-                </div>
-              </div>
 
-              {character.personality && (
-                <p className="mb-2 line-clamp-2 text-sm text-[var(--color-text-secondary)]">
-                  {character.personality}
-                </p>
-              )}
+                  {character.tags.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {character.tags.slice(0, 3).map((tag) => (
+                        <Badge key={tag} variant="primary" size="sm">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {character.tags.length > 3 && (
+                        <Badge variant="outline" size="sm">
+                          +{character.tags.length - 3}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
 
-              {character.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {character.tags.slice(0, 3).map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-[var(--color-primary-light)] px-2 py-0.5 text-xs text-[var(--color-primary)]"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteCharacter(character.id);
-                }}
-                className="absolute right-2 top-2 rounded p-1 text-[var(--color-text-secondary)] opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100"
-              >
-                <Trash2 size={16} />
-              </button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`删除 ${character.name || "未命名人物"}`}
+                    className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteCharacter(character.id);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </Card>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-      )}
-    </div>
+      </PageBody>
+    </Page>
   );
 }

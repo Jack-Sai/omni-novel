@@ -28,9 +28,9 @@ export function Layout() {
   useKeyboardShortcuts(shortcuts);
 
   return (
-    <div className="flex h-screen bg-[var(--color-bg)]">
+    <div className="flex h-screen overflow-hidden bg-canvas">
       <Sidebar activeTab={activeTab} onTabChange={(tab) => navigate(`/${tab}`)} />
-      <main className="flex-1 overflow-auto">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </main>
       <ShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />

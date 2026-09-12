@@ -1,4 +1,6 @@
-import { BookOpen, FileText, Clock, TrendingUp } from "lucide-react";
+import { BookOpen, FileText, TrendingUp, Target } from "lucide-react";
+import { StatCard } from "./StatCard";
+import { Progress } from "./Progress";
 
 interface WordStatsProps {
   totalWords: number;
@@ -13,51 +15,43 @@ export function WordStats({
   targetWords = 100000,
   averageWordsPerChapter = 0,
 }: WordStatsProps) {
-  const progress = Math.min((totalWords / targetWords) * 100, 100);
+  const percent = targetWords > 0 ? Math.min((totalWords / targetWords) * 100, 100) : 0;
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3">
-        <div className="rounded-lg bg-[var(--color-bg)] p-4">
-          <div className="mb-2 flex items-center gap-2 text-[var(--color-text-secondary)]">
-            <BookOpen size={16} />
-            <span className="text-sm">总字数</span>
-          </div>
-          <p className="text-2xl font-bold text-[var(--color-text)]">{totalWords.toLocaleString()}</p>
-        </div>
+    <div className="space-y-2.5">
+      <StatCard
+        label="总字数"
+        value={totalWords.toLocaleString()}
+        icon={BookOpen}
+        align="left"
+      />
+      <StatCard
+        label="本章字数"
+        value={chapterWords.toLocaleString()}
+        icon={FileText}
+        align="left"
+      />
+      <StatCard
+        label="平均每章"
+        value={averageWordsPerChapter.toLocaleString()}
+        icon={TrendingUp}
+        align="left"
+      />
 
-        <div className="rounded-lg bg-[var(--color-bg)] p-4">
-          <div className="mb-2 flex items-center gap-2 text-[var(--color-text-secondary)]">
-            <FileText size={16} />
-            <span className="text-sm">本章字数</span>
-          </div>
-          <p className="text-2xl font-bold text-[var(--color-text)]">{chapterWords.toLocaleString()}</p>
+      <div className="rounded-lg border border-line bg-surface p-3">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
+            <Target size={13} aria-hidden className="opacity-70" />
+            目标进度
+          </span>
+          <span className="text-xs font-semibold tabular-nums text-ink">
+            {percent.toFixed(1)}%
+          </span>
         </div>
-
-        <div className="rounded-lg bg-[var(--color-bg)] p-4">
-          <div className="mb-2 flex items-center gap-2 text-[var(--color-text-secondary)]">
-            <TrendingUp size={16} />
-            <span className="text-sm">均章字数</span>
-          </div>
-          <p className="text-2xl font-bold text-[var(--color-text)]">{averageWordsPerChapter.toLocaleString()}</p>
-        </div>
-
-        <div className="rounded-lg bg-[var(--color-bg)] p-4">
-          <div className="mb-2 flex items-center gap-2 text-[var(--color-text-secondary)]">
-            <Clock size={16} />
-            <span className="text-sm">目标进度</span>
-          </div>
-          <p className="text-2xl font-bold text-[var(--color-text)]">{progress.toFixed(1)}%</p>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--color-border)]">
-            <div
-              className="h-full bg-[var(--color-primary)] transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
-            {totalWords.toLocaleString()} / {targetWords.toLocaleString()}
-          </p>
-        </div>
+        <Progress value={totalWords} max={targetWords} className="mt-2" />
+        <p className="mt-1.5 text-[11px] tabular-nums text-ink-3">
+          {totalWords.toLocaleString()} / {targetWords.toLocaleString()} 字
+        </p>
       </div>
     </div>
   );

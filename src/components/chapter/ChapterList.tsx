@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Plus, FileText, Trash2, GripVertical } from "lucide-react";
+import { FileText, Plus, Trash2 } from "lucide-react";
 import { useChapterStore, Chapter } from "../../stores/chapterStore";
+import { Button, EmptyState, Input } from "../ui";
+import { cn } from "../../lib/cn";
 
 interface ChapterListProps {
   projectId: string;
@@ -25,86 +27,108 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
   };
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg-secondary)]">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-        <span className="font-medium text-[var(--color-text)]">章节</span>
-        <button
+    <div className="flex h-full flex-col bg-canvas">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3.5 py-2">
+        <span className="text-[13px] font-medium text-ink-2">
+          章节
+          <span className="ml-1.5 tabular-nums text-ink-3">{projectChapters.length}</span>
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="新建章节"
           onClick={() => setIsAdding(true)}
-          className="rounded-lg p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
         >
-          <Plus size={16} />
-        </button>
+          <Plus size={14} />
+        </Button>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto p-1.5">
         {projectChapters.length === 0 && !isAdding ? (
-          <div className="flex h-full flex-col items-center justify-center p-4">
-            <FileText size={40} className="mb-3 text-[var(--color-text-secondary)]" />
-            <p className="text-sm text-[var(--color-text-secondary)]">暂无章节</p>
-            <button
-              onClick={() => setIsAdding(true)}
-              className="mt-3 text-sm text-[var(--color-primary)] hover:underline"
-            >
-              创建第一个章节
-            </button>
-          </div>
+          <EmptyState
+            size="sm"
+            icon={FileText}
+            title="暂无章节"
+            description="新建章节后即可开始写作"
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setIsAdding(true)}>
+                <Plus size={13} />
+                新建章节
+              </Button>
+            }
+            className="py-10"
+          />
         ) : (
-          <div className="p-2">
-            {projectChapters.map((chapter, index) => (
-              <div
-                key={chapter.id}
-                onClick={() => onSelectChapter(chapter)}
-                className={`group flex items-center gap-3 rounded-lg px-3 py-3 cursor-pointer transition ${
-                  currentChapterId === chapter.id
-                    ? "bg-[var(--color-primary)] text-white"
-                    : "hover:bg-[var(--color-border)]"
-                }`}
-              >
-                <GripVertical
-                  size={14}
-                  className={`${
-                    currentChapterId === chapter.id ? "text-white/70" : "text-[var(--color-text-secondary)]"
-                  } opacity-0 group-hover:opacity-100`}
-                />
-                <span className={`text-xs ${
-                  currentChapterId === chapter.id ? "text-white/70" : "text-[var(--color-text-secondary)]"
-                }`}>
-                  {index + 1}
-                </span>
-                <span className="flex-1 truncate text-sm">{chapter.title}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteChapter(chapter.id);
-                  }}
-                  className={`rounded p-1 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 ${
-                    currentChapterId === chapter.id ? "text-white/70 hover:bg-white/20 hover:text-white" : "text-[var(--color-text-secondary)]"
-                  }`}
+          <div className="space-y-0.5">
+            {projectChapters.map((chapter, index) => {
+              const active = currentChapterId === chapter.id;
+
+              return (
+                <div
+                  key={chapter.id}
+                  className={cn(
+                    "group flex items-center rounded-lg transition-colors duration-150",
+                    active ? "bg-surface shadow-xs" : "hover:bg-hover",
+                  )}
                 >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
+                  <button
+                    type="button"
+                    aria-current={active ? "true" : undefined}
+                    onClick={() => onSelectChapter(chapter)}
+                    className={cn(
+                      "flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px]",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+                      active ? "font-medium text-primary" : "text-ink-2",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "w-4 shrink-0 text-right text-[12px] tabular-nums",
+                        active ? "text-primary" : "text-ink-3",
+                      )}
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{chapter.title}</span>
+                  </button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`删除 ${chapter.title}`}
+                    className="mr-1 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteChapter(chapter.id);
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         )}
 
         {isAdding && (
-          <div className="p-2">
-            <input
-              type="text"
+          <div className="p-1.5">
+            <Input
+              autoFocus
+              inputSize="sm"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAdd();
-                if (e.key === "Escape") setIsAdding(false);
+                if (e.key === "Escape") {
+                  setNewTitle("");
+                  setIsAdding(false);
+                }
               }}
               onBlur={() => {
                 if (newTitle.trim()) handleAdd();
                 else setIsAdding(false);
               }}
-              autoFocus
-              placeholder="输入章节标题..."
-              className="w-full rounded-lg border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 py-2 text-sm outline-none"
+              placeholder="输入章节标题…"
             />
           </div>
         )}
