@@ -212,7 +212,7 @@ export const userDb = {
       "INSERT INTO users (id, username, phone, password, display_name) VALUES (?, ?, ?, ?, ?)",
       [id, username, phone || null, password, displayName || username]
     );
-    return { id, username, phone: phone || null, displayName: displayName || username };
+    return { id, username, phone: phone || null, display_name: displayName || username };
   },
 
   async getByUsername(username: string) {

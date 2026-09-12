@@ -103,7 +103,7 @@ export const useUserStore = create<UserStore>()((set, get) => ({
         username: newUser.username,
         phone: newUser.phone,
         password: password,
-        display_name: newUser.displayName || newUser.username,
+        display_name: newUser.display_name || newUser.username,
         avatar: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
