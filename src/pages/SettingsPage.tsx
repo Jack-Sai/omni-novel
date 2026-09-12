@@ -33,6 +33,7 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<"success" | "failure" | null>(null);
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,9 +46,11 @@ export function SettingsPage() {
 
   const handleTestConnection = async () => {
     setTesting(true);
+    setTestResult(null);
     ollama.updateConfig({ baseUrl: ai.baseUrl, model: ai.model });
     const connected = await ollama.checkConnection();
     setModels(connected ? await ollama.listModels() : []);
+    setTestResult(connected ? "success" : "failure");
     setTesting(false);
   };
 
@@ -159,6 +162,12 @@ export function SettingsPage() {
                   {testing ? "检测中" : "检测连接"}
                 </Button>
               </div>
+              {testResult === "success" && (
+                <p className="mt-1.5 text-[13px] text-success">连接成功，模型可用</p>
+              )}
+              {testResult === "failure" && (
+                <p className="mt-1.5 text-[13px] text-danger">连接失败，请检查端点地址和 Ollama 服务是否已启动</p>
+              )}
             </Field>
 
             {models.length > 0 && (
