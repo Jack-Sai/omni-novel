@@ -8,6 +8,7 @@ export interface Project {
   genre: string;
   synopsis: string;
   content: string;
+  storagePath?: string;
   createdAt: string;
   updatedAt: string;
 }

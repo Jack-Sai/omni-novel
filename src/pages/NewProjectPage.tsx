@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useUserStore } from "../stores/userStore";
-import { projectDb } from "../services/database";
+import { projectDb, createProjectDir } from "../services";
 import { useProjectStore } from "../stores/projectStore";
 import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Section } from "../components/ui/Section";
@@ -85,7 +85,19 @@ export function NewProjectPage() {
       });
 
       if (newProject) {
-        setCurrentProject(newProject as any);
+        // 如果指定了存储路径，创建项目目录
+        if (storagePath) {
+          try {
+            await createProjectDir(storagePath, title.trim());
+          } catch (err) {
+            console.error("Failed to create project directory:", err);
+          }
+        }
+
+        setCurrentProject({
+          ...newProject,
+          storagePath: storagePath || undefined,
+        } as any);
         navigate("/editor");
       }
     } catch (err) {

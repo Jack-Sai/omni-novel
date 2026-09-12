@@ -21,3 +21,14 @@ export {
   foreshadowingDb,
   settingsDb,
 } from "./database";
+
+export {
+  createProjectDir,
+  saveChapter,
+  loadChapter,
+  saveMetadata,
+  loadMetadata,
+  listChapters,
+  titleToFilename,
+} from "./fileStorage";
+export type { ProjectMetadata } from "./fileStorage";
