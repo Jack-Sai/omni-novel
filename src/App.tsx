@@ -9,7 +9,6 @@ import {
   CharactersPage,
   WorldviewPage,
   ForeshadowingPage,
-  AIAssistantPage,
   SettingsPage,
 } from "./pages";
 
@@ -27,7 +26,6 @@ function App() {
           <Route path="characters" element={<CharactersPage />} />
           <Route path="worldview" element={<WorldviewPage />} />
           <Route path="foreshadowing" element={<ForeshadowingPage />} />
-          <Route path="ai" element={<AIAssistantPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

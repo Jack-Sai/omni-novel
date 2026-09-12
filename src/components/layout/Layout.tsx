@@ -19,8 +19,7 @@ export function Layout() {
     { key: "3", ctrl: true, description: "人物", action: () => navigate("/characters") },
     { key: "4", ctrl: true, description: "世界观", action: () => navigate("/worldview") },
     { key: "5", ctrl: true, description: "伏笔", action: () => navigate("/foreshadowing") },
-    { key: "6", ctrl: true, description: "AI 助手", action: () => navigate("/ai") },
-    { key: "7", ctrl: true, description: "设置", action: () => navigate("/settings") },
+    { key: "6", ctrl: true, description: "设置", action: () => navigate("/settings") },
     { key: "k", ctrl: true, description: "搜索", action: () => setSearchOpen(true) },
     { key: "?", description: "快捷键帮助", action: () => setShortcutsOpen(true) },
   ];

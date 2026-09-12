@@ -1,4 +1,4 @@
-import { BookOpen, Eye, FileText, Map, Settings, Sparkles, Users, LayoutGrid } from "lucide-react";
+import { BookOpen, Eye, FileText, Map, Settings, Users, LayoutGrid } from "lucide-react";
 import type { ElementType } from "react";
 import { ThemeToggle } from "../ui";
 import { cn } from "../../lib/cn";
@@ -39,7 +39,6 @@ const groups: { label: string; items: NavItem[] }[] = [
   {
     label: "工作台",
     items: [
-      { id: "ai", icon: Sparkles, label: "AI 助手" },
       { id: "settings", icon: Settings, label: "设置" },
     ],
   },

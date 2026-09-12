@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -9,12 +9,14 @@ import {
   PanelLeftOpen,
   Plus,
   Settings,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { NewProjectDialog, NewProject, ProjectSettings } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
-import { Editor } from "../components/editor";
+import { Editor, type EditorRef } from "../components/editor";
+import { AIPanel } from "../components/ai";
 import { ChapterList } from "../components/chapter";
 import { ExportService } from "../services";
 import { useAutoSave } from "../hooks";
@@ -49,8 +51,11 @@ export function EditorPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
+  const [selectedText, setSelectedText] = useState("");
+  const editorRef = useRef<EditorRef>(null);
   const { projects, currentProject, addProject, setCurrentProject, deleteProject } =
     useProjectStore();
   const {
@@ -239,6 +244,14 @@ export function EditorPage() {
               <BarChart3 size={15} />
               统计
             </Button>
+            <Button
+              variant={aiPanelOpen ? "primary" : "secondary"}
+              onClick={() => setAiPanelOpen(!aiPanelOpen)}
+              aria-pressed={aiPanelOpen}
+            >
+              <Sparkles size={15} />
+              AI
+            </Button>
             <Button variant="secondary" onClick={() => setSettingsOpen(true)}>
               <Settings size={15} />
               项目设置
@@ -305,9 +318,11 @@ export function EditorPage() {
           {currentChapter ? (
             <>
               <Editor
+                ref={editorRef}
                 content={currentChapter.content}
                 placeholder={`开始写作 ${currentChapter.title}…`}
                 onUpdate={(content) => updateChapterContent(currentChapter.id, content)}
+                onSelectionUpdate={setSelectedText}
               />
 
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas px-5 py-2 text-[12px] text-ink-3">
@@ -338,8 +353,16 @@ export function EditorPage() {
               description="在左侧章节栏中选择，或新建一个章节。"
             />
           )}
+          </div>
+
+          {aiPanelOpen && currentChapter && (
+            <AIPanel
+              editor={editorRef.current?.getEditor() ?? null}
+              selectedText={selectedText}
+              chapterContent={currentChapter.content}
+            />
+          )}
         </div>
-      </div>
 
       <ProjectSettings open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Page>
