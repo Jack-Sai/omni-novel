@@ -110,267 +110,266 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[var(--color-bg)]">
-      {/* 登录模式：左侧蓝色品牌区域 */}
+    <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
+      {/* 左侧面板 */}
       <div
-        className={`absolute inset-y-0 left-0 z-10 flex w-1/2 items-center justify-center bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] transition-all duration-700 ease-in-out ${
-          mode === "login"
-            ? "translate-x-0 opacity-100"
-            : "-translate-x-full opacity-0"
+        className={`relative hidden w-1/2 transition-all duration-700 ease-in-out lg:block ${
+          mode === "login" ? "bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)]" : "bg-transparent"
         }`}
       >
-        <div className="text-center text-white px-8">
-          <BookOpen className="mx-auto mb-6 h-16 w-16 drop-shadow-lg" />
-          <h1 className="mb-4 text-4xl font-bold tracking-tight">Omni Novel</h1>
+        {/* 登录模式：品牌标语 */}
+        <div
+          className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-700 ${
+            mode === "login" ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-8"
+          }`}
+        >
+          <BookOpen className="mb-6 h-16 w-16 text-white drop-shadow-lg" />
+          <h1 className="mb-4 text-4xl font-bold tracking-tight text-white">Omni Novel</h1>
           <p className="text-lg text-white/90">AI 驱动的小说创作平台</p>
           <p className="mt-2 text-white/70">让创作更简单，让故事更精彩</p>
         </div>
+
+        {/* 注册模式：功能介绍卡片 */}
+        <div
+          className={`absolute inset-0 flex items-center justify-center p-8 transition-all duration-700 ${
+            mode === "register" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          }`}
+        >
+          <div className="w-full max-w-md">
+            <div className="mb-6 text-center">
+              <BookOpen className="mx-auto mb-4 h-12 w-12 text-[var(--color-primary)]" />
+              <h2 className="text-2xl font-bold text-[var(--color-text)]">开启创作之旅</h2>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {features.map((feature, index) => (
+                <div
+                  key={feature.title}
+                  className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4 transition-all duration-500 hover:border-[var(--color-primary)] hover:shadow-md ${
+                    mode === "register"
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-4"
+                  }`}
+                  style={{ transitionDelay: mode === "register" ? `${index * 80}ms` : "0ms" }}
+                >
+                  <feature.icon className="mb-2 h-5 w-5 text-[var(--color-primary)]" />
+                  <h3 className="text-sm font-medium text-[var(--color-text)]">{feature.title}</h3>
+                  <p className="mt-1 text-xs text-[var(--color-text-secondary)]">{feature.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* 登录模式：右侧登录表单 */}
-      <div
-        className={`absolute inset-y-0 right-0 flex w-full items-center justify-center transition-all duration-700 ease-in-out lg:w-1/2 ${
-          mode === "login" ? "translate-x-0 lg:translate-x-0" : "translate-x-0"
-        }`}
-      >
+      {/* 右侧表单区域 */}
+      <div className="flex w-full items-center justify-center lg:w-1/2">
         <div className="w-full max-w-md px-8">
-          <div className="mb-8 text-center">
-            <h2 className="mb-2 text-2xl font-bold text-[var(--color-text)]">欢迎回来</h2>
-            <p className="text-[var(--color-text-secondary)]">登录您的账号继续创作</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                用户名
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="输入用户名"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                密码
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="输入密码"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
-                />
-              </div>
-            </div>
-
-            {(localError || error) && (
-              <p className="text-sm text-red-500">{localError || error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-3 font-medium text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-            >
-              {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  登录
-                  <ArrowRight className="h-5 w-5" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("register");
-                setLocalError("");
-              }}
-              className="text-sm text-[var(--color-primary)] hover:underline"
-            >
-              没有账号？立即注册
-            </button>
-          </div>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[var(--color-border)]"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-[var(--color-bg)] px-2 text-[var(--color-text-secondary)]">或者</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleQuickStart}
-            disabled={isLoading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3 font-medium text-[var(--color-text)] transition hover:bg-[var(--color-border)] disabled:opacity-50"
+          {/* 登录表单 */}
+          <div
+            className={`transition-all duration-500 ${
+              mode === "login" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 hidden"
+            }`}
           >
-            <User className="h-5 w-5" />
-            快速开始（无需注册）
-          </button>
-        </div>
-      </div>
-
-      {/* 注册模式：左侧注册表单 */}
-      <div
-        className={`absolute inset-y-0 left-0 flex w-full items-center justify-center transition-all duration-700 ease-in-out lg:w-1/2 ${
-          mode === "register"
-            ? "translate-x-0 opacity-100"
-            : "translate-x-full opacity-0"
-        }`}
-      >
-        <div className="w-full max-w-md px-8">
-          <div className="mb-8 text-center">
-            <h2 className="mb-2 text-2xl font-bold text-[var(--color-text)]">创建账号</h2>
-            <p className="text-[var(--color-text-secondary)]">注册新账号开始创作之旅</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                用户名
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="输入用户名"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
-                />
-              </div>
+            <div className="mb-8 text-center">
+              <h2 className="mb-2 text-2xl font-bold text-[var(--color-text)]">欢迎回来</h2>
+              <p className="text-[var(--color-text-secondary)]">登录您的账号继续创作</p>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                密码
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="输入密码（至少6位）"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
-                />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                  用户名
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="输入用户名"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                手机号（可选）
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="输入手机号"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
-                />
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                  密码
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="输入密码"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                显示名称（可选）
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="输入显示名称"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
-                />
-              </div>
-            </div>
-
-            {(localError || error) && (
-              <p className="text-sm text-red-500">{localError || error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-3 font-medium text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-            >
-              {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  注册
-                  <ArrowRight className="h-5 w-5" />
-                </>
+              {(localError || error) && (
+                <p className="text-sm text-red-500">{localError || error}</p>
               )}
-            </button>
-          </form>
 
-          <div className="mt-6 text-center">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-3 font-medium text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    登录
+                    <ArrowRight className="h-5 w-5" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("register");
+                  setLocalError("");
+                }}
+                className="text-sm text-[var(--color-primary)] hover:underline"
+              >
+                没有账号？立即注册
+              </button>
+            </div>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[var(--color-border)]"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-[var(--color-bg)] px-2 text-[var(--color-text-secondary)]">或者</span>
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={() => {
-                setMode("login");
-                setLocalError("");
-              }}
-              className="text-sm text-[var(--color-primary)] hover:underline"
+              onClick={handleQuickStart}
+              disabled={isLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3 font-medium text-[var(--color-text)] transition hover:bg-[var(--color-border)] disabled:opacity-50"
             >
-              已有账号？立即登录
+              <User className="h-5 w-5" />
+              快速开始（无需注册）
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* 注册模式：右侧功能介绍卡片区域 */}
-      <div
-        className={`absolute inset-y-0 right-0 z-10 hidden w-1/2 items-center justify-center bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] transition-all duration-700 ease-in-out lg:flex ${
-          mode === "register"
-            ? "translate-x-0 opacity-100"
-            : "translate-x-full opacity-0"
-        }`}
-      >
-        <div className="w-full max-w-lg px-8">
-          <div className="mb-8 text-center text-white">
-            <BookOpen className="mx-auto mb-4 h-12 w-12 drop-shadow-lg" />
-            <h2 className="text-3xl font-bold">Omni Novel</h2>
-            <p className="mt-2 text-white/80">开启你的创作之旅</p>
-          </div>
+          {/* 注册表单 */}
+          <div
+            className={`transition-all duration-500 ${
+              mode === "register" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 hidden"
+            }`}
+          >
+            <div className="mb-8 text-center">
+              <h2 className="mb-2 text-2xl font-bold text-[var(--color-text)]">创建账号</h2>
+              <p className="text-[var(--color-text-secondary)]">注册新账号开始创作之旅</p>
+            </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {features.map((feature, index) => (
-              <div
-                key={feature.title}
-                className={`rounded-xl bg-white/10 p-4 backdrop-blur-sm transition-all duration-500 hover:bg-white/20 ${
-                  mode === "register"
-                    ? "translate-y-0 opacity-100"
-                    : "translate-y-4 opacity-0"
-                }`}
-                style={{ transitionDelay: `${index * 100}ms` }}
-              >
-                <feature.icon className="mb-2 h-6 w-6 text-white" />
-                <h3 className="font-medium text-white">{feature.title}</h3>
-                <p className="mt-1 text-sm text-white/70">{feature.desc}</p>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                  用户名
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="输入用户名"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  />
+                </div>
               </div>
-            ))}
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                  密码
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="输入密码（至少6位）"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                  手机号（可选）
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="输入手机号"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                  显示名称（可选）
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="输入显示名称"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  />
+                </div>
+              </div>
+
+              {(localError || error) && (
+                <p className="text-sm text-red-500">{localError || error}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-3 font-medium text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    注册
+                    <ArrowRight className="h-5 w-5" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setLocalError("");
+                }}
+                className="text-sm text-[var(--color-primary)] hover:underline"
+              >
+                已有账号？立即登录
+              </button>
+            </div>
           </div>
         </div>
       </div>
