@@ -77,21 +77,6 @@ export function LoginPage() {
     }
   };
 
-  const handleQuickStart = async () => {
-    const defaultUsername = "作者";
-    const defaultPassword = "123456";
-    setLocalError("");
-
-    let success = await login(defaultUsername, defaultPassword);
-    if (!success) {
-      success = await register(defaultUsername, defaultPassword, undefined, "作者");
-    }
-
-    if (success) {
-      navigate("/bookshelf");
-    }
-  };
-
   const features = [
     { icon: FileText, title: "智能编辑器", desc: "富文本编辑，AI实时辅助创作" },
     { icon: Users, title: "人物管理", desc: "构建立体角色，管理人物关系" },
@@ -204,25 +189,6 @@ export function LoginPage() {
               没有账号？立即注册
             </button>
           </div>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[var(--color-border)]"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-[var(--color-bg)] px-2 text-[var(--color-text-secondary)]">或者</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleQuickStart}
-            disabled={isLoading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3 font-medium text-[var(--color-text)] transition hover:bg-[var(--color-border)] disabled:opacity-50"
-          >
-            <User className="h-5 w-5" />
-            快速开始（无需注册）
-          </button>
         </div>
       </div>
 
