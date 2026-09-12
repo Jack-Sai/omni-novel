@@ -111,56 +111,26 @@ export function LoginPage() {
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-[var(--color-bg)]">
-      {/* 左侧蓝色面板 - 登录模式显示标语 */}
-      <div className="relative hidden w-1/2 bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] lg:block">
-        <div
-          className={`absolute inset-0 flex flex-col items-center justify-center px-8 transition-all duration-500 ease-in-out ${
-            mode === "login" ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-12"
-          }`}
-        >
+      {/* 登录模式：左侧蓝色品牌区域 */}
+      <div
+        className={`absolute inset-y-0 left-0 z-20 hidden w-1/2 bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] transition-all duration-500 ease-in-out lg:block ${
+          mode === "login" ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0"
+        }`}
+      >
+        <div className="flex h-full flex-col items-center justify-center px-8">
           <BookOpen className="mb-6 h-16 w-16 text-white drop-shadow-lg" />
           <h1 className="mb-4 text-4xl font-bold tracking-tight text-white">Omni Novel</h1>
           <p className="text-lg text-white/90">AI 驱动的小说创作平台</p>
           <p className="mt-2 text-white/70">让创作更简单，让故事更精彩</p>
         </div>
-
-        {/* 注册模式：功能介绍卡片 */}
-        <div
-          className={`absolute inset-0 flex items-center justify-center px-8 transition-all duration-500 ease-in-out ${
-            mode === "register" ? "opacity-100 translate-x-0" : "opacity-0 translate-x-12"
-          }`}
-        >
-          <div className="w-full max-w-md">
-            <div className="mb-6 text-center">
-              <BookOpen className="mx-auto mb-4 h-12 w-12 text-white drop-shadow-lg" />
-              <h2 className="text-2xl font-bold text-white">开启创作之旅</h2>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {features.map((feature, index) => (
-                <div
-                  key={feature.title}
-                  className={`rounded-xl bg-white/15 p-4 backdrop-blur-sm transition-all duration-400 hover:bg-white/25 ${
-                    mode === "register"
-                      ? "opacity-100 translate-y-0"
-                      : "opacity-0 translate-y-4"
-                  }`}
-                  style={{ transitionDelay: mode === "register" ? `${index * 60}ms` : "0ms" }}
-                >
-                  <feature.icon className="mb-2 h-5 w-5 text-white" />
-                  <h3 className="text-sm font-medium text-white">{feature.title}</h3>
-                  <p className="mt-1 text-xs text-white/80">{feature.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* 右侧表单区域 - 登录模式 */}
+      {/* 登录模式：右侧登录表单 */}
       <div
-        className={`absolute inset-y-0 right-0 flex w-full items-center justify-center transition-all duration-500 ease-in-out lg:w-1/2 ${
-          mode === "login" ? "opacity-100 translate-x-0" : "opacity-0 translate-x-full"
+        className={`absolute inset-y-0 left-0 z-10 flex w-full items-center justify-center bg-[var(--color-bg)] transition-all duration-500 ease-in-out lg:left-1/2 lg:w-1/2 ${
+          mode === "login"
+            ? "translate-x-0 opacity-100"
+            : "translate-x-full opacity-0"
         }`}
       >
         <div className="w-full max-w-md px-8">
@@ -256,10 +226,12 @@ export function LoginPage() {
         </div>
       </div>
 
-      {/* 左侧表单区域 - 注册模式 */}
+      {/* 注册模式：左侧注册表单 */}
       <div
-        className={`absolute inset-y-0 left-0 flex w-full items-center justify-center transition-all duration-500 ease-in-out lg:w-1/2 ${
-          mode === "register" ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-full"
+        className={`absolute inset-y-0 left-0 z-10 flex w-full items-center justify-center bg-[var(--color-bg)] transition-all duration-500 ease-in-out lg:w-1/2 ${
+          mode === "register"
+            ? "translate-x-0 opacity-100"
+            : "-translate-x-full opacity-0"
         }`}
       >
         <div className="w-full max-w-md px-8">
@@ -364,6 +336,38 @@ export function LoginPage() {
             >
               已有账号？立即登录
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 注册模式：右侧蓝色品牌区域 + 功能卡片 */}
+      <div
+        className={`absolute inset-y-0 right-0 z-20 hidden w-1/2 bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] transition-all duration-500 ease-in-out lg:block ${
+          mode === "register" ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+        }`}
+      >
+        <div className="flex h-full flex-col items-center justify-center px-8">
+          <div className="mb-8 text-center">
+            <BookOpen className="mx-auto mb-4 h-12 w-12 text-white drop-shadow-lg" />
+            <h2 className="text-2xl font-bold text-white">开启创作之旅</h2>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {features.map((feature, index) => (
+              <div
+                key={feature.title}
+                className={`rounded-xl bg-white/15 p-4 backdrop-blur-sm transition-all duration-400 hover:bg-white/25 ${
+                  mode === "register"
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-4"
+                }`}
+                style={{ transitionDelay: mode === "register" ? `${index * 60}ms` : "0ms" }}
+              >
+                <feature.icon className="mb-2 h-5 w-5 text-white" />
+                <h3 className="text-sm font-medium text-white">{feature.title}</h3>
+                <p className="mt-1 text-xs text-white/80">{feature.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
