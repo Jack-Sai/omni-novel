@@ -8,6 +8,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Save,
   Settings,
   Sparkles,
   Trash2,
@@ -73,7 +74,7 @@ export function EditorPage() {
     // 保存到磁盘
     if (currentProject.storagePath) {
       try {
-        const filename = titleToFilename(currentChapter.title);
+        const filename = titleToFilename(currentChapter.title, currentChapter.order);
         await saveChapter(currentProject.storagePath, filename, currentChapter.content);
       } catch (err) {
         console.error("Failed to save chapter to disk:", err);
@@ -81,7 +82,7 @@ export function EditorPage() {
     }
   }, [currentChapter, currentProject]);
 
-  useAutoSave({
+  const { saveNow } = useAutoSave({
     data: currentChapter,
     onSave: handleSave,
     interval: 30000,
@@ -346,7 +347,17 @@ export function EditorPage() {
                     全书 <span className="tabular-nums text-ink-2">{stats.totalWords}</span> 字
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => saveNow()}
+                    className="h-6 gap-1 text-xs"
+                  >
+                    <Save size={12} />
+                    保存
+                  </Button>
+                  <div className="h-3 w-px bg-line" />
                   {lastSaved ? (
                     <>
                       <Check size={12} className="text-success" aria-hidden />
@@ -365,16 +376,16 @@ export function EditorPage() {
               description="在左侧章节栏中选择，或新建一个章节。"
             />
           )}
-          </div>
-
-          {aiPanelOpen && currentChapter && (
-            <AIPanel
-              editor={editorRef.current?.getEditor() ?? null}
-              selectedText={selectedText}
-              chapterContent={currentChapter.content}
-            />
-          )}
         </div>
+
+        {aiPanelOpen && currentChapter && (
+          <AIPanel
+            editor={editorRef.current?.getEditor() ?? null}
+            selectedText={selectedText}
+            chapterContent={currentChapter.content}
+          />
+        )}
+      </div>
 
       <ProjectSettings open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Page>
