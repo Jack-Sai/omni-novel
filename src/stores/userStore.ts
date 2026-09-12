@@ -4,6 +4,8 @@ import { userDb } from "../services/database";
 export interface User {
   id: string;
   username: string;
+  phone: string | null;
+  password: string;
   display_name: string;
   avatar: string | null;
   created_at: string;
@@ -20,10 +22,10 @@ interface UserStore {
   init: () => Promise<void>;
   
   // 用户操作
-  login: (username: string) => Promise<boolean>;
-  register: (username: string, displayName?: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<boolean>;
+  register: (username: string, password: string, phone?: string, displayName?: string) => Promise<boolean>;
   logout: () => void;
-  updateProfile: (updates: { display_name?: string; avatar?: string }) => Promise<void>;
+  updateProfile: (updates: { display_name?: string; avatar?: string; phone?: string; password?: string }) => Promise<void>;
   
   // 获取用户列表
   getUsers: () => User[];
@@ -54,12 +56,12 @@ export const useUserStore = create<UserStore>()((set, get) => ({
     }
   },
 
-  login: async (username: string) => {
+  login: async (username: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const user = await userDb.getByUsername(username);
+      const user = await userDb.verifyPassword(username, password);
       if (!user) {
-        set({ error: "用户不存在", isLoading: false });
+        set({ error: "用户名或密码错误", isLoading: false });
         return false;
       }
       
@@ -73,7 +75,7 @@ export const useUserStore = create<UserStore>()((set, get) => ({
     }
   },
 
-  register: async (username: string, displayName?: string) => {
+  register: async (username: string, password: string, phone?: string, displayName?: string) => {
     set({ isLoading: true, error: null });
     try {
       // 检查用户名是否已存在
@@ -83,13 +85,24 @@ export const useUserStore = create<UserStore>()((set, get) => ({
         return false;
       }
 
-      const newUser = await userDb.create(username, displayName);
+      // 检查手机号是否已存在
+      if (phone) {
+        const existingPhone = await userDb.getByPhone(phone);
+        if (existingPhone) {
+          set({ error: "手机号已注册", isLoading: false });
+          return false;
+        }
+      }
+
+      const newUser = await userDb.create(username, password, phone, displayName);
       localStorage.setItem("currentUserId", newUser.id);
       
       // 构造完整的 User 对象
       const fullUser: User = {
         id: newUser.id,
         username: newUser.username,
+        phone: newUser.phone,
+        password: password,
         display_name: newUser.displayName || newUser.username,
         avatar: null,
         created_at: new Date().toISOString(),

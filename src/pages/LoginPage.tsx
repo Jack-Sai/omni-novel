@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, BookOpen, ArrowRight, Loader2 } from "lucide-react";
+import { User, BookOpen, ArrowRight, Loader2, Phone, Lock } from "lucide-react";
 import { useUserStore } from "../stores/userStore";
 
 export function LoginPage() {
@@ -8,6 +8,8 @@ export function LoginPage() {
   const { currentUser, login, register, isLoading, error, init } = useUserStore();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [localError, setLocalError] = useState("");
 
@@ -30,11 +32,31 @@ export function LoginPage() {
       return;
     }
 
+    if (!password.trim()) {
+      setLocalError("请输入密码");
+      return;
+    }
+
+    if (mode === "register" && password.length < 6) {
+      setLocalError("密码至少需要6位");
+      return;
+    }
+
+    if (mode === "register" && phone && !/^1[3-9]\d{9}$/.test(phone)) {
+      setLocalError("手机号格式不正确");
+      return;
+    }
+
     let success = false;
     if (mode === "login") {
-      success = await login(username.trim());
+      success = await login(username.trim(), password.trim());
     } else {
-      success = await register(username.trim(), displayName.trim() || undefined);
+      success = await register(
+        username.trim(),
+        password.trim(),
+        phone.trim() || undefined,
+        displayName.trim() || undefined
+      );
     }
 
     if (success) {
@@ -43,15 +65,13 @@ export function LoginPage() {
   };
 
   const handleQuickStart = async () => {
-    // 快速开始：创建或登录默认用户
     const defaultUsername = "作者";
+    const defaultPassword = "123456";
     setLocalError("");
     
-    // 尝试登录
-    let success = await login(defaultUsername);
+    let success = await login(defaultUsername, defaultPassword);
     if (!success) {
-      // 如果用户不存在，注册新用户
-      success = await register(defaultUsername, "作者");
+      success = await register(defaultUsername, defaultPassword, undefined, "作者");
     }
     
     if (success) {
@@ -96,28 +116,68 @@ export function LoginPage() {
               <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
                 用户名
               </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="输入用户名"
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
-              />
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="输入用户名"
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                密码
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="输入密码"
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                />
+              </div>
             </div>
 
             {mode === "register" && (
-              <div>
-                <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                  显示名称（可选）
-                </label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="输入显示名称"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                    手机号（可选）
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="输入手机号"
+                      className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
+                    显示名称（可选）
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="输入显示名称"
+                      className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             {(localError || error) && (

@@ -25,6 +25,8 @@ async function initializeTables(db: Database) {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
+      phone TEXT,
+      password TEXT NOT NULL,
       display_name TEXT,
       avatar TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -203,19 +205,25 @@ async function initializeTables(db: Database) {
 
 // 用户相关操作
 export const userDb = {
-  async create(username: string, displayName?: string) {
+  async create(username: string, password: string, phone?: string, displayName?: string) {
     const db = await getDatabase();
     const id = crypto.randomUUID();
     await db.execute(
-      "INSERT INTO users (id, username, display_name) VALUES (?, ?, ?)",
-      [id, username, displayName || username]
+      "INSERT INTO users (id, username, phone, password, display_name) VALUES (?, ?, ?, ?, ?)",
+      [id, username, phone || null, password, displayName || username]
     );
-    return { id, username, displayName: displayName || username };
+    return { id, username, phone: phone || null, displayName: displayName || username };
   },
 
   async getByUsername(username: string) {
     const db = await getDatabase();
     const results = await db.select<any[]>("SELECT * FROM users WHERE username = ?", [username]);
+    return results[0] || null;
+  },
+
+  async getByPhone(phone: string) {
+    const db = await getDatabase();
+    const results = await db.select<any[]>("SELECT * FROM users WHERE phone = ?", [phone]);
     return results[0] || null;
   },
 
@@ -225,7 +233,16 @@ export const userDb = {
     return results[0] || null;
   },
 
-  async update(id: string, updates: { display_name?: string; avatar?: string }) {
+  async verifyPassword(username: string, password: string) {
+    const db = await getDatabase();
+    const results = await db.select<any[]>(
+      "SELECT * FROM users WHERE username = ? AND password = ?",
+      [username, password]
+    );
+    return results[0] || null;
+  },
+
+  async update(id: string, updates: { display_name?: string; avatar?: string; phone?: string; password?: string }) {
     const db = await getDatabase();
     const fields = [];
     const values = [];
@@ -237,6 +254,14 @@ export const userDb = {
     if (updates.avatar !== undefined) {
       fields.push("avatar = ?");
       values.push(updates.avatar);
+    }
+    if (updates.phone !== undefined) {
+      fields.push("phone = ?");
+      values.push(updates.phone);
+    }
+    if (updates.password !== undefined) {
+      fields.push("password = ?");
+      values.push(updates.password);
     }
     
     fields.push("updated_at = datetime('now')");
