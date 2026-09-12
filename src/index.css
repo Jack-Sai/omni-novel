@@ -517,7 +517,7 @@
 }
 
 .omni-overlay[data-state="open"] {
-  animation: omni-overlay-in 180ms var(--ease-smooth);
+  animation: omni-overlay-in 180ms var(--ease-smooth) both;
 }
 
 .omni-overlay[data-state="closed"] {
@@ -525,7 +525,7 @@
 }
 
 .omni-panel[data-state="open"] {
-  animation: omni-panel-in 200ms var(--ease-out-expo);
+  animation: omni-panel-in 200ms var(--ease-out-expo) both;
 }
 
 .omni-panel[data-state="closed"] {
@@ -533,7 +533,7 @@
 }
 
 .omni-panel-top[data-state="open"] {
-  animation: omni-panel-top-in 200ms var(--ease-out-expo);
+  animation: omni-panel-top-in 200ms var(--ease-out-expo) both;
 }
 
 .omni-panel-top[data-state="closed"] {
