@@ -58,7 +58,7 @@ export function EditorPage() {
     setCurrentChapter(chapter);
   };
 
-  const handleExport = async (format: "txt" | "markdown" | "html") => {
+  const handleExport = async (format: "txt" | "markdown" | "html" | "docx") => {
     const content = currentChapter?.content || currentProject?.content || "";
     if (!content) return;
 
@@ -195,6 +195,12 @@ export function EditorPage() {
                   className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
                 >
                   导出 HTML
+                </button>
+                <button
+                  onClick={() => handleExport("docx")}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                >
+                  导出 DOCX
                 </button>
               </div>
             </div>

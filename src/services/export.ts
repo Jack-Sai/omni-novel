@@ -1,5 +1,5 @@
 export interface ExportOptions {
-  format: "txt" | "markdown" | "html";
+  format: "txt" | "markdown" | "html" | "docx";
   filename: string;
   content: string;
   title?: string;
@@ -9,6 +9,11 @@ export interface ExportOptions {
 export class ExportService {
   static async exportToFile(options: ExportOptions): Promise<void> {
     const { format, filename, content, title, author } = options;
+
+    if (format === "docx") {
+      await this.toDOCX(filename, content, title, author);
+      return;
+    }
 
     let fileContent: string;
     let mimeType: string;
@@ -148,6 +153,106 @@ export class ExportService {
 
   static async copyToClipboard(content: string): Promise<void> {
     await navigator.clipboard.writeText(content);
+  }
+
+  static async toDOCX(
+    filename: string,
+    content: string,
+    title?: string,
+    author?: string
+  ): Promise<void> {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = await import("docx");
+
+    const children: InstanceType<typeof Paragraph>[] = [];
+
+    if (title) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: title,
+              bold: true,
+              size: 48,
+            }),
+          ],
+          heading: HeadingLevel.TITLE,
+          alignment: AlignmentType.CENTER,
+        })
+      );
+    }
+
+    if (author) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `作者：${author}`,
+              size: 24,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+        })
+      );
+      children.push(
+        new Paragraph({
+          children: [],
+        })
+      );
+    }
+
+    const plainContent = content
+      .replace(/<h1[^>]*>(.*?)<\/h1>/g, "\n$1\n")
+      .replace(/<h2[^>]*>(.*?)<\/h2>/g, "\n$1\n")
+      .replace(/<h3[^>]*>(.*?)<\/h3>/g, "\n$1\n")
+      .replace(/<p[^>]*>(.*?)<\/p>/g, "$1\n")
+      .replace(/<br\s*\/?>/g, "\n")
+      .replace(/<strong>(.*?)<\/strong>/g, "$1")
+      .replace(/<em>(.*?)<\/em>/g, "$1")
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .trim();
+
+    const paragraphs = plainContent.split("\n");
+
+    paragraphs.forEach((para) => {
+      if (para.trim()) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: para,
+                size: 24,
+              }),
+            ],
+            spacing: {
+              line: 360,
+            },
+          })
+        );
+      }
+    });
+
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children,
+        },
+      ],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filename}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 }
 
