@@ -14,7 +14,10 @@
       {
         "title": "Omni Novel - AI 写作助手",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true
       }
     ],
     "security": {
