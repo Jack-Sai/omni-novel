@@ -1,4 +1,4 @@
-import { BookOpen, Eye, FileText, Map, Settings, Sparkles, Users } from "lucide-react";
+import { BookOpen, Eye, FileText, Map, Settings, Sparkles, Users, LayoutGrid } from "lucide-react";
 import type { ElementType } from "react";
 import { ThemeToggle } from "../ui";
 import { cn } from "../../lib/cn";
@@ -15,6 +15,12 @@ interface NavItem {
 }
 
 const groups: { label: string; items: NavItem[] }[] = [
+  {
+    label: "",
+    items: [
+      { id: "bookshelf", icon: LayoutGrid, label: "书架" },
+    ],
+  },
   {
     label: "创作",
     items: [
@@ -59,9 +65,11 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto px-2.5 pb-3">
         {groups.map((group) => (
           <div key={group.label}>
-            <p className="px-3 pb-2 pt-4 text-[12px] font-medium text-ink-3">
-              {group.label}
-            </p>
+            {group.label && (
+              <p className="px-3 pb-2 pt-4 text-[12px] font-medium text-ink-3">
+                {group.label}
+              </p>
+            )}
             <div className="space-y-1">
               {group.items.map((item) => {
                 const active = activeTab === item.id;
