@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X, Download } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -12,9 +12,31 @@ const navItems = [
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      setHidden(currentScrollY > lastScrollY && currentScrollY > 80);
+      setScrolled(currentScrollY > 20);
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-surface/80 backdrop-blur-md border-b border-line">
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 h-16 border-b border-line transition-all duration-300 ${
+        hidden ? "-translate-y-full" : "translate-y-0"
+      } ${
+        scrolled ? "bg-surface/95 backdrop-blur-md" : "bg-surface/80 backdrop-blur-md"
+      }`}
+    >
       <div className="mx-auto max-w-6xl h-full flex items-center justify-between px-6">
         {/* Logo */}
         <a href="#" className="flex items-center gap-2.5 no-underline">
