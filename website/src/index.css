@@ -279,6 +279,38 @@
 .fade-in-delay-4 { transition-delay: 0.4s; }
 .fade-in-delay-5 { transition-delay: 0.5s; }
 
+/* --------------------------------------------------------------------------
+   卡片交互效果
+   -------------------------------------------------------------------------- */
+.tech-card {
+  transition: transform 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth), border-color 0.2s var(--ease-smooth);
+}
+
+.tech-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--app-line-strong);
+}
+
+.tech-card:hover .bg-canvas {
+  transform: scale(1.1);
+  transition: transform 0.2s var(--ease-smooth);
+}
+
+.highlight-card {
+  transition: transform 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth);
+}
+
+.highlight-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.highlight-card:hover .bg-primary-soft {
+  transform: scale(1.05);
+  transition: transform 0.2s var(--ease-smooth);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
