@@ -1,12 +1,18 @@
 import { Download, Monitor } from "lucide-react";
+import { useInView } from "../hooks/useInView";
 
 const RELEASE_URL = "https://github.com/Jack-Sai/omni-novel/releases";
 
 export function DownloadSection() {
+  const { ref, isVisible } = useInView(0.1);
+
   return (
     <section className="py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="relative overflow-hidden rounded-2xl border border-line bg-surface shadow-md p-10 md:p-14 text-center">
+        <div
+          ref={ref}
+          className={`relative overflow-hidden rounded-2xl border border-line bg-surface shadow-md p-10 md:p-14 text-center fade-in-section ${isVisible ? "visible" : ""}`}
+        >
           {/* 背景装饰 */}
           <div className="absolute inset-0 bg-gradient-to-br from-primary-soft/30 to-transparent pointer-events-none" />
 

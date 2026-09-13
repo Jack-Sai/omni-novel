@@ -6,6 +6,7 @@ import {
   Eye,
   Sparkles,
 } from "lucide-react";
+import { useInView } from "../hooks/useInView";
 
 const features = [
   {
@@ -53,11 +54,16 @@ const features = [
 ];
 
 export function Features() {
+  const { ref, isVisible } = useInView(0.1);
+
   return (
     <section id="features" className="py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
         {/* 标题 */}
-        <div className="text-center max-w-2xl mx-auto mb-14">
+        <div
+          ref={ref}
+          className={`text-center max-w-2xl mx-auto mb-14 fade-in-section ${isVisible ? "visible" : ""}`}
+        >
           <h2 className="text-3xl md:text-4xl font-semibold text-ink tracking-tight">
             全流程创作工具
           </h2>
@@ -69,22 +75,26 @@ export function Features() {
 
         {/* 功能网格 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className="group p-6 rounded-xl border border-line bg-surface shadow-xs hover:shadow-sm hover:border-line-strong transition-all duration-150"
-            >
+          {features.map((f, i) => {
+            const { ref: cardRef, isVisible: cardVisible } = useInView(0.1);
+            return (
               <div
-                className={`w-10 h-10 rounded-xl ${f.bg} flex items-center justify-center mb-4`}
+                key={f.title}
+                ref={cardRef}
+                className={`group p-6 rounded-xl border border-line bg-surface shadow-xs hover:shadow-sm hover:border-line-strong transition-all duration-150 fade-in-section ${cardVisible ? "visible" : ""} fade-in-delay-${(i % 6) + 1}`}
               >
-                <f.icon className={`w-5 h-5 ${f.color}`} />
+                <div
+                  className={`w-10 h-10 rounded-xl ${f.bg} flex items-center justify-center mb-4`}
+                >
+                  <f.icon className={`w-5 h-5 ${f.color}`} />
+                </div>
+                <h3 className="text-[15px] font-medium text-ink">{f.title}</h3>
+                <p className="mt-2 text-[13px] text-ink-2 leading-relaxed">
+                  {f.desc}
+                </p>
               </div>
-              <h3 className="text-[15px] font-medium text-ink">{f.title}</h3>
-              <p className="mt-2 text-[13px] text-ink-2 leading-relaxed">
-                {f.desc}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

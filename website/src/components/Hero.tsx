@@ -1,4 +1,5 @@
 import { Download, Sparkles, Lock, PenTool, BookOpen } from "lucide-react";
+import { useInView } from "../hooks/useInView";
 
 const GITHUB_URL = "https://github.com/Jack-Sai/omni-novel";
 const RELEASE_URL = "https://github.com/Jack-Sai/omni-novel/releases";
@@ -27,6 +28,9 @@ const highlights = [
 ];
 
 export function Hero() {
+  const { ref: titleRef, isVisible: titleVisible } = useInView(0.1);
+  const { ref: cardsRef, isVisible: cardsVisible } = useInView(0.1);
+
   return (
     <section className="relative overflow-hidden">
       {/* 背景装饰 */}
@@ -34,7 +38,10 @@ export function Hero() {
 
       <div className="relative mx-auto max-w-6xl px-6 pt-24 pb-20 md:pt-32 md:pb-28">
         {/* 主标题 */}
-        <div className="max-w-3xl mx-auto text-center">
+        <div
+          ref={titleRef}
+          className={`max-w-3xl mx-auto text-center fade-in-section ${titleVisible ? "visible" : ""}`}
+        >
           <h1 className="text-4xl md:text-6xl font-semibold text-ink tracking-tight leading-tight">
             Omni{" "}
             <span className="text-primary">Novel</span>
@@ -81,11 +88,14 @@ export function Hero() {
         </div>
 
         {/* 亮点卡片 */}
-        <div className="mt-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {highlights.map((item) => (
+        <div
+          ref={cardsRef}
+          className={`mt-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 fade-in-section ${cardsVisible ? "visible" : ""}`}
+        >
+          {highlights.map((item, i) => (
             <div
               key={item.title}
-              className="flex flex-col items-center text-center p-6 rounded-xl border border-line bg-surface shadow-xs hover:shadow-sm transition-shadow duration-150"
+              className={`highlight-card flex flex-col items-center text-center p-6 rounded-xl border border-line bg-surface shadow-xs hover:shadow-sm transition-all duration-200 fade-in-delay-${i + 1}`}
             >
               <div className="w-11 h-11 rounded-xl bg-primary-soft flex items-center justify-center mb-4">
                 <item.icon className="w-5 h-5 text-primary" />
