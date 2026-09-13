@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
 import type { AIService, AIServiceConfig } from "./aiService";
 
 export interface ChatMessage {
@@ -11,7 +13,6 @@ export interface GenerateOptions {
   topK?: number;
   repeatPenalty?: number;
   numPredict?: number;
-  /** 关闭模型内部思考/推理，节省上下文并加快响应速度 */
   think?: boolean;
 }
 
@@ -49,88 +50,56 @@ export class OllamaService implements AIService {
 
   async chat(
     messages: ChatMessage[],
-    options?: GenerateOptions
+    options?: GenerateOptions,
   ): Promise<string> {
-    const response = await fetch(`${this.config.baseUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: this.config.model,
-        messages,
-        stream: false,
+    return invoke<string>("ai_chat", {
+      backend: this.config.backend,
+      baseUrl: this.config.baseUrl,
+      model: this.config.model,
+      apiKey: this.config.apiKey || null,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      options: {
+        temperature: options?.temperature ?? 0.7,
+        topP: options?.topP ?? 0.9,
+        topK: options?.topK ?? 40,
+        repeatPenalty: options?.repeatPenalty ?? 1.1,
+        maxTokens: options?.numPredict ?? 2048,
         think: options?.think ?? false,
-        options: {
-          temperature: options?.temperature ?? 0.7,
-          top_p: options?.topP ?? 0.9,
-          top_k: options?.topK ?? 40,
-          repeat_penalty: options?.repeatPenalty ?? 1.1,
-          num_predict: options?.numPredict ?? 2048,
-        },
-      }),
+      },
     });
-
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.message?.content || "";
   }
 
   async chatStream(
     messages: ChatMessage[],
     options?: GenerateOptions,
-    onChunk?: (chunk: string) => void
+    onChunk?: (chunk: string) => void,
   ): Promise<string> {
-    const response = await fetch(`${this.config.baseUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: this.config.model,
-        messages,
-        stream: true,
+    const channel = new Channel<{ content: string; done: boolean }>();
+
+    channel.onmessage = (chunk) => {
+      if (chunk.content) {
+        onChunk?.(chunk.content);
+      }
+    };
+
+    await invoke("ai_chat_stream", {
+      backend: this.config.backend,
+      baseUrl: this.config.baseUrl,
+      model: this.config.model,
+      apiKey: this.config.apiKey || null,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      options: {
+        temperature: options?.temperature ?? 0.7,
+        topP: options?.topP ?? 0.9,
+        topK: options?.topK ?? 40,
+        repeatPenalty: options?.repeatPenalty ?? 1.1,
+        maxTokens: options?.numPredict ?? 2048,
         think: options?.think ?? false,
-        options: {
-          temperature: options?.temperature ?? 0.7,
-          top_p: options?.topP ?? 0.9,
-          top_k: options?.topK ?? 40,
-          repeat_penalty: options?.repeatPenalty ?? 1.1,
-          num_predict: options?.numPredict ?? 2048,
-        },
-      }),
+      },
+      channel,
     });
 
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.statusText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
-    let fullContent = "";
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const text = decoder.decode(value, { stream: true });
-      const lines = text.split("\n").filter(Boolean);
-
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line);
-          if (data.message?.content) {
-            fullContent += data.message.content;
-            onChunk?.(data.message.content);
-          }
-        } catch {
-          // Skip invalid JSON lines
-        }
-      }
-    }
-
-    return fullContent;
+    return "";
   }
 
   updateConfig(config: Partial<AIServiceConfig>): void {
