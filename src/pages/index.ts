@@ -1,3 +1,4 @@
+export { LoginPage } from "./LoginPage";
 export { BookshelfPage } from "./BookshelfPage";
 export { NewProjectPage } from "./NewProjectPage";
 export { EditorPage } from "./EditorPage";

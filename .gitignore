@@ -41,6 +41,7 @@ Desktop.ini
 
 # Memory files
 .opencode/
+.workbuddy/
 
 # Video files (Remotion)
 video/node_modules/
@@ -66,3 +67,5 @@ yarn.lock
 
 # Optional REPL history
 .node_repl_history
+
+Omni Novel.md
