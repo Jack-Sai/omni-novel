@@ -7,6 +7,7 @@ const RELEASE_URL = "https://github.com/Jack-Sai/omni-novel/releases";
 
 const navItems = [
   { label: "功能", href: "#features" },
+  { label: "流程", href: "#howitworks" },
   { label: "技术", href: "#tech" },
 ];
 
