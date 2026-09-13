@@ -9,6 +9,7 @@ const navItems = [
   { label: "功能", href: "#features" },
   { label: "流程", href: "#howitworks" },
   { label: "技术", href: "#tech" },
+  { label: "问答", href: "#faq" },
 ];
 
 export function Header() {

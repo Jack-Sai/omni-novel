@@ -3,6 +3,7 @@ import { Hero } from "./components/Hero";
 import { Features } from "./components/Features";
 import { HowItWorks } from "./components/HowItWorks";
 import { TechStack } from "./components/TechStack";
+import { FAQ } from "./components/FAQ";
 import { DownloadSection } from "./components/DownloadSection";
 import { Footer } from "./components/Footer";
 
@@ -15,6 +16,7 @@ function App() {
         <Features />
         <HowItWorks />
         <TechStack />
+        <FAQ />
         <DownloadSection />
       </main>
       <Footer />
