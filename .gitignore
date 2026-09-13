@@ -42,6 +42,8 @@ Desktop.ini
 # Memory files
 .opencode/
 .workbuddy/
+.agents/
+skills-lock.json
 
 # Video files (Remotion)
 video/node_modules/
