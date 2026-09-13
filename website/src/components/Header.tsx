@@ -10,6 +10,7 @@ const navItems = [
   { label: "流程", href: "#howitworks" },
   { label: "技术", href: "#tech" },
   { label: "问答", href: "#faq" },
+  { label: "路线图", href: "#roadmap" },
 ];
 
 export function Header() {

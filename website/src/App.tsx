@@ -5,6 +5,7 @@ import { HowItWorks } from "./components/HowItWorks";
 import { TechStack } from "./components/TechStack";
 import { FAQ } from "./components/FAQ";
 import { DownloadSection } from "./components/DownloadSection";
+import { Roadmap } from "./components/Roadmap";
 import { Footer } from "./components/Footer";
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
         <TechStack />
         <FAQ />
         <DownloadSection />
+        <Roadmap />
       </main>
       <Footer />
     </div>
