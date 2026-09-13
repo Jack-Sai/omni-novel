@@ -6,6 +6,7 @@ import { TechStack } from "./components/TechStack";
 import { FAQ } from "./components/FAQ";
 import { DownloadSection } from "./components/DownloadSection";
 import { Roadmap } from "./components/Roadmap";
+import { Changelog } from "./components/Changelog";
 import { Footer } from "./components/Footer";
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
         <FAQ />
         <DownloadSection />
         <Roadmap />
+        <Changelog />
       </main>
       <Footer />
     </div>

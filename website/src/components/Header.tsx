@@ -11,6 +11,7 @@ const navItems = [
   { label: "技术", href: "#tech" },
   { label: "问答", href: "#faq" },
   { label: "路线图", href: "#roadmap" },
+  { label: "更新", href: "#changelog" },
 ];
 
 export function Header() {
