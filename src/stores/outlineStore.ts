@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { saveProjectJson, loadProjectJson } from "../services/storage";
 
 export interface Scene {
   id: string;
@@ -33,168 +33,174 @@ interface OutlineStore {
   volumes: Volume[];
   currentVolume: Volume | null;
   currentChapter: OutlineChapter | null;
-  addVolume: (projectId: string, title: string) => void;
+  addVolume: (volume: Omit<Volume, "id" | "createdAt" | "updatedAt" | "chapters">) => void;
   setCurrentVolume: (volume: Volume | null) => void;
   setCurrentChapter: (chapter: OutlineChapter | null) => void;
   updateVolume: (id: string, updates: Partial<Volume>) => void;
   deleteVolume: (id: string) => void;
-  addChapter: (volumeId: string, title: string) => void;
+  addChapter: (volumeId: string, chapter: Omit<OutlineChapter, "id" | "scenes">) => void;
   updateChapter: (volumeId: string, chapterId: string, updates: Partial<OutlineChapter>) => void;
   deleteChapter: (volumeId: string, chapterId: string) => void;
-  addScene: (volumeId: string, chapterId: string, title: string) => void;
+  addScene: (volumeId: string, chapterId: string, scene: Omit<Scene, "id">) => void;
   updateScene: (volumeId: string, chapterId: string, sceneId: string, updates: Partial<Scene>) => void;
   deleteScene: (volumeId: string, chapterId: string, sceneId: string) => void;
   getVolumesByProject: (projectId: string) => Volume[];
+  loadFromDisk: (projectDir: string) => Promise<void>;
+  saveToDisk: (projectDir: string) => void;
 }
 
-export const useOutlineStore = create<OutlineStore>()(
-  persist(
-    (set, get) => ({
-      volumes: [],
-      currentVolume: null,
-      currentChapter: null,
-      addVolume: (projectId, title) => {
-        const existingVolumes = get().volumes.filter((v) => v.projectId === projectId);
-        const order = existingVolumes.length;
-        const newVolume: Volume = {
-          id: crypto.randomUUID(),
-          projectId,
-          title,
-          description: "",
-          chapters: [],
-          order,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        set((state) => ({
-          volumes: [...state.volumes, newVolume],
-        }));
-      },
-      setCurrentVolume: (volume) => set({ currentVolume: volume }),
-      setCurrentChapter: (chapter) => set({ currentChapter: chapter }),
-      updateVolume: (id, updates) =>
-        set((state) => {
-          const updatedAt = new Date().toISOString();
-          const volumes = state.volumes.map((v) =>
-            v.id === id ? { ...v, ...updates, updatedAt } : v
-          );
-          const currentVolume =
-            state.currentVolume?.id === id
-              ? { ...state.currentVolume, ...updates, updatedAt }
-              : state.currentVolume;
-          return { volumes, currentVolume };
-        }),
-      deleteVolume: (id) =>
-        set((state) => ({
-          volumes: state.volumes.filter((v) => v.id !== id),
-          currentVolume: state.currentVolume?.id === id ? null : state.currentVolume,
-        })),
-      addChapter: (volumeId, title) => {
-        set((state) => {
-          const volumes = state.volumes.map((v) => {
-            if (v.id === volumeId) {
-              const newChapter: OutlineChapter = {
-                id: crypto.randomUUID(),
-                title,
-                summary: "",
-                scenes: [],
-                status: "draft",
-              };
-              return { ...v, chapters: [...v.chapters, newChapter], updatedAt: new Date().toISOString() };
-            }
-            return v;
-          });
-          return { volumes };
-        });
-      },
-      updateChapter: (volumeId, chapterId, updates) =>
-        set((state) => {
-          const volumes = state.volumes.map((v) => {
-            if (v.id === volumeId) {
-              const chapters = v.chapters.map((c) =>
-                c.id === chapterId ? { ...c, ...updates } : c
-              );
-              return { ...v, chapters, updatedAt: new Date().toISOString() };
-            }
-            return v;
-          });
-          return { volumes };
-        }),
-      deleteChapter: (volumeId, chapterId) =>
-        set((state) => {
-          const volumes = state.volumes.map((v) => {
-            if (v.id === volumeId) {
-              return { ...v, chapters: v.chapters.filter((c) => c.id !== chapterId), updatedAt: new Date().toISOString() };
-            }
-            return v;
-          });
-          return { volumes };
-        }),
-      addScene: (volumeId, chapterId, title) =>
-        set((state) => {
-          const volumes = state.volumes.map((v) => {
-            if (v.id === volumeId) {
-              const chapters = v.chapters.map((c) => {
-                if (c.id === chapterId) {
-                  const newScene: Scene = {
-                    id: crypto.randomUUID(),
-                    title,
-                    summary: "",
-                    location: "",
-                    characters: [],
-                    order: c.scenes.length,
-                  };
-                  return { ...c, scenes: [...c.scenes, newScene] };
-                }
-                return c;
-              });
-              return { ...v, chapters, updatedAt: new Date().toISOString() };
-            }
-            return v;
-          });
-          return { volumes };
-        }),
-      updateScene: (volumeId, chapterId, sceneId, updates) =>
-        set((state) => {
-          const volumes = state.volumes.map((v) => {
-            if (v.id === volumeId) {
-              const chapters = v.chapters.map((c) => {
-                if (c.id === chapterId) {
-                  const scenes = c.scenes.map((s) =>
-                    s.id === sceneId ? { ...s, ...updates } : s
-                  );
-                  return { ...c, scenes };
-                }
-                return c;
-              });
-              return { ...v, chapters, updatedAt: new Date().toISOString() };
-            }
-            return v;
-          });
-          return { volumes };
-        }),
-      deleteScene: (volumeId, chapterId, sceneId) =>
-        set((state) => {
-          const volumes = state.volumes.map((v) => {
-            if (v.id === volumeId) {
-              const chapters = v.chapters.map((c) => {
-                if (c.id === chapterId) {
-                  return { ...c, scenes: c.scenes.filter((s) => s.id !== sceneId) };
-                }
-                return c;
-              });
-              return { ...v, chapters, updatedAt: new Date().toISOString() };
-            }
-            return v;
-          });
-          return { volumes };
-        }),
-      getVolumesByProject: (projectId) => {
-        return get().volumes.filter((v) => v.projectId === projectId).sort((a, b) => a.order - b.order);
-      },
+let saveTimers: Record<string, ReturnType<typeof setTimeout> | null> = {};
+
+export const useOutlineStore = create<OutlineStore>()((set, get) => ({
+  volumes: [],
+  currentVolume: null,
+  currentChapter: null,
+
+  addVolume: (volume) => {
+    const newVolume: Volume = {
+      id: crypto.randomUUID(),
+      ...volume,
+      chapters: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    set((state) => ({
+      volumes: [...state.volumes, newVolume],
+      currentVolume: newVolume,
+    }));
+  },
+
+  setCurrentVolume: (volume) => set({ currentVolume: volume }),
+
+  setCurrentChapter: (chapter) => set({ currentChapter: chapter }),
+
+  updateVolume: (id, updates) =>
+    set((state) => {
+      const updatedAt = new Date().toISOString();
+      const volumes = state.volumes.map((v) =>
+        v.id === id ? { ...v, ...updates, updatedAt } : v
+      );
+      const currentVolume =
+        state.currentVolume?.id === id
+          ? { ...state.currentVolume, ...updates, updatedAt }
+          : state.currentVolume;
+      return { volumes, currentVolume };
     }),
-    {
-      name: "omni-novel-outline",
+
+  deleteVolume: (id) =>
+    set((state) => ({
+      volumes: state.volumes.filter((v) => v.id !== id),
+      currentVolume: state.currentVolume?.id === id ? null : state.currentVolume,
+    })),
+
+  addChapter: (volumeId, chapter) =>
+    set((state) => {
+      const newChapter: OutlineChapter = { id: crypto.randomUUID(), ...chapter, scenes: [] };
+      const volumes = state.volumes.map((v) =>
+        v.id === volumeId
+          ? { ...v, chapters: [...v.chapters, newChapter], updatedAt: new Date().toISOString() }
+          : v
+      );
+      return { volumes };
+    }),
+
+  updateChapter: (volumeId, chapterId, updates) =>
+    set((state) => {
+      const volumes = state.volumes.map((v) =>
+        v.id === volumeId
+          ? {
+              ...v,
+              chapters: v.chapters.map((c) => (c.id === chapterId ? { ...c, ...updates } : c)),
+              updatedAt: new Date().toISOString(),
+            }
+          : v
+      );
+      return { volumes };
+    }),
+
+  deleteChapter: (volumeId, chapterId) =>
+    set((state) => {
+      const volumes = state.volumes.map((v) =>
+        v.id === volumeId
+          ? { ...v, chapters: v.chapters.filter((c) => c.id !== chapterId), updatedAt: new Date().toISOString() }
+          : v
+      );
+      return { volumes };
+    }),
+
+  addScene: (volumeId, chapterId, scene) =>
+    set((state) => {
+      const newScene: Scene = { id: crypto.randomUUID(), ...scene };
+      const volumes = state.volumes.map((v) =>
+        v.id === volumeId
+          ? {
+              ...v,
+              chapters: v.chapters.map((c) =>
+                c.id === chapterId ? { ...c, scenes: [...c.scenes, newScene] } : c
+              ),
+              updatedAt: new Date().toISOString(),
+            }
+          : v
+      );
+      return { volumes };
+    }),
+
+  updateScene: (volumeId, chapterId, sceneId, updates) =>
+    set((state) => {
+      const volumes = state.volumes.map((v) =>
+        v.id === volumeId
+          ? {
+              ...v,
+              chapters: v.chapters.map((c) =>
+                c.id === chapterId
+                  ? { ...c, scenes: c.scenes.map((s) => (s.id === sceneId ? { ...s, ...updates } : s)) }
+                  : c
+              ),
+              updatedAt: new Date().toISOString(),
+            }
+          : v
+      );
+      return { volumes };
+    }),
+
+  deleteScene: (volumeId, chapterId, sceneId) =>
+    set((state) => {
+      const volumes = state.volumes.map((v) =>
+        v.id === volumeId
+          ? {
+              ...v,
+              chapters: v.chapters.map((c) =>
+                c.id === chapterId
+                  ? { ...c, scenes: c.scenes.filter((s) => s.id !== sceneId) }
+                  : c
+              ),
+              updatedAt: new Date().toISOString(),
+            }
+          : v
+      );
+      return { volumes };
+    }),
+
+  getVolumesByProject: (projectId) => {
+    return get().volumes.filter((v) => v.projectId === projectId).sort((a, b) => a.order - b.order);
+  },
+
+  loadFromDisk: async (projectDir: string) => {
+    const data = await loadProjectJson<{ volumes: Volume[] }>(projectDir, "data", "outline.json");
+    if (data?.volumes) {
+      set({ volumes: data.volumes });
     }
-  )
-);
+  },
+
+  saveToDisk: (projectDir: string) => {
+    const key = projectDir;
+    if (saveTimers[key]) clearTimeout(saveTimers[key]!);
+    saveTimers[key] = setTimeout(() => {
+      const { volumes } = get();
+      saveProjectJson(projectDir, "data", "outline.json", { volumes }).catch((e) =>
+        console.error("保存大纲数据失败:", e)
+      );
+      saveTimers[key] = null;
+    }, 500);
+  },
+}));

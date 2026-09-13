@@ -64,7 +64,23 @@ export function CharactersPage() {
 
   const handleAdd = useCallback(() => {
     if (!newName.trim() || !currentProject) return;
-    addCharacter(currentProject.id, newName.trim());
+    addCharacter({
+      projectId: currentProject.id,
+      name: newName.trim(),
+      aliases: [],
+      gender: "",
+      age: "",
+      appearance: "",
+      personality: "",
+      background: "",
+      goals: "",
+      conflicts: "",
+      relationships: "",
+      abilities: "",
+      weaknesses: "",
+      notes: "",
+      tags: [],
+    });
     setNewName("");
     setShowAdd(false);
   }, [newName, currentProject, addCharacter]);

@@ -70,7 +70,16 @@ export function WorldviewPage() {
 
   const handleAdd = useCallback(() => {
     if (!newName.trim() || !currentProject) return;
-    addItem(currentProject.id, newName.trim(), newType);
+    addItem({
+      projectId: currentProject.id,
+      name: newName.trim(),
+      type: newType,
+      description: "",
+      details: "",
+      relationships: "",
+      notes: "",
+      tags: [],
+    });
     setNewName("");
     setShowAdd(false);
   }, [newName, currentProject, addItem, newType]);

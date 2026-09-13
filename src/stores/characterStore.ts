@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { saveProjectJson, loadProjectJson } from "../services/storage";
 
 export interface Character {
   id: string;
@@ -25,68 +25,75 @@ export interface Character {
 interface CharacterStore {
   characters: Character[];
   currentCharacter: Character | null;
-  addCharacter: (projectId: string, name: string) => void;
+  addCharacter: (character: Omit<Character, "id" | "createdAt" | "updatedAt">) => void;
   setCurrentCharacter: (character: Character | null) => void;
   updateCharacter: (id: string, updates: Partial<Character>) => void;
   deleteCharacter: (id: string) => void;
   getCharactersByProject: (projectId: string) => Character[];
+  loadFromDisk: (projectDir: string) => Promise<void>;
+  saveToDisk: (projectDir: string) => void;
 }
 
-export const useCharacterStore = create<CharacterStore>()(
-  persist(
-    (set, get) => ({
-      characters: [],
-      currentCharacter: null,
-      addCharacter: (projectId, name) => {
-        const newCharacter: Character = {
-          id: crypto.randomUUID(),
-          projectId,
-          name,
-          aliases: [],
-          gender: "",
-          age: "",
-          appearance: "",
-          personality: "",
-          background: "",
-          goals: "",
-          conflicts: "",
-          relationships: "",
-          abilities: "",
-          weaknesses: "",
-          notes: "",
-          tags: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        set((state) => ({
-          characters: [...state.characters, newCharacter],
-          currentCharacter: newCharacter,
-        }));
-      },
-      setCurrentCharacter: (character) => set({ currentCharacter: character }),
-      updateCharacter: (id, updates) =>
-        set((state) => {
-          const updatedAt = new Date().toISOString();
-          const characters = state.characters.map((c) =>
-            c.id === id ? { ...c, ...updates, updatedAt } : c,
-          );
-          const currentCharacter =
-            state.currentCharacter?.id === id
-              ? { ...state.currentCharacter, ...updates, updatedAt }
-              : state.currentCharacter;
-          return { characters, currentCharacter };
-        }),
-      deleteCharacter: (id) =>
-        set((state) => ({
-          characters: state.characters.filter((c) => c.id !== id),
-          currentCharacter: state.currentCharacter?.id === id ? null : state.currentCharacter,
-        })),
-      getCharactersByProject: (projectId) => {
-        return get().characters.filter((c) => c.projectId === projectId);
-      },
+let saveTimers: Record<string, ReturnType<typeof setTimeout> | null> = {};
+
+export const useCharacterStore = create<CharacterStore>()((set, get) => ({
+  characters: [],
+  currentCharacter: null,
+
+  addCharacter: (character) => {
+    const newCharacter: Character = {
+      id: crypto.randomUUID(),
+      ...character,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    set((state) => ({
+      characters: [...state.characters, newCharacter],
+      currentCharacter: newCharacter,
+    }));
+  },
+
+  setCurrentCharacter: (character) => set({ currentCharacter: character }),
+
+  updateCharacter: (id, updates) =>
+    set((state) => {
+      const updatedAt = new Date().toISOString();
+      const characters = state.characters.map((c) =>
+        c.id === id ? { ...c, ...updates, updatedAt } : c
+      );
+      const currentCharacter =
+        state.currentCharacter?.id === id
+          ? { ...state.currentCharacter, ...updates, updatedAt }
+          : state.currentCharacter;
+      return { characters, currentCharacter };
     }),
-    {
-      name: "omni-novel-characters",
-    },
-  ),
-);
+
+  deleteCharacter: (id) =>
+    set((state) => ({
+      characters: state.characters.filter((c) => c.id !== id),
+      currentCharacter: state.currentCharacter?.id === id ? null : state.currentCharacter,
+    })),
+
+  getCharactersByProject: (projectId) => {
+    return get().characters.filter((c) => c.projectId === projectId);
+  },
+
+  loadFromDisk: async (projectDir: string) => {
+    const data = await loadProjectJson<{ characters: Character[] }>(projectDir, "data", "characters.json");
+    if (data?.characters) {
+      set({ characters: data.characters });
+    }
+  },
+
+  saveToDisk: (projectDir: string) => {
+    const key = projectDir;
+    if (saveTimers[key]) clearTimeout(saveTimers[key]!);
+    saveTimers[key] = setTimeout(() => {
+      const { characters } = get();
+      saveProjectJson(projectDir, "data", "characters.json", { characters }).catch((e) =>
+        console.error("保存角色数据失败:", e)
+      );
+      saveTimers[key] = null;
+    }, 500);
+  },
+}));

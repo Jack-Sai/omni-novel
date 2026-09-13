@@ -21,7 +21,14 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
-    addChapter(projectId, newTitle.trim());
+    addChapter({
+      projectId,
+      volumeId: null,
+      title: newTitle.trim(),
+      content: "",
+      summary: "",
+      order: projectChapters.length,
+    });
     setNewTitle("");
     setIsAdding(false);
   };

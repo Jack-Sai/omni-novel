@@ -1,15 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { ShortcutsHelp } from "../dialog";
 import { SearchDialog } from "../search";
 import { useKeyboardShortcuts, Shortcut } from "../../hooks";
+import { initGlobalStores } from "../../services/storeInit";
 
 export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    initGlobalStores();
+  }, []);
 
   const activeTab = location.pathname.split("/")[1] || "editor";
 

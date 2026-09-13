@@ -68,15 +68,24 @@ export function OutlinePage() {
 
   const handleAddVolume = useCallback(() => {
     if (!newTitle.trim() || !currentProject) return;
-    addVolume(currentProject.id, newTitle.trim());
+    addVolume({
+      projectId: currentProject.id,
+      title: newTitle.trim(),
+      description: "",
+      order: volumes.length,
+    });
     setNewTitle("");
     setShowAddVolume(false);
-  }, [newTitle, currentProject, addVolume]);
+  }, [newTitle, currentProject, addVolume, volumes.length]);
 
   const handleAddChapter = useCallback(
     (volumeId: string) => {
       if (!newTitle.trim()) return;
-      addChapter(volumeId, newTitle.trim());
+      addChapter(volumeId, {
+        title: newTitle.trim(),
+        summary: "",
+        status: "draft",
+      });
       setNewTitle("");
       setShowAddChapter(null);
     },
@@ -86,7 +95,13 @@ export function OutlinePage() {
   const handleAddScene = useCallback(
     (volumeId: string, chapterId: string) => {
       if (!newTitle.trim()) return;
-      addScene(volumeId, chapterId, newTitle.trim());
+      addScene(volumeId, chapterId, {
+        title: newTitle.trim(),
+        summary: "",
+        location: "",
+        characters: [],
+        order: 0,
+      });
       setNewTitle("");
       setShowAddScene(null);
     },

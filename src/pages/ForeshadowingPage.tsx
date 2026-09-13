@@ -76,7 +76,19 @@ export function ForeshadowingPage() {
 
   const handleAdd = useCallback(() => {
     if (!newName.trim() || !currentProject) return;
-    addItem(currentProject.id, newName.trim());
+    addItem({
+      projectId: currentProject.id,
+      name: newName.trim(),
+      description: "",
+      plantedChapter: "",
+      plantedContent: "",
+      revealChapter: "",
+      revealContent: "",
+      status: "planted",
+      importance: "medium",
+      relatedCharacters: [],
+      notes: "",
+    });
     setNewName("");
     setShowAdd(false);
   }, [newName, currentProject, addItem]);

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { saveGlobalConfig, loadGlobalConfig } from "../services/storage";
 import type { BackendType } from "../services/aiService";
 
 export interface AISettings {
@@ -12,20 +12,14 @@ export interface AISettings {
   topK: number;
   repeatPenalty: number;
   maxTokens: number;
-  /** 关闭模型内部思考/推理，节省上下文并加快响应速度 */
   think: boolean;
 }
 
 export interface EditorSettings {
-  /** 是否开启自动保存 */
   autoSaveEnabled: boolean;
-  /** 自动保存间隔（毫秒） */
   autoSaveInterval: number;
-  /** 字体大小（rem） */
   fontSize: number;
-  /** 行高 */
   lineHeight: number;
-  /** 编辑器宽度（字符数） */
   editorWidth: number;
 }
 
@@ -34,6 +28,8 @@ interface SettingsStore {
   editor: EditorSettings;
   updateAISettings: (settings: Partial<AISettings>) => void;
   updateEditorSettings: (settings: Partial<EditorSettings>) => void;
+  loadFromDisk: () => Promise<void>;
+  saveToDisk: () => void;
 }
 
 const defaultAISettings: AISettings = {
@@ -57,22 +53,39 @@ const defaultEditorSettings: EditorSettings = {
   editorWidth: 42,
 };
 
-export const useSettingsStore = create<SettingsStore>()(
-  persist(
-    (set) => ({
-      ai: defaultAISettings,
-      editor: defaultEditorSettings,
-      updateAISettings: (settings) =>
-        set((state) => ({
-          ai: { ...state.ai, ...settings },
-        })),
-      updateEditorSettings: (settings) =>
-        set((state) => ({
-          editor: { ...state.editor, ...settings },
-        })),
-    }),
-    {
-      name: "omni-novel-settings",
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const useSettingsStore = create<SettingsStore>()((set, get) => ({
+  ai: defaultAISettings,
+  editor: defaultEditorSettings,
+
+  updateAISettings: (settings) => {
+    set((state) => ({ ai: { ...state.ai, ...settings } }));
+    get().saveToDisk();
+  },
+
+  updateEditorSettings: (settings) => {
+    set((state) => ({ editor: { ...state.editor, ...settings } }));
+    get().saveToDisk();
+  },
+
+  loadFromDisk: async () => {
+    const data = await loadGlobalConfig<{ ai: AISettings; editor: EditorSettings }>("data", "settings.json");
+    if (data) {
+      set({
+        ai: { ...defaultAISettings, ...data.ai },
+        editor: { ...defaultEditorSettings, ...data.editor },
+      });
     }
-  )
-);
+  },
+
+  saveToDisk: () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const { ai, editor } = get();
+      saveGlobalConfig("data", "settings.json", { ai, editor }).catch((e) =>
+        console.error("保存设置失败:", e)
+      );
+    }, 500);
+  },
+}));
