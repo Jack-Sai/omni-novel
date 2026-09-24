@@ -13,6 +13,14 @@ export interface AISettings {
   repeatPenalty: number;
   maxTokens: number;
   think: boolean;
+  /** llama-server.exe 路径（仅 llamacpp 后端） */
+  llamaServerPath: string;
+  /** GGUF 模型文件路径（仅 llamacpp 后端） */
+  llamaModelPath: string;
+  /** llama-server 额外启动参数（不含 -m / --host / --port） */
+  llamaExtraArgs: string;
+  /** 空闲多少分钟后自动卸载，0 = 不卸载 */
+  idleUnloadMinutes: number;
 }
 
 export interface EditorSettings {
@@ -43,6 +51,10 @@ const defaultAISettings: AISettings = {
   repeatPenalty: 1.1,
   maxTokens: 2048,
   think: true,
+  llamaServerPath: "D:\\llama.cpp\\llama-server.exe",
+  llamaModelPath: "E:\\Models\\Qwen3.8-9B-Q8_0.gguf",
+  llamaExtraArgs: "-ngl 99 -c 16384 -fa on --jinja -t 8",
+  idleUnloadMinutes: 10,
 };
 
 const defaultEditorSettings: EditorSettings = {

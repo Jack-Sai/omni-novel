@@ -11,7 +11,7 @@ import {
   User,
 } from "lucide-react";
 import { getSystemPrompt, type PromptKey } from "../../services";
-import { createAIService } from "../../services/aiService";
+import { createAIService, toLlamaConfig } from "../../services/aiService";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { Button, Input } from "../ui";
 import { cn } from "../../lib/cn";
@@ -61,8 +61,27 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       baseUrl: ai.baseUrl,
       model: ai.model,
       apiKey: ai.apiKey,
+      llama:
+        ai.backend === "llamacpp"
+          ? toLlamaConfig({
+              baseUrl: ai.baseUrl,
+              llamaServerPath: ai.llamaServerPath,
+              llamaModelPath: ai.llamaModelPath,
+              llamaExtraArgs: ai.llamaExtraArgs,
+              idleUnloadMinutes: ai.idleUnloadMinutes,
+            })
+          : undefined,
     });
-  }, [ai.backend, ai.baseUrl, ai.model, ai.apiKey]);
+  }, [
+    ai.backend,
+    ai.baseUrl,
+    ai.model,
+    ai.apiKey,
+    ai.llamaServerPath,
+    ai.llamaModelPath,
+    ai.llamaExtraArgs,
+    ai.idleUnloadMinutes,
+  ]);
 
   useEffect(() => {
     checkConnection();

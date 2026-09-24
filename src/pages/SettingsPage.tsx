@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   AlertTriangle,
   Check,
@@ -8,14 +8,22 @@ import {
   FileText,
   Info,
   Palette,
+  Play,
   Save,
   Sparkles,
+  Square,
   Upload,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useProjectStore } from "../stores/projectStore";
-import { createAIService, backendPresets, type BackendType } from "../services/aiService";
+import {
+  createAIService,
+  backendPresets,
+  toLlamaConfig,
+  type BackendType,
+} from "../services/aiService";
 import { BackupService } from "../services";
 import {
   Badge,
@@ -30,6 +38,13 @@ import {
   SettingRow,
   ThemeToggle,
 } from "../components/ui";
+
+interface LlamaServerStatus {
+  running: boolean;
+  loading: boolean;
+  pid: number | null;
+  idle_minutes: number;
+}
 
 const backendItems = (Object.keys(backendPresets) as BackendType[]).map((key) => ({
   value: key,
@@ -83,6 +98,67 @@ export function SettingsPage() {
     setTesting(false);
   };
 
+  // ── llama-server 进程管理 ──
+  const [llamaStatus, setLlamaStatus] = useState<LlamaServerStatus | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  const refreshLlamaStatus = useCallback(async () => {
+    try {
+      const status = await invoke<LlamaServerStatus>("get_llama_server_status", {
+        baseUrl: ai.baseUrl,
+      });
+      setLlamaStatus(status);
+    } catch {
+      setLlamaStatus(null);
+    }
+  }, [ai.baseUrl]);
+
+  useEffect(() => {
+    if (ai.backend !== "llamacpp") {
+      setLlamaStatus(null);
+      return;
+    }
+    refreshLlamaStatus();
+    const timer = setInterval(refreshLlamaStatus, 3000);
+    return () => clearInterval(timer);
+  }, [ai.backend, refreshLlamaStatus]);
+
+  const handleStartServer = async () => {
+    setStarting(true);
+    setStartError(null);
+    try {
+      await invoke("ensure_llama_ready", {
+        llama: toLlamaConfig({
+          baseUrl: ai.baseUrl,
+          llamaServerPath: ai.llamaServerPath,
+          llamaModelPath: ai.llamaModelPath,
+          llamaExtraArgs: ai.llamaExtraArgs,
+          idleUnloadMinutes: ai.idleUnloadMinutes,
+        }),
+      });
+      await refreshLlamaStatus();
+    } catch (e) {
+      setStartError(String(e));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleStopServer = async () => {
+    setStopping(true);
+    setStartError(null);
+    try {
+      await invoke("stop_llama_server");
+      await refreshLlamaStatus();
+    } catch (e) {
+      setStartError(String(e));
+    } finally {
+      setStopping(false);
+    }
+  };
+
   const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -101,6 +177,7 @@ export function SettingsPage() {
   const currentBackend = ai.backend ?? "ollama";
   const backendPreset = backendPresets[currentBackend];
   const isOllama = currentBackend === "ollama";
+  const isLlama = currentBackend === "llamacpp";
 
   const sliders = [
     {
@@ -257,6 +334,112 @@ export function SettingsPage() {
                 placeholder={backendPreset.defaultUrl}
               />
             </Field>
+
+            {/* llama-server 进程托管（仅 llamacpp） */}
+            {isLlama && (
+              <div className="space-y-4 rounded-lg border border-line bg-subtle p-4">
+                <SettingRow
+                  title="llama-server 进程"
+                  description={
+                    llamaStatus?.running
+                      ? llamaStatus.idle_minutes > 0
+                        ? `PID ${llamaStatus.pid ?? "-"} · 已空闲 ${llamaStatus.idle_minutes} 分钟，超时自动卸载`
+                        : `PID ${llamaStatus.pid ?? "-"} · 服务就绪`
+                      : llamaStatus?.loading
+                        ? "正在加载模型，完成后自动就绪…"
+                        : "未启动。发送对话时会自动拉起，也可手动启动"
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={
+                        llamaStatus?.running
+                          ? "success"
+                          : llamaStatus?.loading
+                            ? "warning"
+                            : "neutral"
+                      }
+                    >
+                      {llamaStatus?.running
+                        ? "运行中"
+                        : llamaStatus?.loading
+                          ? "加载中"
+                          : "未启动"}
+                    </Badge>
+                    {llamaStatus?.running || llamaStatus?.loading ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={stopping}
+                        onClick={handleStopServer}
+                      >
+                        <Square size={13} />
+                        停止
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={starting}
+                        onClick={handleStartServer}
+                      >
+                        <Play size={13} />
+                        {starting ? "启动中" : "启动服务"}
+                      </Button>
+                    )}
+                  </div>
+                </SettingRow>
+
+                {startError && (
+                  <p className="text-[13px] text-danger">{startError}</p>
+                )}
+
+                <Field label="llama-server 路径" hint="llama-server.exe 可执行文件位置">
+                  <Input
+                    value={ai.llamaServerPath}
+                    onChange={(e) => updateAISettings({ llamaServerPath: e.target.value })}
+                    placeholder="D:\llama.cpp\llama-server.exe"
+                  />
+                </Field>
+
+                <Field label="模型文件路径" hint="GGUF 模型文件位置">
+                  <Input
+                    value={ai.llamaModelPath}
+                    onChange={(e) => updateAISettings({ llamaModelPath: e.target.value })}
+                    placeholder="E:\Models\Qwen3.8-9B-Q8_0.gguf"
+                  />
+                </Field>
+
+                <Field
+                  label="启动参数"
+                  hint="不含 -m / --host / --port，由应用自动追加"
+                >
+                  <Input
+                    value={ai.llamaExtraArgs}
+                    onChange={(e) => updateAISettings({ llamaExtraArgs: e.target.value })}
+                    placeholder="-ngl 99 -c 16384 -fa on --jinja -t 8"
+                  />
+                </Field>
+
+                <Field
+                  label={`空闲自动卸载 · ${ai.idleUnloadMinutes} 分钟`}
+                  hint="超过该时长无对话自动停止服务释放显存；0 = 不卸载"
+                >
+                  <Input
+                    type="number"
+                    value={ai.idleUnloadMinutes}
+                    min="0"
+                    max="120"
+                    step="5"
+                    onChange={(e) =>
+                      updateAISettings({
+                        idleUnloadMinutes: Math.max(0, parseInt(e.target.value) || 0),
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            )}
 
             {/* API Key（仅非 Ollama） */}
             {!isOllama && (

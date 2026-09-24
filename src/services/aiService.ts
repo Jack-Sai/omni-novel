@@ -22,6 +22,23 @@ export interface AIServiceConfig {
   llama?: LlamaConfig;
 }
 
+/** 从设置构建 Rust LlamaConfig（字段名为 snake_case，与 serde 对齐） */
+export function toLlamaConfig(ai: {
+  baseUrl: string;
+  llamaServerPath: string;
+  llamaModelPath: string;
+  llamaExtraArgs: string;
+  idleUnloadMinutes: number;
+}): LlamaConfig {
+  return {
+    llama_server_path: ai.llamaServerPath,
+    llama_model_path: ai.llamaModelPath,
+    llama_extra_args: ai.llamaExtraArgs,
+    base_url: ai.baseUrl,
+    idle_unload_minutes: ai.idleUnloadMinutes,
+  };
+}
+
 export interface AIService {
   checkConnection(): Promise<boolean>;
   listModels(): Promise<string[]>;
