@@ -1,7 +1,20 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 use tauri::ipc::Channel;
+use tauri::Manager;
+
+mod llama_process;
+
+use llama_process::{LlamaConfig, LlamaManager, LlamaServerStatus};
+
+/// 全局应用状态：共享 HTTP 客户端 + llama-server 进程托管。
+struct AppState {
+    http: reqwest::Client,
+    llama: Arc<LlamaManager>,
+}
 
 // ── File System Commands ─────────────────────────────────────────────────────
 
@@ -114,6 +127,37 @@ fn load_global_json(sub_path: String, filename: String) -> Result<String, String
     let base = global_config_dir();
     let path = base.join(&sub_path).join(&filename);
     fs::read_to_string(&path).map_err(|e| format!("读取配置失败: {}", e))
+}
+
+// ── llama-server 托管 Commands ──────────────────────────────────────────────
+
+/// 确保 llama-server 就绪（未启动则自动拉起并等待模型加载完成）。
+#[tauri::command]
+async fn ensure_llama_ready(
+    state: tauri::State<'_, AppState>,
+    llama: LlamaConfig,
+) -> Result<LlamaServerStatus, String> {
+    state.llama.ensure_ready(&state.http, &llama).await?;
+    Ok(state.llama.status(&state.http, &llama.base_url).await)
+}
+
+/// 停止本应用托管的 llama-server，释放显存。
+#[tauri::command]
+async fn stop_llama_server(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.llama.stop_owned().await;
+    Ok(())
+}
+
+/// 查询 llama-server 托管状态（base_url 为空时回退到最近一次配置）。
+#[tauri::command]
+async fn get_llama_server_status(
+    state: tauri::State<'_, AppState>,
+    base_url: Option<String>,
+) -> Result<LlamaServerStatus, String> {
+    Ok(state
+        .llama
+        .status(&state.http, base_url.as_deref().unwrap_or(""))
+        .await)
 }
 
 // ── AI Chat Commands ─────────────────────────────────────────────────────────
@@ -353,6 +397,29 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
+        .setup(|app| {
+            app.manage(AppState {
+                http: reqwest::Client::new(),
+                llama: Arc::new(LlamaManager::new()),
+            });
+
+            // 空闲卸载看门狗：约每 30s 检查一次
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(30)).await;
+                    let state = app_handle.state::<AppState>();
+                    state.llama.check_idle_unload().await;
+                }
+            });
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             create_project_dir,
             save_chapter,
@@ -362,9 +429,18 @@ pub fn run() {
             list_dir,
             save_global_json,
             load_global_json,
+            ensure_llama_ready,
+            stop_llama_server,
+            get_llama_server_status,
             ai_chat,
             ai_chat_stream,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+                let state = app.state::<AppState>();
+                tauri::async_runtime::block_on(state.llama.stop_owned());
+            }
+        });
 }
