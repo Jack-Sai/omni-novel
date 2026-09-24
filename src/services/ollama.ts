@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Channel } from "@tauri-apps/api/core";
 import type { AIService, AIServiceConfig } from "./aiService";
+import { proxyCheckConnection, proxyListModels } from "./aiProxy";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -30,22 +31,11 @@ export class OllamaService implements AIService {
   }
 
   async checkConnection(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.config.baseUrl}/api/tags`);
-      return response.ok;
-    } catch {
-      return false;
-    }
+    return proxyCheckConnection(this.config.backend, this.config.baseUrl);
   }
 
   async listModels(): Promise<string[]> {
-    try {
-      const response = await fetch(`${this.config.baseUrl}/api/tags`);
-      const data = await response.json();
-      return data.models?.map((m: { name: string }) => m.name) || [];
-    } catch {
-      return [];
-    }
+    return proxyListModels(this.config.backend, this.config.baseUrl, this.config.apiKey);
   }
 
   async chat(
@@ -66,6 +56,7 @@ export class OllamaService implements AIService {
         maxTokens: options?.numPredict ?? 2048,
         think: options?.think ?? false,
       },
+      llama: this.config.llama ?? null,
     });
   }
 
@@ -96,6 +87,7 @@ export class OllamaService implements AIService {
         maxTokens: options?.numPredict ?? 2048,
         think: options?.think ?? false,
       },
+      llama: this.config.llama ?? null,
       channel,
     });
 

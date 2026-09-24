@@ -184,17 +184,67 @@ pub struct ChatChunk {
     pub done: bool,
 }
 
+/// 发送 POST 请求并把网络/HTTP 错误转为友好中文提示。
+async fn post_json_checked(
+    client: &reqwest::Client,
+    url: &str,
+    body: &serde_json::Value,
+    api_key: Option<&String>,
+) -> Result<reqwest::Response, String> {
+    let mut req = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .json(body);
+    if let Some(key) = api_key {
+        if !key.is_empty() {
+            req = req.bearer_auth(key);
+        }
+    }
+    let resp = req.send().await.map_err(|e| {
+        if e.is_timeout() {
+            "AI 响应超时，请稍后重试".to_string()
+        } else {
+            format!("无法连接到 AI 服务 ({url})：{e}")
+        }
+    })?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(format!("AI 服务返回错误 ({status})：{body_text}"));
+    }
+    Ok(resp)
+}
+
+/// llama.cpp 自动拉起：配置存在时确保服务就绪，并刷新空闲计时。
+async fn ensure_llama(
+    state: &tauri::State<'_, AppState>,
+    llama: &Option<LlamaConfig>,
+) -> Result<(), String> {
+    if let Some(config) = llama {
+        state
+            .llama
+            .ensure_ready(&state.http, config)
+            .await
+            .map_err(|e| format!("llama-server 未就绪：{e}"))?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn ai_chat(
+    state: tauri::State<'_, AppState>,
     backend: String,
     base_url: String,
     model: String,
     api_key: Option<String>,
     messages: Vec<ChatMessage>,
     options: Option<ChatOptions>,
+    llama: Option<LlamaConfig>,
 ) -> Result<String, String> {
-    let client = reqwest::Client::new();
+    let client = &state.http;
     let opts = options.unwrap_or_default();
+
+    ensure_llama(&state, &llama).await?;
 
     match backend.as_str() {
         "ollama" => {
@@ -211,9 +261,8 @@ async fn ai_chat(
                     "num_predict": opts.max_tokens.unwrap_or(2048)
                 }
             });
-            let resp = client.post(format!("{}/api/chat", base_url))
-                .json(&body).send().await
-                .map_err(|e| format!("请求AI服务失败: {}", e))?;
+            let url = format!("{}/api/chat", base_url.trim_end_matches('/'));
+            let resp = post_json_checked(client, &url, &body, None).await?;
             let data: serde_json::Value = resp.json().await
                 .map_err(|e| format!("解析响应失败: {}", e))?;
             data["message"]["content"].as_str()
@@ -223,21 +272,17 @@ async fn ai_chat(
         _ => {
             let repeat_penalty = opts.repeat_penalty.unwrap_or(1.1);
             let frequency_penalty = (repeat_penalty - 1.0) * 2.0;
-            let mut req = client.post(format!("{}/v1/chat/completions", base_url))
-                .json(&serde_json::json!({
-                    "model": model,
-                    "messages": messages,
-                    "stream": false,
-                    "temperature": opts.temperature.unwrap_or(0.7),
-                    "top_p": opts.top_p.unwrap_or(0.9),
-                    "max_tokens": opts.max_tokens.unwrap_or(2048),
-                    "frequency_penalty": frequency_penalty
-                }));
-            if let Some(key) = &api_key {
-                if !key.is_empty() { req = req.bearer_auth(key); }
-            }
-            let resp = req.send().await
-                .map_err(|e| format!("请求AI服务失败: {}", e))?;
+            let body = serde_json::json!({
+                "model": model,
+                "messages": messages,
+                "stream": false,
+                "temperature": opts.temperature.unwrap_or(0.7),
+                "top_p": opts.top_p.unwrap_or(0.9),
+                "max_tokens": opts.max_tokens.unwrap_or(2048),
+                "frequency_penalty": frequency_penalty
+            });
+            let url = format!("{}/v1/chat/completions", base_url.trim_end_matches('/'));
+            let resp = post_json_checked(client, &url, &body, api_key.as_ref()).await?;
             let data: serde_json::Value = resp.json().await
                 .map_err(|e| format!("解析响应失败: {}", e))?;
             data["choices"][0]["message"]["content"].as_str()
@@ -249,16 +294,22 @@ async fn ai_chat(
 
 #[tauri::command]
 async fn ai_chat_stream(
+    state: tauri::State<'_, AppState>,
     backend: String,
     base_url: String,
     model: String,
     api_key: Option<String>,
     messages: Vec<ChatMessage>,
     options: Option<ChatOptions>,
+    llama: Option<LlamaConfig>,
     channel: Channel<ChatChunk>,
 ) -> Result<(), String> {
-    let client = reqwest::Client::new();
+    let client = &state.http;
     let opts = options.unwrap_or_default();
+
+    ensure_llama(&state, &llama).await?;
+
+    let base = base_url.trim_end_matches('/').to_string();
 
     match backend.as_str() {
         "ollama" => {
@@ -275,15 +326,14 @@ async fn ai_chat_stream(
                     "num_predict": opts.max_tokens.unwrap_or(2048)
                 }
             });
-            let resp = client.post(format!("{}/api/chat", base_url))
-                .json(&body).send().await
-                .map_err(|e| format!("请求AI服务失败: {}", e))?;
+            let url = format!("{base}/api/chat");
+            let resp = post_json_checked(client, &url, &body, None).await?;
 
             use futures_util::StreamExt;
             let mut stream = resp.bytes_stream();
             let mut buffer = String::new();
 
-            while let Some(chunk) = stream.next().await {
+            'outer: while let Some(chunk) = stream.next().await {
                 let bytes = chunk.map_err(|e| format!("读取流失败: {}", e))?;
                 buffer.push_str(&String::from_utf8_lossy(&bytes));
                 while let Some(pos) = buffer.find('\n') {
@@ -294,7 +344,7 @@ async fn ai_chat_stream(
                         let content = data["message"]["content"].as_str().unwrap_or("").to_string();
                         let done = data["done"].as_bool().unwrap_or(false);
                         channel.send(ChatChunk { content, done }).ok();
-                        if done { break; }
+                        if done { break 'outer; }
                     }
                 }
             }
@@ -302,27 +352,23 @@ async fn ai_chat_stream(
         _ => {
             let repeat_penalty = opts.repeat_penalty.unwrap_or(1.1);
             let frequency_penalty = (repeat_penalty - 1.0) * 2.0;
-            let mut req = client.post(format!("{}/v1/chat/completions", base_url))
-                .json(&serde_json::json!({
-                    "model": model,
-                    "messages": messages,
-                    "stream": true,
-                    "temperature": opts.temperature.unwrap_or(0.7),
-                    "top_p": opts.top_p.unwrap_or(0.9),
-                    "max_tokens": opts.max_tokens.unwrap_or(2048),
-                    "frequency_penalty": frequency_penalty
-                }));
-            if let Some(key) = &api_key {
-                if !key.is_empty() { req = req.bearer_auth(key); }
-            }
-            let resp = req.send().await
-                .map_err(|e| format!("请求AI服务失败: {}", e))?;
+            let body = serde_json::json!({
+                "model": model,
+                "messages": messages,
+                "stream": true,
+                "temperature": opts.temperature.unwrap_or(0.7),
+                "top_p": opts.top_p.unwrap_or(0.9),
+                "max_tokens": opts.max_tokens.unwrap_or(2048),
+                "frequency_penalty": frequency_penalty
+            });
+            let url = format!("{base}/v1/chat/completions");
+            let resp = post_json_checked(client, &url, &body, api_key.as_ref()).await?;
 
             use futures_util::StreamExt;
             let mut stream = resp.bytes_stream();
             let mut buffer = String::new();
 
-            while let Some(chunk) = stream.next().await {
+            'outer: while let Some(chunk) = stream.next().await {
                 let bytes = chunk.map_err(|e| format!("读取流失败: {}", e))?;
                 buffer.push_str(&String::from_utf8_lossy(&bytes));
                 while let Some(pos) = buffer.find('\n') {
@@ -331,7 +377,7 @@ async fn ai_chat_stream(
                     if line.is_empty() { continue; }
                     if line == "data: [DONE]" {
                         channel.send(ChatChunk { content: String::new(), done: true }).ok();
-                        return Ok(());
+                        break 'outer;
                     }
                     if let Some(json_str) = line.strip_prefix("data: ") {
                         if let Ok(data) = serde_json::from_str::<serde_json::Value>(json_str) {
@@ -346,7 +392,93 @@ async fn ai_chat_stream(
             }
         }
     }
+
+    // 刷新 llama-server 空闲计时
+    if llama.is_some() {
+        state.llama.touch_active().await;
+    }
     Ok(())
+}
+
+// ── AI 连接检测 / 模型列表（Rust 代理，避免 WebView CORS） ──────────────────
+
+#[tauri::command]
+async fn ai_check_connection(
+    state: tauri::State<'_, AppState>,
+    backend: String,
+    base_url: String,
+) -> Result<bool, String> {
+    let base = base_url.trim_end_matches('/').to_string();
+    let url = match backend.as_str() {
+        "ollama" => format!("{base}/api/tags"),
+        "llamacpp" => format!("{base}/health"),
+        _ => format!("{base}/v1/models"),
+    };
+    let ok = state
+        .http
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+        .map(|resp| resp.status().is_success())
+        .unwrap_or(false);
+    Ok(ok)
+}
+
+#[tauri::command]
+async fn ai_list_models(
+    state: tauri::State<'_, AppState>,
+    backend: String,
+    base_url: String,
+    api_key: Option<String>,
+) -> Result<Vec<String>, String> {
+    let base = base_url.trim_end_matches('/').to_string();
+    let url = match backend.as_str() {
+        "ollama" => format!("{base}/api/tags"),
+        _ => format!("{base}/v1/models"),
+    };
+
+    let mut req = state
+        .http
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(5));
+    if let Some(key) = &api_key {
+        if !key.is_empty() {
+            req = req.bearer_auth(key);
+        }
+    }
+
+    let resp = match req.send().await {
+        Ok(resp) if resp.status().is_success() => resp,
+        _ => return Ok(Vec::new()),
+    };
+    let data: serde_json::Value = match resp.json().await {
+        Ok(d) => d,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut names: Vec<String> = if backend.as_str() == "ollama" {
+        data["models"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|m| m["name"].as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        data["data"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    names.sort();
+    names.dedup();
+    Ok(names)
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -434,6 +566,8 @@ pub fn run() {
             get_llama_server_status,
             ai_chat,
             ai_chat_stream,
+            ai_check_connection,
+            ai_list_models,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

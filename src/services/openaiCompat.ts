@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Channel } from "@tauri-apps/api/core";
 import type { AIService, AIServiceConfig } from "./aiService";
 import type { ChatMessage, GenerateOptions } from "./ollama";
+import { proxyCheckConnection, proxyListModels } from "./aiProxy";
 
 const DEFAULT_CONFIG: AIServiceConfig = {
   backend: "openai-compat",
@@ -17,41 +18,11 @@ export class OpenAICompatService implements AIService {
   }
 
   async checkConnection(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.config.baseUrl}/v1/models`);
-      if (response.ok) return true;
-
-      const testResponse = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: [{ role: "user", content: "hi" }],
-          max_tokens: 1,
-        }),
-      });
-      return testResponse.ok;
-    } catch {
-      return false;
-    }
+    return proxyCheckConnection(this.config.backend, this.config.baseUrl);
   }
 
   async listModels(): Promise<string[]> {
-    try {
-      const response = await fetch(`${this.config.baseUrl}/v1/models`, {
-        headers: {
-          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
-        },
-      });
-      if (!response.ok) return [];
-      const data = await response.json();
-      return data.data?.map((m: { id: string }) => m.id) || [];
-    } catch {
-      return [];
-    }
+    return proxyListModels(this.config.backend, this.config.baseUrl, this.config.apiKey);
   }
 
   async chat(
@@ -70,6 +41,7 @@ export class OpenAICompatService implements AIService {
         repeatPenalty: options?.repeatPenalty ?? 1.1,
         maxTokens: options?.numPredict ?? 2048,
       },
+      llama: this.config.llama ?? null,
     });
   }
 
@@ -98,6 +70,7 @@ export class OpenAICompatService implements AIService {
         repeatPenalty: options?.repeatPenalty ?? 1.1,
         maxTokens: options?.numPredict ?? 2048,
       },
+      llama: this.config.llama ?? null,
       channel,
     });
 

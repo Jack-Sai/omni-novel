@@ -4,11 +4,22 @@ import { OpenAICompatService } from "./openaiCompat";
 
 export type BackendType = "ollama" | "llamacpp" | "vllm" | "lmstudio" | "openai-compat";
 
+/** llama-server 托管配置（字段名与 Rust LlamaConfig 对齐） */
+export interface LlamaConfig {
+  llama_server_path: string;
+  llama_model_path: string;
+  llama_extra_args: string;
+  base_url: string;
+  idle_unload_minutes: number;
+}
+
 export interface AIServiceConfig {
   backend: BackendType;
   baseUrl: string;
   model: string;
   apiKey?: string;
+  /** 仅 llamacpp 后端使用：存在时 AI 请求前自动拉起 llama-server */
+  llama?: LlamaConfig;
 }
 
 export interface AIService {
@@ -61,7 +72,7 @@ export const backendPresets: Record<
     label: "llama.cpp",
     defaultUrl: "http://localhost:8080",
     defaultModel: "default",
-    description: "llama.cpp 服务（启动时加 --chat 参数）",
+    description: "llama.cpp 本地服务（支持自动托管拉起）",
   },
   vllm: {
     label: "vLLM",
