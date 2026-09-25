@@ -208,6 +208,31 @@ async function initializeTables(db: Database) {
     )
   `);
 
+  // 创建 AI 会话表
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS ai_sessions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 创建 AI 消息表
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS ai_messages (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      action TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (session_id) REFERENCES ai_sessions(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log("Database tables initialized successfully");
 
   // Schema migration: 确保 users 表有 phone 和 password 列
@@ -699,4 +724,106 @@ export const settingsDb = {
       );
     }
   }
+};
+
+// AI 会话与消息相关操作
+export interface AiSessionRow {
+  id: string;
+  project_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AiMessageRow {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant";
+  content: string;
+  action: string | null;
+  created_at: string;
+}
+
+export const aiDb = {
+  async listSessions(projectId: string): Promise<AiSessionRow[]> {
+    const db = await getDatabase();
+    return db.select<AiSessionRow[]>(
+      "SELECT * FROM ai_sessions WHERE project_id = ? ORDER BY updated_at DESC",
+      [projectId]
+    );
+  },
+
+  async latestSession(projectId: string): Promise<AiSessionRow | null> {
+    const db = await getDatabase();
+    const rows = await db.select<AiSessionRow[]>(
+      "SELECT * FROM ai_sessions WHERE project_id = ? ORDER BY updated_at DESC LIMIT 1",
+      [projectId]
+    );
+    return rows[0] || null;
+  },
+
+  async createSession(projectId: string, title: string): Promise<AiSessionRow> {
+    const db = await getDatabase();
+    const id = crypto.randomUUID();
+    await db.execute(
+      "INSERT INTO ai_sessions (id, project_id, title) VALUES (?, ?, ?)",
+      [id, projectId, title]
+    );
+    const row = await db.select<AiSessionRow[]>(
+      "SELECT * FROM ai_sessions WHERE id = ?",
+      [id]
+    );
+    return row[0];
+  },
+
+  async touchSession(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute(
+      "UPDATE ai_sessions SET updated_at = datetime('now') WHERE id = ?",
+      [id]
+    );
+  },
+
+  async renameSession(id: string, title: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute(
+      "UPDATE ai_sessions SET title = ?, updated_at = datetime('now') WHERE id = ?",
+      [title, id]
+    );
+  },
+
+  async deleteSession(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute("DELETE FROM ai_messages WHERE session_id = ?", [id]);
+    await db.execute("DELETE FROM ai_sessions WHERE id = ?", [id]);
+  },
+
+  async listMessages(sessionId: string): Promise<AiMessageRow[]> {
+    const db = await getDatabase();
+    return db.select<AiMessageRow[]>(
+      "SELECT * FROM ai_messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC",
+      [sessionId]
+    );
+  },
+
+  async addMessage(
+    sessionId: string,
+    message: { role: "user" | "assistant"; content: string; action?: string }
+  ): Promise<AiMessageRow> {
+    const db = await getDatabase();
+    const id = crypto.randomUUID();
+    await db.execute(
+      "INSERT INTO ai_messages (id, session_id, role, content, action) VALUES (?, ?, ?, ?, ?)",
+      [id, sessionId, message.role, message.content, message.action || null]
+    );
+    await db.execute(
+      "UPDATE ai_sessions SET updated_at = datetime('now') WHERE id = ?",
+      [sessionId]
+    );
+    const row = await db.select<AiMessageRow[]>(
+      "SELECT * FROM ai_messages WHERE id = ?",
+      [id]
+    );
+    return row[0];
+  },
 };

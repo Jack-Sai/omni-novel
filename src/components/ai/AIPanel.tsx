@@ -3,19 +3,31 @@ import type { Editor } from "@tiptap/react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Bot,
+  History,
   Loader2,
   Maximize2,
   Minimize2,
   PenTool,
+  Plus,
   Send,
   Sparkles,
   Square,
   User,
 } from "lucide-react";
-import { getSystemPrompt, type PromptKey } from "../../services";
+import { getSystemPrompt, aiDb, type PromptKey, type AiMessageRow, type AiSessionRow } from "../../services";
 import { createAIService, toLlamaConfig } from "../../services/aiService";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { Button, Input } from "../ui";
+import { useProjectStore } from "../../stores/projectStore";
+import {
+  Button,
+  Input,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuLabel,
+  MenuSeparator,
+  MenuTrigger,
+} from "../ui";
 import { cn } from "../../lib/cn";
 
 interface AIPanelProps {
@@ -48,15 +60,93 @@ const quickActions: QuickAction[] = [
   { key: "compress", label: "缩写", icon: Minimize2, needsSelection: true, applyMode: "replace" },
 ];
 
+/** DB 消息行 → 面板消息（从 action 推导"应用到正文"能力） */
+function rowToMessage(row: AiMessageRow): Message {
+  const quick = row.action ? quickActions.find((a) => a.key === row.action) : undefined;
+  return {
+    id: row.id,
+    role: row.role,
+    content: row.content,
+    action: row.action as PromptKey | undefined,
+    canApply: row.role === "assistant" && !!quick,
+    applyMode: quick?.applyMode,
+  };
+}
+
 export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) {
   const { ai } = useSettingsStore();
+  const { currentProject } = useProjectStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [sessions, setSessions] = useState<AiSessionRow[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   /** 当前进行中的流式请求 ID，用于取消生成 */
   const requestIdRef = useRef<string | null>(null);
+
+  // 切换项目时加载最近会话（无则空会话，首条消息时懒创建）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setMessages([]);
+      setSessionId(null);
+      if (!currentProject) {
+        setSessions([]);
+        return;
+      }
+      try {
+        const list = await aiDb.listSessions(currentProject.id);
+        if (cancelled) return;
+        setSessions(list);
+        const latest = list[0];
+        if (latest) {
+          const rows = await aiDb.listMessages(latest.id);
+          if (cancelled) return;
+          setSessionId(latest.id);
+          setMessages(rows.map(rowToMessage));
+        }
+      } catch (e) {
+        console.warn("加载 AI 会话失败:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentProject?.id]);
+
+  /** 确保当前会话存在（懒创建），返回会话 ID（无项目时返回空串表示不落库） */
+  const ensureSession = useCallback(
+    async (firstContent: string): Promise<string> => {
+      if (sessionId) {
+        void aiDb.touchSession(sessionId).catch(() => {});
+        return sessionId;
+      }
+      const project = useProjectStore.getState().currentProject;
+      if (!project) return "";
+      try {
+        const title = firstContent.replace(/\s+/g, " ").trim().slice(0, 20) || "新会话";
+        const session = await aiDb.createSession(project.id, title);
+        setSessionId(session.id);
+        setSessions((prev) => [session, ...prev]);
+        return session.id;
+      } catch (e) {
+        console.warn("创建 AI 会话失败:", e);
+        return "";
+      }
+    },
+    [sessionId],
+  );
+
+  /** 消息落库（失败仅告警，不打断对话） */
+  const saveMessage = useCallback(
+    (sid: string, msg: { role: "user" | "assistant"; content: string; action?: string }) => {
+      if (!sid || !msg.content) return;
+      aiDb.addMessage(sid, msg).catch((e) => console.warn("保存 AI 消息失败:", e));
+    },
+    [],
+  );
 
   // 根据设置创建 AI 服务实例
   const aiService = useMemo(() => {
@@ -121,6 +211,9 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
 
+      const sid = await ensureSession(userMsg.content);
+      saveMessage(sid, { role: "user", content: userMsg.content, action: action.key });
+
       const requestId = crypto.randomUUID();
       requestIdRef.current = requestId;
 
@@ -166,21 +259,24 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           },
           requestId,
         );
+        saveMessage(sid, { role: "assistant", content: fullResponse, action: action.key });
       } catch {
+        const errorContent = "抱歉，无法连接到 AI 模型。请确保服务已启动。";
         setMessages((prev) => [
           ...prev,
           {
             id: crypto.randomUUID(),
             role: "assistant",
-            content: "抱歉，无法连接到 AI 模型。请确保服务已启动。",
+            content: errorContent,
           },
         ]);
+        saveMessage(sid, { role: "assistant", content: errorContent, action: action.key });
       } finally {
         requestIdRef.current = null;
         setIsLoading(false);
       }
     },
-    [isLoading, selectedText, chapterContent, messages, ai, aiService],
+    [isLoading, selectedText, chapterContent, messages, ai, aiService, ensureSession, saveMessage],
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -196,6 +292,9 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
+
+    const sid = await ensureSession(userMsg.content);
+    saveMessage(sid, { role: "user", content: userMsg.content });
 
     const requestId = crypto.randomUUID();
     requestIdRef.current = requestId;
@@ -239,15 +338,18 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
         },
         requestId,
       );
+      saveMessage(sid, { role: "assistant", content: fullResponse });
     } catch {
+      const errorContent = "抱歉，无法连接到 AI 模型。请确保服务已启动。";
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "抱歉，无法连接到 AI 模型。请确保服务已启动。",
+          content: errorContent,
         },
       ]);
+      saveMessage(sid, { role: "assistant", content: errorContent });
     } finally {
       requestIdRef.current = null;
       setIsLoading(false);
@@ -262,6 +364,39 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       } catch {
         // 忽略：请求可能已结束
       }
+    }
+  };
+
+  // ── 会话切换 / 新建 / 删除 ──
+
+  const handleSelectSession = async (id: string) => {
+    if (isLoading || id === sessionId) return;
+    try {
+      const rows = await aiDb.listMessages(id);
+      setSessionId(id);
+      setMessages(rows.map(rowToMessage));
+    } catch (e) {
+      console.warn("加载会话消息失败:", e);
+    }
+  };
+
+  const handleNewSession = () => {
+    if (isLoading) return;
+    setSessionId(null);
+    setMessages([]);
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    if (isLoading) return;
+    try {
+      await aiDb.deleteSession(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (sessionId === id) {
+        setSessionId(null);
+        setMessages([]);
+      }
+    } catch (e) {
+      console.warn("删除会话失败:", e);
     }
   };
 
@@ -297,6 +432,67 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           <Sparkles size={15} className="text-primary" />
           <span className="text-sm font-medium text-ink">AI 助手</span>
           <span className={cn("h-1.5 w-1.5 rounded-full", statusColor)} />
+        </div>
+        <div className="flex items-center gap-0.5">
+          <Menu>
+            <MenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="历史会话"
+                title="历史会话"
+                disabled={isLoading}
+                className={cn(
+                  "rounded-md p-1.5 text-ink-3 transition-colors",
+                  "hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+                  "disabled:cursor-not-allowed disabled:opacity-40",
+                )}
+              >
+                <History size={14} />
+              </button>
+            </MenuTrigger>
+            <MenuContent align="end" className="max-h-72 w-56 overflow-auto">
+              <MenuLabel>历史会话</MenuLabel>
+              {sessions.length === 0 ? (
+                <p className="px-2 py-1.5 text-[13px] text-ink-3">暂无历史会话</p>
+              ) : (
+                sessions.map((s) => (
+                  <MenuItem
+                    key={s.id}
+                    onSelect={() => handleSelectSession(s.id)}
+                    className={cn(
+                      "justify-between",
+                      s.id === sessionId && "bg-primary-soft text-primary",
+                    )}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{s.title || "未命名会话"}</span>
+                    {s.id === sessionId && <span className="text-[11px]">当前</span>}
+                  </MenuItem>
+                ))
+              )}
+              {sessionId && (
+                <>
+                  <MenuSeparator />
+                  <MenuItem destructive onSelect={() => handleDeleteSession(sessionId)}>
+                    删除当前会话
+                  </MenuItem>
+                </>
+              )}
+            </MenuContent>
+          </Menu>
+          <button
+            type="button"
+            aria-label="新会话"
+            title="新会话"
+            disabled={isLoading}
+            onClick={handleNewSession}
+            className={cn(
+              "rounded-md p-1.5 text-ink-3 transition-colors",
+              "hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+              "disabled:cursor-not-allowed disabled:opacity-40",
+            )}
+          >
+            <Plus size={14} />
+          </button>
         </div>
       </div>
 

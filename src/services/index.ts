@@ -27,7 +27,9 @@ export {
   worldviewDb,
   foreshadowingDb,
   settingsDb,
+  aiDb,
 } from "./database";
+export type { AiSessionRow, AiMessageRow } from "./database";
 
 export {
   createProjectDir,
