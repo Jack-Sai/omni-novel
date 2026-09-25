@@ -13,6 +13,8 @@ export interface AISettings {
   repeatPenalty: number;
   maxTokens: number;
   think: boolean;
+  /** 发送给模型的最近消息条数（上下文窗口） */
+  contextMessageCount: number;
   /** llama-server.exe 路径（仅 llamacpp 后端） */
   llamaServerPath: string;
   /** GGUF 模型文件路径（仅 llamacpp 后端） */
@@ -73,6 +75,7 @@ const defaultAISettings: AISettings = {
   repeatPenalty: 1.1,
   maxTokens: 2048,
   think: true,
+  contextMessageCount: 20,
   llamaServerPath: "D:\\llama.cpp\\llama-server.exe",
   llamaModelPath: "E:\\Models\\Qwen3.8-9B-Q8_0.gguf",
   llamaExtraArgs: "-ngl 99 -c 16384 -fa on --jinja -t 8",

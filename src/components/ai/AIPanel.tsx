@@ -237,7 +237,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
             { role: "system", content: systemPrompt },
             ...messages
               .filter((m) => m.role === "user" || m.role === "assistant")
-              .slice(-6)
+              .slice(-Math.max(2, ai.contextMessageCount))
               .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
             { role: "user", content: userContent },
           ],
@@ -305,7 +305,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
         { role: "system" as const, content: systemPrompt },
         ...messages
           .filter((m) => m.role === "user" || m.role === "assistant")
-          .slice(-6)
+          .slice(-Math.max(2, ai.contextMessageCount))
           .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
         { role: "user" as const, content: userMsg.content },
       ];

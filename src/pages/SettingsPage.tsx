@@ -645,6 +645,28 @@ export function SettingsPage() {
               />
             </Field>
 
+            {/* 上下文窗口 */}
+            <Field
+              label={`上下文消息条数 · ${ai.contextMessageCount} 条`}
+              hint="每次生成时附带的最近消息数量，越大上下文越连贯、耗时与占用越多。范围 2~100"
+            >
+              <Input
+                type="number"
+                value={ai.contextMessageCount}
+                onChange={(e) =>
+                  updateAISettings({
+                    contextMessageCount: Math.min(
+                      100,
+                      Math.max(2, parseInt(e.target.value) || 2),
+                    ),
+                  })
+                }
+                min="2"
+                max="100"
+                step="1"
+              />
+            </Field>
+
             {/* 关闭思考（仅 Ollama） */}
             {isOllama && (
               <SettingRow
