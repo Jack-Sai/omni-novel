@@ -63,14 +63,14 @@ export class OllamaService implements AIService {
   async chatStream(
     messages: ChatMessage[],
     options?: GenerateOptions,
-    onChunk?: (chunk: string) => void,
+    onChunk?: (chunk: string, meta?: { reasoning?: boolean }) => void,
     requestId?: string,
   ): Promise<string> {
-    const channel = new Channel<{ content: string; done: boolean }>();
+    const channel = new Channel<{ content: string; done: boolean; reasoning?: boolean }>();
 
     channel.onmessage = (chunk) => {
       if (chunk.content) {
-        onChunk?.(chunk.content);
+        onChunk?.(chunk.content, chunk.reasoning ? { reasoning: true } : undefined);
       }
     };
 

@@ -51,6 +51,8 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** 模型思考内容（Qwen3 等思考模型，不持久化，仅会话内展示） */
+  reasoning?: string;
   action?: string;
   canApply?: boolean;
   applyMode?: "replace" | "append";
@@ -265,6 +267,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
 
       try {
         let fullResponse = "";
+        let fullReasoning = "";
         const assistantId = crypto.randomUUID();
 
         setMessages((prev) => [
@@ -296,8 +299,12 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
             numPredict: ai.maxTokens,
             think: ai.think,
           },
-          (chunk) => {
-            fullResponse += chunk;
+          (chunk, meta) => {
+            if (meta?.reasoning) {
+              fullReasoning += chunk;
+            } else {
+              fullResponse += chunk;
+            }
             const hideHint = hintId;
             if (hideHint) hintId = null;
             setMessages((prev) => {
@@ -305,7 +312,9 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
                 ? prev.filter((m) => m.id !== hideHint)
                 : prev;
               return base.map((m) =>
-                m.id === assistantId ? { ...m, content: fullResponse } : m,
+                m.id === assistantId
+                  ? { ...m, content: fullResponse, reasoning: fullReasoning || undefined }
+                  : m,
               );
             });
           },
@@ -658,6 +667,11 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
                       )}
                     >
                       <div className="whitespace-pre-wrap break-words">
+                        {msg.reasoning && (
+                          <div className="mb-1.5 max-h-40 overflow-auto whitespace-pre-wrap border-l-2 border-line-strong pl-2 text-[12px] italic leading-relaxed text-ink-3">
+                            {msg.reasoning}
+                          </div>
+                        )}
                         {msg.content}
                       </div>
                     </div>

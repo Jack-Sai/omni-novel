@@ -186,6 +186,8 @@ pub struct ChatOptions {
 pub struct ChatChunk {
     pub content: String,
     pub done: bool,
+    /// true = 思考（reasoning）内容，前端以灰色块展示
+    pub reasoning: bool,
 }
 
 /// 发送 POST 请求并把网络/HTTP 错误转为友好中文提示。
@@ -419,9 +421,16 @@ async fn chat_stream_inner(
                     buffer = buffer[pos + 1..].to_string();
                     if line.is_empty() { continue; }
                     if let Ok(data) = serde_json::from_str::<serde_json::Value>(&line) {
-                        let content = data["message"]["content"].as_str().unwrap_or("").to_string();
+                        let content = data["message"]["content"].as_str().unwrap_or("");
+                        let thinking = data["message"]["thinking"].as_str().unwrap_or("");
                         let done = data["done"].as_bool().unwrap_or(false);
-                        channel.send(ChatChunk { content, done }).ok();
+                        if !content.is_empty() {
+                            channel.send(ChatChunk { content: content.to_string(), done: false, reasoning: false }).ok();
+                        } else if !thinking.is_empty() {
+                            channel.send(ChatChunk { content: thinking.to_string(), done: false, reasoning: true }).ok();
+                        } else if done {
+                            channel.send(ChatChunk { content: String::new(), done: true, reasoning: false }).ok();
+                        }
                         if done { break 'outer; }
                     }
                 }
@@ -437,7 +446,9 @@ async fn chat_stream_inner(
                 "temperature": opts.temperature.unwrap_or(0.7),
                 "top_p": opts.top_p.unwrap_or(0.9),
                 "max_tokens": opts.max_tokens.unwrap_or(2048),
-                "frequency_penalty": frequency_penalty
+                "frequency_penalty": frequency_penalty,
+                // 控制 Qwen3 等思考模型的 thinking 开关（llama-server --jinja 模板参数）
+                "chat_template_kwargs": { "enable_thinking": opts.think.unwrap_or(false) }
             });
             let url = format!("{base}/v1/chat/completions");
             let resp = tokio::select! {
@@ -463,15 +474,19 @@ async fn chat_stream_inner(
                     buffer = buffer[pos + 1..].to_string();
                     if line.is_empty() { continue; }
                     if line == "data: [DONE]" {
-                        channel.send(ChatChunk { content: String::new(), done: true }).ok();
+                        channel.send(ChatChunk { content: String::new(), done: true, reasoning: false }).ok();
                         break 'outer;
                     }
                     if let Some(json_str) = line.strip_prefix("data: ") {
                         if let Ok(data) = serde_json::from_str::<serde_json::Value>(json_str) {
-                            let content = data["choices"][0]["delta"]["content"]
-                                .as_str().unwrap_or("").to_string();
+                            let delta = &data["choices"][0]["delta"];
+                            let content = delta["content"].as_str().unwrap_or("");
+                            let reasoning = delta["reasoning_content"].as_str().unwrap_or("");
                             if !content.is_empty() {
-                                channel.send(ChatChunk { content, done: false }).ok();
+                                channel.send(ChatChunk { content: content.to_string(), done: false, reasoning: false }).ok();
+                            } else if !reasoning.is_empty() {
+                                // 思考内容单独标记，前端以灰色块展示（Qwen3 等思考模型）
+                                channel.send(ChatChunk { content: reasoning.to_string(), done: false, reasoning: true }).ok();
                             }
                         }
                     }

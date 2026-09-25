@@ -46,7 +46,7 @@ export interface AIService {
   chatStream(
     messages: ChatMessage[],
     options?: GenerateOptions,
-    onChunk?: (chunk: string) => void,
+    onChunk?: (chunk: string, meta?: { reasoning?: boolean }) => void,
     requestId?: string,
   ): Promise<string>;
   updateConfig(config: Partial<AIServiceConfig>): void;

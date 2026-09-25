@@ -48,14 +48,14 @@ export class OpenAICompatService implements AIService {
   async chatStream(
     messages: ChatMessage[],
     options?: GenerateOptions,
-    onChunk?: (chunk: string) => void,
+    onChunk?: (chunk: string, meta?: { reasoning?: boolean }) => void,
     requestId?: string,
   ): Promise<string> {
-    const channel = new Channel<{ content: string; done: boolean }>();
+    const channel = new Channel<{ content: string; done: boolean; reasoning?: boolean }>();
 
     channel.onmessage = (chunk) => {
       if (chunk.content) {
-        onChunk?.(chunk.content);
+        onChunk?.(chunk.content, chunk.reasoning ? { reasoning: true } : undefined);
       }
     };
 
@@ -68,8 +68,10 @@ export class OpenAICompatService implements AIService {
       options: {
         temperature: options?.temperature ?? 0.7,
         topP: options?.topP ?? 0.9,
+        topK: options?.topK ?? 40,
         repeatPenalty: options?.repeatPenalty ?? 1.1,
         maxTokens: options?.numPredict ?? 2048,
+        think: options?.think ?? false,
       },
       llama: this.config.llama ?? null,
       requestId: requestId ?? null,
