@@ -1,6 +1,14 @@
 import { useState } from "react";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { FileText, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useChapterStore, Chapter } from "../../stores/chapterStore";
+import { useSettingsStore } from "../../stores/settingsStore";
+import { useProjectStore } from "../../stores/projectStore";
+import {
+  createAIService,
+  getSystemPrompt,
+  memoryDb,
+  toLlamaConfig,
+} from "../../services";
 import { Button, EmptyState, Input } from "../ui";
 import { cn } from "../../lib/cn";
 
@@ -13,7 +21,9 @@ interface ChapterListProps {
 export function ChapterList({ projectId, onSelectChapter, currentChapterId }: ChapterListProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const { chapters, addChapter, deleteChapter } = useChapterStore();
+  const [summarizingId, setSummarizingId] = useState<string | null>(null);
+  const { chapters, addChapter, deleteChapter, updateChapter } = useChapterStore();
+  const { ai } = useSettingsStore();
 
   const projectChapters = chapters
     .filter((c) => c.projectId === projectId)
@@ -31,6 +41,72 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
     });
     setNewTitle("");
     setIsAdding(false);
+  };
+
+  /** AI 生成章节摘要：写回 chapter.summary 并同步为记忆条目（替换旧摘要记忆） */
+  const handleGenerateSummary = async (chapter: Chapter) => {
+    if (summarizingId) return;
+    const text = chapter.content
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text) return;
+
+    setSummarizingId(chapter.id);
+    try {
+      const service = createAIService({
+        backend: ai.backend,
+        baseUrl: ai.baseUrl,
+        model: ai.model,
+        apiKey: ai.apiKey,
+        llama:
+          ai.backend === "llamacpp"
+            ? toLlamaConfig({
+                baseUrl: ai.baseUrl,
+                llamaServerPath: ai.llamaServerPath,
+                llamaModelPath: ai.llamaModelPath,
+                llamaExtraArgs: ai.llamaExtraArgs,
+                idleUnloadMinutes: ai.idleUnloadMinutes,
+              })
+            : undefined,
+      });
+      const summary = await service.chat(
+        [
+          { role: "system", content: getSystemPrompt("chapterSummary") },
+          { role: "user", content: `《${chapter.title}》正文：\n\n${text.slice(0, 4000)}` },
+        ],
+        { temperature: 0.3, numPredict: 300, think: false },
+      );
+      const clean = summary.trim();
+      if (!clean) return;
+
+      updateChapter(chapter.id, { summary: clean });
+
+      const project = useProjectStore.getState().currentProject;
+      if (project) {
+        const old = await memoryDb.list(project.id, {
+          type: "summary",
+          scope: "chapter",
+          refId: chapter.id,
+        });
+        for (const item of old) {
+          await memoryDb.delete(item.id);
+        }
+        await memoryDb.create(project.id, {
+          type: "summary",
+          scope: "chapter",
+          refId: chapter.id,
+          title: chapter.title,
+          content: clean,
+          source: "ai",
+          importance: 7,
+        });
+      }
+    } catch (e) {
+      console.warn("生成章节摘要失败:", e);
+    } finally {
+      setSummarizingId(null);
+    }
   };
 
   return (
@@ -82,6 +158,7 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
                     type="button"
                     aria-current={active ? "true" : undefined}
                     onClick={() => onSelectChapter(chapter)}
+                    title={chapter.summary || undefined}
                     className={cn(
                       "flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px]",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
@@ -98,6 +175,29 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
                     </span>
                     <span className="min-w-0 flex-1 truncate">{chapter.title}</span>
                   </button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={
+                      summarizingId === chapter.id
+                        ? "正在生成摘要"
+                        : `生成 ${chapter.title} 的摘要`
+                    }
+                    title="AI 生成摘要"
+                    disabled={summarizingId !== null && summarizingId !== chapter.id}
+                    className="mr-0.5 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleGenerateSummary(chapter);
+                    }}
+                  >
+                    {summarizingId === chapter.id ? (
+                      <Loader2 size={12} className="animate-spin text-primary" />
+                    ) : (
+                      <Sparkles size={12} />
+                    )}
+                  </Button>
 
                   <Button
                     variant="ghost"

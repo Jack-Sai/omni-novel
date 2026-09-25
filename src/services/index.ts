@@ -1,7 +1,7 @@
 export { OllamaService, ollama } from "./ollama";
 export type { ChatMessage, GenerateOptions } from "./ollama";
 
-export { createAIService, backendPresets } from "./aiService";
+export { createAIService, backendPresets, toLlamaConfig } from "./aiService";
 export type { AIService, AIServiceConfig, BackendType, LlamaConfig } from "./aiService";
 
 export { proxyCheckConnection, proxyListModels } from "./aiProxy";
