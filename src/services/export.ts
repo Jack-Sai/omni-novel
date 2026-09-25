@@ -1,14 +1,41 @@
 export interface ExportOptions {
-  format: "txt" | "markdown" | "html" | "docx";
+  format: "txt" | "markdown" | "html" | "docx" | "epub";
   filename: string;
   content: string;
   title?: string;
   author?: string;
 }
 
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** HTML 片段转 well-formed XHTML（自闭合空标签） */
+function htmlToXhtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "<br/>")
+    .replace(/<hr\s*\/?>/gi, "<hr/>")
+    .replace(
+      /<(img|input|meta|link|source|wbr)\b([^>]*)>/gi,
+      (_m, tag: string, attrs: string) =>
+        attrs.trimEnd().endsWith("/") ? `<${tag}${attrs}>` : `<${tag}${attrs}/>`,
+    );
+}
+
 export class ExportService {
   static async exportToFile(options: ExportOptions): Promise<void> {
     const { format, filename, content, title, author } = options;
+
+    if (format === "epub") {
+      await this.toEPUB(filename, title || filename, author, [
+        { title: title || filename, html: content },
+      ]);
+      return;
+    }
 
     if (format === "docx") {
       await this.toDOCX(filename, content, title, author);
@@ -255,6 +282,146 @@ export class ExportService {
     URL.revokeObjectURL(url);
   }
 
+  /** 生成 EPUB 3 电子书（单个 .epub 文件包含全部章节） */
+  static async toEPUB(
+    filename: string,
+    title: string | undefined,
+    author: string | undefined,
+    chapters: { title: string; html: string }[],
+  ): Promise<void> {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+
+    const bookTitle = title || filename || "未命名";
+    const uid = `urn:uuid:${crypto.randomUUID()}`;
+    const modified = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+    const lang = "zh-CN";
+
+    const chapterMeta = chapters.map((ch, i) => ({
+      id: `ch${i + 1}`,
+      href: `chapter_${i + 1}.xhtml`,
+      title: ch.title || `第 ${i + 1} 章`,
+      html: ch.html,
+    }));
+
+    // mimetype 必须是 zip 中第一个条目且不压缩
+    zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
+
+    zip.file(
+      "META-INF/container.xml",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`,
+    );
+
+    const manifestItems = chapterMeta
+      .map(
+        (c) => `    <item id="${c.id}" href="${c.href}" media-type="application/xhtml+xml"/>`,
+      )
+      .join("\n");
+    const spineItems = chapterMeta
+      .map((c) => `    <itemref idref="${c.id}"/>`)
+      .join("\n");
+
+    zip.file(
+      "OEBPS/content.opf",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="${lang}">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">${uid}</dc:identifier>
+    <dc:title>${escapeXml(bookTitle)}</dc:title>
+    ${author ? `<dc:creator>${escapeXml(author)}</dc:creator>` : ""}
+    <dc:language>${lang}</dc:language>
+    <meta property="dcterms:modified">${modified}</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="css" href="style.css" media-type="text/css"/>
+${manifestItems}
+  </manifest>
+  <spine>
+${spineItems}
+  </spine>
+</package>`,
+    );
+
+    const navItems = chapterMeta
+      .map((c) => `        <li><a href="${c.href}">${escapeXml(c.title)}</a></li>`)
+      .join("\n");
+
+    zip.file(
+      "OEBPS/nav.xhtml",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${lang}">
+<head>
+  <title>目录</title>
+</head>
+<body>
+  <nav epub:type="toc" id="toc">
+    <h1>目录</h1>
+    <ol>
+${navItems}
+    </ol>
+  </nav>
+</body>
+</html>`,
+    );
+
+    zip.file(
+      "OEBPS/style.css",
+      `body {
+  font-family: sans-serif;
+  line-height: 1.8;
+  margin: 1em;
+}
+h1, h2, h3 {
+  text-align: center;
+}
+p {
+  text-indent: 2em;
+  margin: 0.6em 0;
+}
+img {
+  max-width: 100%;
+}`,
+    );
+
+    for (const ch of chapterMeta) {
+      zip.file(
+        `OEBPS/${ch.href}`,
+        `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="${lang}">
+<head>
+  <title>${escapeXml(ch.title)}</title>
+  <link rel="stylesheet" type="text/css" href="style.css"/>
+</head>
+<body>
+  <h1>${escapeXml(ch.title)}</h1>
+${htmlToXhtml(ch.html)}
+</body>
+</html>`,
+      );
+    }
+
+    const blob = await zip.generateAsync({
+      type: "blob",
+      mimeType: "application/epub+zip",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filename}.epub`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   static async exportMultipleFiles(
     files: Array<{ filename: string; content: string; title?: string; author?: string }>,
     format: "txt" | "markdown" | "html" | "docx"
@@ -273,7 +440,7 @@ export class ExportService {
 
   static async exportProject(
     projectId: string,
-    format: "txt" | "markdown" | "html" | "docx"
+    format: "txt" | "markdown" | "html" | "docx" | "epub"
   ): Promise<void> {
     const { useProjectStore } = await import("../stores/projectStore");
     const { useChapterStore } = await import("../stores/chapterStore");
@@ -287,6 +454,16 @@ export class ExportService {
     const projectChapters = chapters
       .filter((c) => c.projectId === projectId)
       .sort((a, b) => a.order - b.order);
+
+    // EPUB：整本书打包为单个文件（而非逐章下载）
+    if (format === "epub") {
+      const epubChapters =
+        projectChapters.length > 0
+          ? projectChapters.map((c) => ({ title: c.title, html: c.content }))
+          : [{ title: project.title, html: project.content || "" }];
+      await this.toEPUB(project.title, project.title, project.author, epubChapters);
+      return;
+    }
 
     if (projectChapters.length === 0) {
       await this.exportToFile({

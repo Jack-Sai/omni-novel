@@ -119,7 +119,7 @@ export function EditorPage() {
     setCurrentChapter(chapter);
   };
 
-  const handleExport = async (format: "txt" | "markdown" | "html" | "docx") => {
+  const handleExport = async (format: "txt" | "markdown" | "html" | "docx" | "epub") => {
     const content = currentChapter?.content || currentProject?.content || "";
     if (!content) return;
 
@@ -132,7 +132,7 @@ export function EditorPage() {
     });
   };
 
-  const handleExportAll = async (format: "txt" | "markdown" | "html" | "docx") => {
+  const handleExportAll = async (format: "txt" | "markdown" | "html" | "docx" | "epub") => {
     if (!currentProject) return;
     await ExportService.exportProject(currentProject.id, format);
   };
@@ -280,8 +280,10 @@ export function EditorPage() {
                 <MenuItem onSelect={() => handleExport("txt")}>导出 TXT</MenuItem>
                 <MenuItem onSelect={() => handleExport("html")}>导出 HTML</MenuItem>
                 <MenuItem onSelect={() => handleExport("docx")}>导出 DOCX</MenuItem>
+                <MenuItem onSelect={() => handleExport("epub")}>导出 EPUB</MenuItem>
                 <MenuSeparator />
                 <MenuLabel>整个项目</MenuLabel>
+                <MenuItem onSelect={() => handleExportAll("epub")}>导出整本 EPUB</MenuItem>
                 <MenuItem onSelect={() => handleExportAll("markdown")}>批量导出 Markdown</MenuItem>
                 <MenuItem onSelect={() => handleExportAll("txt")}>批量导出 TXT</MenuItem>
                 <MenuItem onSelect={() => handleExportAll("html")}>批量导出 HTML</MenuItem>

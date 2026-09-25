@@ -83,7 +83,7 @@ export function LoginPage() {
     { icon: Layers, title: "世界观设定", desc: "10大类世界观要素系统管理" },
     { icon: Wand2, title: "伏笔追踪", desc: "埋设、回收、废弃全链路管理" },
     { icon: Sparkles, title: "AI 写作助手", desc: "本地模型驱动，续写润色扩写" },
-    { icon: Download, title: "多格式导出", desc: "支持 TXT/MD/HTML/DOCX 导出" },
+    { icon: Download, title: "多格式导出", desc: "支持 TXT/MD/HTML/DOCX/EPUB 导出" },
   ];
 
   if (isLoading) {
