@@ -245,6 +245,25 @@ async function initializeTables(db: Database) {
     )
   `);
 
+  // 创建记忆条目表
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS memory_items (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'note',
+      scope TEXT NOT NULL DEFAULT 'global',
+      ref_id TEXT,
+      title TEXT DEFAULT '',
+      content TEXT NOT NULL,
+      source TEXT DEFAULT 'manual',
+      importance INTEGER DEFAULT 5,
+      tags TEXT DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log("Database tables initialized successfully");
 
   // Schema migration: 确保 users 表有 phone 和 password 列
@@ -259,6 +278,16 @@ async function initializeTables(db: Database) {
     }
   } catch (e) {
     console.warn("Schema migration warning:", e);
+  }
+
+  // Schema migration: 章节摘要列
+  try {
+    const chapterColumns = await db.select<{ name: string }[]>("PRAGMA table_info(chapters)");
+    if (!chapterColumns.some((c) => c.name === "summary")) {
+      await db.execute("ALTER TABLE chapters ADD COLUMN summary TEXT DEFAULT ''");
+    }
+  } catch (e) {
+    console.warn("Schema migration (chapters.summary) warning:", e);
   }
 }
 
@@ -442,6 +471,7 @@ export const chapterDb = {
   async update(id: string, updates: Partial<{
     title: string;
     content: string;
+    summary: string;
     volume_id: string;
     status: string;
     order_index: number;
@@ -895,5 +925,171 @@ export const promptDb = {
   async delete(id: string): Promise<void> {
     const db = await getDatabase();
     await db.execute("DELETE FROM custom_prompts WHERE id = ?", [id]);
+  },
+};
+
+// ── 记忆条目（记忆系统 v1：结构化存储 + 关键词检索） ──────────────────────────
+
+/** 记忆类型：summary=章节/卷摘要 event=事件 entity=实体引用 note=随笔 preference=用户偏好 */
+export type MemoryType = "summary" | "event" | "entity" | "note" | "preference";
+/** 记忆范围：chapter=绑定章节 volume=绑定卷 global=全书 */
+export type MemoryScope = "chapter" | "volume" | "global";
+
+export interface MemoryItemRow {
+  id: string;
+  project_id: string;
+  type: string;
+  scope: string;
+  ref_id: string | null;
+  title: string;
+  content: string;
+  source: string;
+  importance: number;
+  tags: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryItemInput {
+  type: MemoryType;
+  scope?: MemoryScope;
+  refId?: string | null;
+  title?: string;
+  content: string;
+  source?: "manual" | "ai" | "import";
+  importance?: number;
+  tags?: string[];
+}
+
+export const memoryDb = {
+  async create(projectId: string, item: MemoryItemInput): Promise<MemoryItemRow> {
+    const db = await getDatabase();
+    const id = crypto.randomUUID();
+    await db.execute(
+      `INSERT INTO memory_items (id, project_id, type, scope, ref_id, title, content, source, importance, tags)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        projectId,
+        item.type,
+        item.scope || "global",
+        item.refId ?? null,
+        item.title || "",
+        item.content,
+        item.source || "manual",
+        item.importance ?? 5,
+        JSON.stringify(item.tags || []),
+      ]
+    );
+    const rows = await db.select<MemoryItemRow[]>(
+      "SELECT * FROM memory_items WHERE id = ?",
+      [id]
+    );
+    return rows[0];
+  },
+
+  async getById(id: string): Promise<MemoryItemRow | null> {
+    const db = await getDatabase();
+    const rows = await db.select<MemoryItemRow[]>(
+      "SELECT * FROM memory_items WHERE id = ?",
+      [id]
+    );
+    return rows[0] || null;
+  },
+
+  async update(
+    id: string,
+    updates: Partial<Omit<MemoryItemInput, "tags">> & { tags?: string[] }
+  ): Promise<void> {
+    const db = await getDatabase();
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    const columnMap: Record<string, string> = {
+      type: "type",
+      scope: "scope",
+      refId: "ref_id",
+      title: "title",
+      content: "content",
+      source: "source",
+      importance: "importance",
+    };
+    Object.entries(columnMap).forEach(([key, column]) => {
+      const value = (updates as Record<string, unknown>)[key];
+      if (value !== undefined) {
+        fields.push(`${column} = ?`);
+        values.push(value);
+      }
+    });
+    if (updates.tags !== undefined) {
+      fields.push("tags = ?");
+      values.push(JSON.stringify(updates.tags));
+    }
+    if (fields.length === 0) return;
+    fields.push("updated_at = datetime('now')");
+    values.push(id);
+    await db.execute(
+      `UPDATE memory_items SET ${fields.join(", ")} WHERE id = ?`,
+      values
+    );
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute("DELETE FROM memory_items WHERE id = ?", [id]);
+  },
+
+  async list(
+    projectId: string,
+    opts?: { type?: MemoryType; scope?: MemoryScope; refId?: string }
+  ): Promise<MemoryItemRow[]> {
+    const db = await getDatabase();
+    let sql = "SELECT * FROM memory_items WHERE project_id = ?";
+    const params: unknown[] = [projectId];
+    if (opts?.type) {
+      sql += " AND type = ?";
+      params.push(opts.type);
+    }
+    if (opts?.scope) {
+      sql += " AND scope = ?";
+      params.push(opts.scope);
+    }
+    if (opts?.refId) {
+      sql += " AND ref_id = ?";
+      params.push(opts.refId);
+    }
+    sql += " ORDER BY importance DESC, updated_at DESC";
+    return db.select<MemoryItemRow[]>(sql, params);
+  },
+
+  /**
+   * 关键词检索：查询按空白/逗号分词，命中 title/content/tags 即入选，
+   * 按命中词数与 importance 综合排序（中文子串匹配，无需分词器）。
+   */
+  async search(
+    projectId: string,
+    query: string,
+    opts?: { limit?: number; type?: MemoryType; excludeIds?: string[] }
+  ): Promise<MemoryItemRow[]> {
+    const limit = opts?.limit ?? 8;
+    const rows = await this.list(projectId, opts?.type ? { type: opts.type } : undefined);
+    const exclude = new Set(opts?.excludeIds || []);
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const terms = q.split(/[\s,，、;；]+/).filter((t) => t.length > 0);
+
+    const scored: { row: MemoryItemRow; score: number }[] = [];
+    for (const row of rows) {
+      if (exclude.has(row.id)) continue;
+      const hay = `${row.title}\n${row.content}\n${row.tags}`.toLowerCase();
+      let hits = 0;
+      for (const t of terms) {
+        if (hay.includes(t)) hits++;
+      }
+      if (hits === 0 && !hay.includes(q)) continue;
+      // 命中词数优先，其次重要度
+      scored.push({ row, score: hits * 10 + (row.importance || 5) });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map((s) => s.row);
   },
 };

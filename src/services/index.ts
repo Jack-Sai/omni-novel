@@ -29,8 +29,17 @@ export {
   settingsDb,
   aiDb,
   promptDb,
+  memoryDb,
 } from "./database";
-export type { AiSessionRow, AiMessageRow, CustomPromptRow } from "./database";
+export type {
+  AiSessionRow,
+  AiMessageRow,
+  CustomPromptRow,
+  MemoryItemRow,
+  MemoryItemInput,
+  MemoryType,
+  MemoryScope,
+} from "./database";
 
 export {
   createProjectDir,
