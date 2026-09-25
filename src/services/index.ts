@@ -14,8 +14,8 @@ export type { ExportOptions } from "./export";
 export { BackupService } from "./backup";
 export type { BackupData } from "./backup";
 
-export { systemPrompts, getSystemPrompt } from "./prompts";
-export type { PromptKey } from "./prompts";
+export { systemPrompts, getSystemPrompt, builtinPromptList } from "./prompts";
+export type { PromptKey, PromptMeta } from "./prompts";
 
 export {
   getDatabase,
@@ -28,8 +28,9 @@ export {
   foreshadowingDb,
   settingsDb,
   aiDb,
+  promptDb,
 } from "./database";
-export type { AiSessionRow, AiMessageRow } from "./database";
+export type { AiSessionRow, AiMessageRow, CustomPromptRow } from "./database";
 
 export {
   createProjectDir,

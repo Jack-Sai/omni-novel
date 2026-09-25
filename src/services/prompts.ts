@@ -165,3 +165,24 @@ export type PromptKey = keyof typeof systemPrompts;
 export function getSystemPrompt(key: PromptKey): string {
   return systemPrompts[key];
 }
+
+/** 内置提示词元数据（用于设置页展示与 AI 面板"更多"菜单） */
+export interface PromptMeta {
+  key: PromptKey;
+  label: string;
+  description: string;
+}
+
+export const builtinPromptList: PromptMeta[] = [
+  { key: "writer", label: "通用写作", description: "构思情节、塑造人物、润色文字的通用助手" },
+  { key: "continuation", label: "续写", description: "延续风格与情节的续写" },
+  { key: "polish", label: "润色", description: "修正语病、优化表达、增强画面感" },
+  { key: "expand", label: "扩写", description: "增加细节与描写，丰富内容" },
+  { key: "compress", label: "缩写", description: "精简内容，保留核心情节" },
+  { key: "character", label: "人物塑造", description: "设计背景、性格、动机与成长弧线" },
+  { key: "worldbuilding", label: "世界观构建", description: "地理、历史、制度与规则设定" },
+  { key: "plot", label: "情节规划", description: "冲突、高潮、伏笔与节奏设计" },
+  { key: "dialogue", label: "对话优化", description: "让对话自然生动、推动情节" },
+  { key: "consistency", label: "一致性检查", description: "检查人物、时间线与设定矛盾" },
+  { key: "reader", label: "读者视角", description: "以普通读者角度评价与反馈" },
+];

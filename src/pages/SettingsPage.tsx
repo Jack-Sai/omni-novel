@@ -2,13 +2,17 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
   Database,
   Download,
+  Edit3,
   ExternalLink,
   FileText,
   Info,
+  MessageSquare,
   Palette,
   Play,
+  Plus,
   Save,
   Sparkles,
   Square,
@@ -25,7 +29,13 @@ import {
   toLlamaConfig,
   type BackendType,
 } from "../services/aiService";
-import { BackupService } from "../services";
+import {
+  BackupService,
+  builtinPromptList,
+  systemPrompts,
+  promptDb,
+  type CustomPromptRow,
+} from "../services";
 import {
   Badge,
   Button,
@@ -39,6 +49,7 @@ import {
   SegmentedControl,
   Select,
   SettingRow,
+  Textarea,
   ThemeToggle,
 } from "../components/ui";
 
@@ -222,6 +233,63 @@ export function SettingsPage() {
       idleUnloadMinutes: ai.idleUnloadMinutes,
     });
     setSavePresetOpen(false);
+  };
+
+  // ── 自定义提示词 ──
+  const [customPrompts, setCustomPrompts] = useState<CustomPromptRow[]>([]);
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false);
+  const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
+  const [promptForm, setPromptForm] = useState({ name: "", description: "", content: "" });
+  const [openBuiltin, setOpenBuiltin] = useState<string | null>(null);
+
+  useEffect(() => {
+    promptDb
+      .list()
+      .then(setCustomPrompts)
+      .catch((e) => console.warn("加载提示词失败:", e));
+  }, []);
+
+  const openCreatePrompt = () => {
+    setEditingPromptId(null);
+    setPromptForm({ name: "", description: "", content: "" });
+    setPromptDialogOpen(true);
+  };
+
+  const openEditPrompt = (p: CustomPromptRow) => {
+    setEditingPromptId(p.id);
+    setPromptForm({ name: p.name, description: p.description, content: p.content });
+    setPromptDialogOpen(true);
+  };
+
+  const handleSavePrompt = async () => {
+    const name = promptForm.name.trim();
+    const content = promptForm.content.trim();
+    if (!name || !content) return;
+    try {
+      const payload = {
+        name,
+        description: promptForm.description.trim(),
+        content,
+      };
+      if (editingPromptId) {
+        await promptDb.update(editingPromptId, payload);
+      } else {
+        await promptDb.create(payload);
+      }
+      setCustomPrompts(await promptDb.list());
+      setPromptDialogOpen(false);
+    } catch (e) {
+      console.warn("保存提示词失败:", e);
+    }
+  };
+
+  const handleDeletePrompt = async (id: string) => {
+    try {
+      await promptDb.delete(id);
+      setCustomPrompts((prev) => prev.filter((p) => p.id !== id));
+    } catch (e) {
+      console.warn("删除提示词失败:", e);
+    }
   };
 
   const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -701,6 +769,95 @@ export function SettingsPage() {
             )}
           </Section>
 
+          {/* 提示词库 */}
+          <Section
+            title="提示词"
+            description="内置提示词与自定义提示词，供 AI 面板调用"
+            icon={MessageSquare}
+            contentClassName="space-y-4"
+          >
+            <SettingRow
+              title="自定义提示词"
+              description="可复用的系统提示词，保存后可在 AI 面板“更多”菜单中一键调用"
+            >
+              <Button variant="secondary" onClick={openCreatePrompt}>
+                <Plus size={15} />
+                新建提示词
+              </Button>
+            </SettingRow>
+
+            {customPrompts.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-start gap-3 rounded-lg border border-line bg-surface p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium text-ink">{p.name}</p>
+                  {p.description && (
+                    <p className="mt-0.5 text-[12px] text-ink-3">{p.description}</p>
+                  )}
+                  <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-ink-2">
+                    {p.content}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="编辑"
+                    onClick={() => openEditPrompt(p)}
+                  >
+                    <Edit3 size={14} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="删除"
+                    onClick={() => handleDeletePrompt(p.id)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-ink-3">
+                内置提示词（只读，点击展开）
+              </p>
+              <div className="space-y-1.5">
+                {builtinPromptList.map((p) => (
+                  <div key={p.key} className="rounded-lg border border-line bg-surface">
+                    <button
+                      type="button"
+                      onClick={() => setOpenBuiltin(openBuiltin === p.key ? null : p.key)}
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]"
+                    >
+                      <span className="w-20 shrink-0 text-[13px] font-medium text-ink">
+                        {p.label}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">
+                        {p.description}
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        className={
+                          "shrink-0 text-ink-3 transition-transform " +
+                          (openBuiltin === p.key ? "rotate-180" : "")
+                        }
+                      />
+                    </button>
+                    {openBuiltin === p.key && (
+                      <pre className="max-h-52 overflow-auto whitespace-pre-wrap border-t border-line px-3 py-2.5 text-[12px] leading-relaxed text-ink-2">
+                        {systemPrompts[p.key]}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
           {/* 数据备份 */}
           <Section
             title="数据备份与恢复"
@@ -833,6 +990,55 @@ export function SettingsPage() {
             <p className="truncate">参数：{ai.llamaExtraArgs}</p>
             <p className="truncate">端点：{ai.baseUrl}</p>
           </div>
+        </div>
+      </Dialog>
+
+      {/* 新建/编辑提示词 */}
+      <Dialog
+        open={promptDialogOpen}
+        onOpenChange={setPromptDialogOpen}
+        title={editingPromptId ? "编辑提示词" : "新建提示词"}
+        description="系统提示词将作为 AI 对话的角色设定"
+        icon={MessageSquare}
+        size="md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPromptDialogOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!promptForm.name.trim() || !promptForm.content.trim()}
+              onClick={handleSavePrompt}
+            >
+              保存
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="名称" required>
+            <Input
+              value={promptForm.name}
+              onChange={(e) => setPromptForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="例如：玄幻打斗描写"
+            />
+          </Field>
+          <Field label="描述" hint="可选，一句话说明用途">
+            <Input
+              value={promptForm.description}
+              onChange={(e) => setPromptForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="例如：专业的小说战斗场景描写助手"
+            />
+          </Field>
+          <Field label="提示词内容" required hint="发送给模型的系统提示词（角色设定）">
+            <Textarea
+              rows={8}
+              value={promptForm.content}
+              onChange={(e) => setPromptForm((f) => ({ ...f, content: e.target.value }))}
+              placeholder="你是一位……"
+            />
+          </Field>
         </div>
       </Dialog>
     </Page>

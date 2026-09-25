@@ -233,6 +233,18 @@ async function initializeTables(db: Database) {
     )
   `);
 
+  // 创建自定义提示词表
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS custom_prompts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   console.log("Database tables initialized successfully");
 
   // Schema migration: 确保 users 表有 phone 和 password 列
@@ -825,5 +837,63 @@ export const aiDb = {
       [id]
     );
     return row[0];
+  },
+};
+
+// 自定义提示词相关操作
+export interface CustomPromptRow {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const promptDb = {
+  async list(): Promise<CustomPromptRow[]> {
+    const db = await getDatabase();
+    return db.select<CustomPromptRow[]>(
+      "SELECT * FROM custom_prompts ORDER BY updated_at DESC"
+    );
+  },
+
+  async getById(id: string): Promise<CustomPromptRow | null> {
+    const db = await getDatabase();
+    const rows = await db.select<CustomPromptRow[]>(
+      "SELECT * FROM custom_prompts WHERE id = ?",
+      [id]
+    );
+    return rows[0] || null;
+  },
+
+  async create(prompt: {
+    name: string;
+    description?: string;
+    content: string;
+  }): Promise<CustomPromptRow> {
+    const db = await getDatabase();
+    const id = crypto.randomUUID();
+    await db.execute(
+      "INSERT INTO custom_prompts (id, name, description, content) VALUES (?, ?, ?, ?)",
+      [id, prompt.name, prompt.description || "", prompt.content]
+    );
+    return (await this.getById(id))!;
+  },
+
+  async update(
+    id: string,
+    prompt: { name: string; description?: string; content: string }
+  ): Promise<void> {
+    const db = await getDatabase();
+    await db.execute(
+      "UPDATE custom_prompts SET name = ?, description = ?, content = ?, updated_at = datetime('now') WHERE id = ?",
+      [prompt.name, prompt.description || "", prompt.content, id]
+    );
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute("DELETE FROM custom_prompts WHERE id = ?", [id]);
   },
 };
