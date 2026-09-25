@@ -52,9 +52,12 @@ export interface ModelPreset {
 interface SettingsStore {
   ai: AISettings;
   editor: EditorSettings;
+  /** AI 面板宽度（px），可拖拽调整 */
+  aiPanelWidth: number;
   modelPresets: ModelPreset[];
   updateAISettings: (settings: Partial<AISettings>) => void;
   updateEditorSettings: (settings: Partial<EditorSettings>) => void;
+  updateAiPanelWidth: (width: number) => void;
   /** 保存模型档案；同名档案覆盖更新 */
   saveModelPreset: (preset: Omit<ModelPreset, "id">) => void;
   removeModelPreset: (id: string) => void;
@@ -90,11 +93,16 @@ const defaultEditorSettings: EditorSettings = {
   editorWidth: 42,
 };
 
+const AI_PANEL_MIN_WIDTH = 240;
+const AI_PANEL_MAX_WIDTH = 720;
+const defaultAiPanelWidth = 320;
+
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   ai: defaultAISettings,
   editor: defaultEditorSettings,
+  aiPanelWidth: defaultAiPanelWidth,
   modelPresets: [],
 
   updateAISettings: (settings) => {
@@ -104,6 +112,13 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
   updateEditorSettings: (settings) => {
     set((state) => ({ editor: { ...state.editor, ...settings } }));
+    get().saveToDisk();
+  },
+
+  updateAiPanelWidth: (width) => {
+    const clamped = Math.min(AI_PANEL_MAX_WIDTH, Math.max(AI_PANEL_MIN_WIDTH, Math.round(width)));
+    if (clamped === get().aiPanelWidth) return;
+    set({ aiPanelWidth: clamped });
     get().saveToDisk();
   },
 
@@ -143,12 +158,14 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     const data = await loadGlobalConfig<{
       ai: AISettings;
       editor: EditorSettings;
+      aiPanelWidth?: number;
       modelPresets?: ModelPreset[];
     }>("data", "settings.json");
     if (data) {
       set({
         ai: { ...defaultAISettings, ...data.ai },
         editor: { ...defaultEditorSettings, ...data.editor },
+        aiPanelWidth: data.aiPanelWidth ?? defaultAiPanelWidth,
         modelPresets: data.modelPresets ?? [],
       });
     }
@@ -157,8 +174,8 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   saveToDisk: () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      const { ai, editor, modelPresets } = get();
-      saveGlobalConfig("data", "settings.json", { ai, editor, modelPresets }).catch((e) =>
+      const { ai, editor, aiPanelWidth, modelPresets } = get();
+      saveGlobalConfig("data", "settings.json", { ai, editor, aiPanelWidth, modelPresets }).catch((e) =>
         console.error("保存设置失败:", e)
       );
     }, 500);

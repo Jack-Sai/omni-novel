@@ -87,7 +87,7 @@ function rowToMessage(row: AiMessageRow): Message {
 }
 
 export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) {
-  const { ai } = useSettingsStore();
+  const { ai, aiPanelWidth, updateAiPanelWidth } = useSettingsStore();
   const { currentProject } = useProjectStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -466,10 +466,42 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
     }
   };
 
+  /** 左缘拖拽调整面板宽度 */
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = useSettingsStore.getState().aiPanelWidth;
+    const onMove = (ev: MouseEvent) => {
+      updateAiPanelWidth(startWidth + (startX - ev.clientX));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
   const statusColor = isConnected ? "bg-success" : isConnected === false ? "bg-danger" : "bg-warning";
 
   return (
-    <div className="flex w-80 shrink-0 flex-col border-l border-line bg-subtle">
+    <div
+      className="relative flex shrink-0 flex-col border-l border-line bg-subtle"
+      style={{ width: aiPanelWidth }}
+    >
+      {/* 拖拽调整宽度 */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        title="拖拽调整宽度"
+        onMouseDown={handleResizeStart}
+        className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-primary/50 active:bg-primary"
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
         <div className="flex items-center gap-2">
