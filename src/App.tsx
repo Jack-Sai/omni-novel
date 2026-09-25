@@ -9,6 +9,7 @@ import {
   CharactersPage,
   WorldviewPage,
   ForeshadowingPage,
+  MemoryPage,
   SettingsPage,
 } from "./pages";
 
@@ -26,6 +27,7 @@ function App() {
           <Route path="characters" element={<CharactersPage />} />
           <Route path="worldview" element={<WorldviewPage />} />
           <Route path="foreshadowing" element={<ForeshadowingPage />} />
+          <Route path="memory" element={<MemoryPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

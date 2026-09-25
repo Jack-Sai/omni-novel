@@ -6,4 +6,5 @@ export { OutlinePage } from "./OutlinePage";
 export { CharactersPage } from "./CharactersPage";
 export { WorldviewPage } from "./WorldviewPage";
 export { ForeshadowingPage } from "./ForeshadowingPage";
+export { MemoryPage } from "./MemoryPage";
 export { SettingsPage } from "./SettingsPage";
