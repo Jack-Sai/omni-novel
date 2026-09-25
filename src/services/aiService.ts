@@ -47,6 +47,7 @@ export interface AIService {
     messages: ChatMessage[],
     options?: GenerateOptions,
     onChunk?: (chunk: string) => void,
+    requestId?: string,
   ): Promise<string>;
   updateConfig(config: Partial<AIServiceConfig>): void;
   getConfig(): AIServiceConfig;

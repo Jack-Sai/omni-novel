@@ -49,6 +49,7 @@ export class OpenAICompatService implements AIService {
     messages: ChatMessage[],
     options?: GenerateOptions,
     onChunk?: (chunk: string) => void,
+    requestId?: string,
   ): Promise<string> {
     const channel = new Channel<{ content: string; done: boolean }>();
 
@@ -71,6 +72,7 @@ export class OpenAICompatService implements AIService {
         maxTokens: options?.numPredict ?? 2048,
       },
       llama: this.config.llama ?? null,
+      requestId: requestId ?? null,
       channel,
     });
 

@@ -1,19 +1,22 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::ipc::Channel;
 use tauri::Manager;
+use tokio_util::sync::CancellationToken;
 
 mod llama_process;
 
 use llama_process::{LlamaConfig, LlamaManager, LlamaServerStatus};
 
-/// 全局应用状态：共享 HTTP 客户端 + llama-server 进程托管。
+/// 全局应用状态：共享 HTTP 客户端 + llama-server 进程托管 + 流式请求取消表。
 struct AppState {
     http: reqwest::Client,
     llama: Arc<LlamaManager>,
+    cancel_flags: std::sync::Mutex<HashMap<String, CancellationToken>>,
 }
 
 // ── File System Commands ─────────────────────────────────────────────────────
@@ -137,7 +140,7 @@ async fn ensure_llama_ready(
     state: tauri::State<'_, AppState>,
     llama: LlamaConfig,
 ) -> Result<LlamaServerStatus, String> {
-    state.llama.ensure_ready(&state.http, &llama).await?;
+    state.llama.ensure_ready(&state.http, &llama, None).await?;
     Ok(state.llama.status(&state.http, &llama.base_url).await)
 }
 
@@ -169,6 +172,7 @@ pub struct ChatMessage {
 }
 
 #[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatOptions {
     pub temperature: Option<f64>,
     pub top_p: Option<f64>,
@@ -217,13 +221,14 @@ async fn post_json_checked(
 
 /// llama.cpp 自动拉起：配置存在时确保服务就绪，并刷新空闲计时。
 async fn ensure_llama(
-    state: &tauri::State<'_, AppState>,
+    state: &AppState,
     llama: &Option<LlamaConfig>,
+    cancel: Option<&CancellationToken>,
 ) -> Result<(), String> {
     if let Some(config) = llama {
         state
             .llama
-            .ensure_ready(&state.http, config)
+            .ensure_ready(&state.http, config, cancel)
             .await
             .map_err(|e| format!("llama-server 未就绪：{e}"))?;
     }
@@ -244,7 +249,7 @@ async fn ai_chat(
     let client = &state.http;
     let opts = options.unwrap_or_default();
 
-    ensure_llama(&state, &llama).await?;
+    ensure_llama(state.inner(), &llama, None).await?;
 
     match backend.as_str() {
         "ollama" => {
@@ -302,14 +307,78 @@ async fn ai_chat_stream(
     messages: Vec<ChatMessage>,
     options: Option<ChatOptions>,
     llama: Option<LlamaConfig>,
+    request_id: Option<String>,
+    channel: Channel<ChatChunk>,
+) -> Result<(), String> {
+    let token = CancellationToken::new();
+    let key = request_id.filter(|s| !s.is_empty());
+    if let Some(k) = &key {
+        state
+            .cancel_flags
+            .lock()
+            .unwrap()
+            .insert(k.clone(), token.clone());
+    }
+
+    let result = chat_stream_inner(
+        state.inner(),
+        &token,
+        backend,
+        base_url,
+        model,
+        api_key,
+        messages,
+        options,
+        llama,
+        channel,
+    )
+    .await;
+
+    if let Some(k) = &key {
+        state.cancel_flags.lock().unwrap().remove(k);
+    }
+    // 被取消的请求视为正常结束（保留已生成的部分内容）
+    if token.is_cancelled() {
+        return Ok(());
+    }
+    result
+}
+
+/// 取消进行中的流式生成（按 request_id 定位）。
+#[tauri::command]
+async fn ai_cancel_stream(
+    state: tauri::State<'_, AppState>,
+    request_id: String,
+) -> Result<(), String> {
+    if let Some(token) = state.cancel_flags.lock().unwrap().get(&request_id) {
+        token.cancel();
+    }
+    Ok(())
+}
+
+async fn chat_stream_inner(
+    state: &AppState,
+    token: &CancellationToken,
+    backend: String,
+    base_url: String,
+    model: String,
+    api_key: Option<String>,
+    messages: Vec<ChatMessage>,
+    options: Option<ChatOptions>,
+    llama: Option<LlamaConfig>,
     channel: Channel<ChatChunk>,
 ) -> Result<(), String> {
     let client = &state.http;
     let opts = options.unwrap_or_default();
 
-    ensure_llama(&state, &llama).await?;
+    // 确保 llama-server 就绪（等待模型加载期间可被取消，进程留后台继续加载）
+    ensure_llama(state, &llama, Some(token)).await?;
+    if token.is_cancelled() {
+        return Ok(());
+    }
 
     let base = base_url.trim_end_matches('/').to_string();
+    use futures_util::StreamExt;
 
     match backend.as_str() {
         "ollama" => {
@@ -327,14 +396,23 @@ async fn ai_chat_stream(
                 }
             });
             let url = format!("{base}/api/chat");
-            let resp = post_json_checked(client, &url, &body, None).await?;
+            let resp = tokio::select! {
+                r = post_json_checked(client, &url, &body, None) => r?,
+                _ = token.cancelled() => return Ok(()),
+            };
 
-            use futures_util::StreamExt;
             let mut stream = resp.bytes_stream();
             let mut buffer = String::new();
 
-            'outer: while let Some(chunk) = stream.next().await {
-                let bytes = chunk.map_err(|e| format!("读取流失败: {}", e))?;
+            'outer: loop {
+                let bytes = tokio::select! {
+                    _ = token.cancelled() => break 'outer,
+                    next = stream.next() => match next {
+                        Some(Ok(b)) => b,
+                        Some(Err(e)) => return Err(format!("读取流失败: {}", e)),
+                        None => break 'outer,
+                    },
+                };
                 buffer.push_str(&String::from_utf8_lossy(&bytes));
                 while let Some(pos) = buffer.find('\n') {
                     let line = buffer[..pos].trim().to_string();
@@ -362,14 +440,23 @@ async fn ai_chat_stream(
                 "frequency_penalty": frequency_penalty
             });
             let url = format!("{base}/v1/chat/completions");
-            let resp = post_json_checked(client, &url, &body, api_key.as_ref()).await?;
+            let resp = tokio::select! {
+                r = post_json_checked(client, &url, &body, api_key.as_ref()) => r?,
+                _ = token.cancelled() => return Ok(()),
+            };
 
-            use futures_util::StreamExt;
             let mut stream = resp.bytes_stream();
             let mut buffer = String::new();
 
-            'outer: while let Some(chunk) = stream.next().await {
-                let bytes = chunk.map_err(|e| format!("读取流失败: {}", e))?;
+            'outer: loop {
+                let bytes = tokio::select! {
+                    _ = token.cancelled() => break 'outer,
+                    next = stream.next() => match next {
+                        Some(Ok(b)) => b,
+                        Some(Err(e)) => return Err(format!("读取流失败: {}", e)),
+                        None => break 'outer,
+                    },
+                };
                 buffer.push_str(&String::from_utf8_lossy(&bytes));
                 while let Some(pos) = buffer.find('\n') {
                     let line = buffer[..pos].trim().to_string();
@@ -538,6 +625,7 @@ pub fn run() {
             app.manage(AppState {
                 http: reqwest::Client::new(),
                 llama: Arc::new(LlamaManager::new()),
+                cancel_flags: std::sync::Mutex::new(HashMap::new()),
             });
 
             // 空闲卸载看门狗：约每 30s 检查一次
@@ -566,6 +654,7 @@ pub fn run() {
             get_llama_server_status,
             ai_chat,
             ai_chat_stream,
+            ai_cancel_stream,
             ai_check_connection,
             ai_list_models,
         ])

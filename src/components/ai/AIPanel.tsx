@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { Editor } from "@tiptap/react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   Bot,
   Loader2,
@@ -8,6 +9,7 @@ import {
   PenTool,
   Send,
   Sparkles,
+  Square,
   User,
 } from "lucide-react";
 import { getSystemPrompt, type PromptKey } from "../../services";
@@ -53,6 +55,8 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  /** 当前进行中的流式请求 ID，用于取消生成 */
+  const requestIdRef = useRef<string | null>(null);
 
   // 根据设置创建 AI 服务实例
   const aiService = useMemo(() => {
@@ -117,6 +121,9 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
 
+      const requestId = crypto.randomUUID();
+      requestIdRef.current = requestId;
+
       try {
         const systemPrompt = getSystemPrompt(action.key);
         const userContent =
@@ -157,6 +164,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
               ),
             );
           },
+          requestId,
         );
       } catch {
         setMessages((prev) => [
@@ -168,6 +176,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           },
         ]);
       } finally {
+        requestIdRef.current = null;
         setIsLoading(false);
       }
     },
@@ -187,6 +196,9 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
+
+    const requestId = crypto.randomUUID();
+    requestIdRef.current = requestId;
 
     try {
       const systemPrompt = getSystemPrompt("writer");
@@ -225,6 +237,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
             ),
           );
         },
+        requestId,
       );
     } catch {
       setMessages((prev) => [
@@ -236,7 +249,19 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
         },
       ]);
     } finally {
+      requestIdRef.current = null;
       setIsLoading(false);
+    }
+  };
+
+  const handleStop = async () => {
+    const requestId = requestIdRef.current;
+    if (requestId) {
+      try {
+        await invoke("ai_cancel_stream", { requestId });
+      } catch {
+        // 忽略：请求可能已结束
+      }
     }
   };
 
@@ -392,20 +417,32 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入需求…"
+            placeholder={isLoading ? "生成中…" : "输入需求…"}
             disabled={isLoading}
             className="flex-1 text-[13px]"
           />
-          <Button
-            type="submit"
-            variant="primary"
-            size="icon"
-            aria-label="发送"
-            disabled={!input.trim()}
-            loading={isLoading}
-          >
-            {!isLoading && <Send size={14} />}
-          </Button>
+          {isLoading ? (
+            <Button
+              type="button"
+              variant="danger"
+              size="icon"
+              aria-label="停止生成"
+              title="停止生成"
+              onClick={handleStop}
+            >
+              <Square size={14} />
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              variant="primary"
+              size="icon"
+              aria-label="发送"
+              disabled={!input.trim()}
+            >
+              <Send size={14} />
+            </Button>
+          )}
         </form>
       </div>
     </div>

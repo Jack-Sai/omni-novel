@@ -64,6 +64,7 @@ export class OllamaService implements AIService {
     messages: ChatMessage[],
     options?: GenerateOptions,
     onChunk?: (chunk: string) => void,
+    requestId?: string,
   ): Promise<string> {
     const channel = new Channel<{ content: string; done: boolean }>();
 
@@ -88,6 +89,7 @@ export class OllamaService implements AIService {
         think: options?.think ?? false,
       },
       llama: this.config.llama ?? null,
+      requestId: requestId ?? null,
       channel,
     });
 

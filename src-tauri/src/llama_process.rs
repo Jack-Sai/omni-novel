@@ -2,6 +2,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
 /// llama-server 托管配置（由前端传入，Rust 端记住以供空闲看门狗使用）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -208,10 +209,12 @@ impl LlamaManager {
     }
 
     /// 确保 llama-server 就绪：未运行则启动并等待 /health。
+    /// `cancel` 存在时，等待加载过程中可被取消（进程留在后台继续加载）。
     pub async fn ensure_ready(
         &self,
         client: &reqwest::Client,
         config: &LlamaConfig,
+        cancel: Option<&CancellationToken>,
     ) -> Result<(), String> {
         *self.config.lock().await = Some(config.clone());
 
@@ -228,13 +231,20 @@ impl LlamaManager {
             return Ok(());
         }
 
+        if cancel.map(|t| t.is_cancelled()).unwrap_or(false) {
+            return Ok(());
+        }
+
         // 清理可能残留的 owned 进程
         if let Some(pid) = self.owned_pid.lock().await.take() {
             kill_pid(pid);
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
 
-        self.spawn_and_wait(client, config).await?;
+        self.spawn_and_wait(client, config, cancel).await?;
+        if cancel.map(|t| t.is_cancelled()).unwrap_or(false) {
+            return Ok(());
+        }
         self.touch_active().await;
         Ok(())
     }
@@ -243,6 +253,7 @@ impl LlamaManager {
         &self,
         client: &reqwest::Client,
         config: &LlamaConfig,
+        cancel: Option<&CancellationToken>,
     ) -> Result<(), String> {
         if config.llama_server_path.trim().is_empty() {
             return Err("未配置 llama-server.exe 路径，请在设置中填写".to_string());
@@ -258,6 +269,10 @@ impl LlamaManager {
         }
         if !std::path::Path::new(model_path).exists() {
             return Err(format!("找不到模型文件：{model_path}"));
+        }
+
+        if cancel.map(|t| t.is_cancelled()).unwrap_or(false) {
+            return Ok(());
         }
 
         let port = parse_port(&config.base_url);
@@ -290,7 +305,7 @@ impl LlamaManager {
         drop(child);
         *self.owned_pid.lock().await = Some(pid);
 
-        // 轮询 /health，大模型加载最长约 3 分钟
+        // 轮询 /health，大模型加载最长约 3 分钟；期间可被取消（进程留后台继续加载）
         let deadline = Instant::now() + Duration::from_secs(180);
         while Instant::now() < deadline {
             if Self::health_ok(client, &config.base_url).await {
@@ -306,7 +321,19 @@ impl LlamaManager {
                         .to_string(),
                 );
             }
-            tokio::time::sleep(Duration::from_millis(800)).await;
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_millis(800)) => {}
+                _ = async {
+                    match cancel {
+                        Some(token) => token.cancelled().await,
+                        None => std::future::pending::<()>().await,
+                    }
+                } => {
+                    *self.starting.lock().await = false;
+                    log::info!("wait for llama-server cancelled (pid={pid}, loading continues)");
+                    return Ok(());
+                }
+            }
         }
 
         *self.starting.lock().await = false;
