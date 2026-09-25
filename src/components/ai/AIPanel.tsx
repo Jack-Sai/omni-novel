@@ -7,6 +7,7 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
+  MoreHorizontal,
   PenTool,
   Plus,
   Send,
@@ -14,7 +15,17 @@ import {
   Square,
   User,
 } from "lucide-react";
-import { getSystemPrompt, aiDb, type PromptKey, type AiMessageRow, type AiSessionRow } from "../../services";
+import {
+  getSystemPrompt,
+  systemPrompts,
+  builtinPromptList,
+  aiDb,
+  promptDb,
+  type PromptKey,
+  type AiMessageRow,
+  type AiSessionRow,
+  type CustomPromptRow,
+} from "../../services";
 import { createAIService, toLlamaConfig } from "../../services/aiService";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useProjectStore } from "../../stores/projectStore";
@@ -40,7 +51,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  action?: PromptKey;
+  action?: string;
   canApply?: boolean;
   applyMode?: "replace" | "append";
 }
@@ -67,7 +78,7 @@ function rowToMessage(row: AiMessageRow): Message {
     id: row.id,
     role: row.role,
     content: row.content,
-    action: row.action as PromptKey | undefined,
+    action: row.action ?? undefined,
     canApply: row.role === "assistant" && !!quick,
     applyMode: quick?.applyMode,
   };
@@ -181,6 +192,15 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
     checkConnection();
   }, [aiService]);
 
+  // 加载自定义提示词（供"更多"菜单）
+  const [morePrompts, setMorePrompts] = useState<CustomPromptRow[]>([]);
+  useEffect(() => {
+    promptDb
+      .list()
+      .then(setMorePrompts)
+      .catch((e) => console.warn("加载自定义提示词失败:", e));
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -190,56 +210,59 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
     setIsConnected(connected);
   };
 
-  const handleQuickAction = useCallback(
-    async (action: QuickAction) => {
-      if (isLoading) return;
-
-      if (action.needsSelection && !selectedText) return;
-
-      const context =
-        action.key === "continuation"
-          ? chapterContent.slice(-500)
-          : selectedText;
-
+  /** 统一的对话执行流程：追加消息 → 确保会话 → 流式生成 → 落库 */
+  const runChat = useCallback(
+    async (params: {
+      systemPrompt: string;
+      /** 发送给模型的用户消息 */
+      userContent: string;
+      /** 界面上显示的用户消息（默认同 userContent） */
+      displayContent?: string;
+      action?: string;
+      applyMode?: "replace" | "append";
+      canApply?: boolean;
+    }) => {
+      const display = params.displayContent ?? params.userContent;
       const userMsg: Message = {
         id: crypto.randomUUID(),
         role: "user",
-        content: action.key === "continuation" ? "续写以下内容" : `${action.label}选中内容`,
-        action: action.key,
+        content: display,
+        action: params.action,
       };
 
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
 
-      const sid = await ensureSession(userMsg.content);
-      saveMessage(sid, { role: "user", content: userMsg.content, action: action.key });
+      const sid = await ensureSession(display);
+      saveMessage(sid, { role: "user", content: display, action: params.action });
 
       const requestId = crypto.randomUUID();
       requestIdRef.current = requestId;
 
       try {
-        const systemPrompt = getSystemPrompt(action.key);
-        const userContent =
-          action.key === "continuation"
-            ? "请续写下面的内容，保持风格一致：\n\n" + (context || "（从这里开始续写）")
-            : `请对以下内容进行${action.label}：\n\n${context}`;
-
         let fullResponse = "";
         const assistantId = crypto.randomUUID();
 
         setMessages((prev) => [
           ...prev,
-          { id: assistantId, role: "assistant", content: "", action: action.key, canApply: true, applyMode: action.applyMode },
+          {
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            action: params.action,
+            canApply: params.canApply,
+            applyMode: params.applyMode,
+          },
         ]);
 
         await aiService.chatStream(
           [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: params.systemPrompt },
             ...messages
               .filter((m) => m.role === "user" || m.role === "assistant")
               .slice(-Math.max(2, ai.contextMessageCount))
               .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-            { role: "user", content: userContent },
+            { role: "user", content: params.userContent },
           ],
           {
             temperature: ai.temperature,
@@ -259,7 +282,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           },
           requestId,
         );
-        saveMessage(sid, { role: "assistant", content: fullResponse, action: action.key });
+        saveMessage(sid, { role: "assistant", content: fullResponse, action: params.action });
       } catch {
         const errorContent = "抱歉，无法连接到 AI 模型。请确保服务已启动。";
         setMessages((prev) => [
@@ -270,91 +293,70 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
             content: errorContent,
           },
         ]);
-        saveMessage(sid, { role: "assistant", content: errorContent, action: action.key });
+        saveMessage(sid, { role: "assistant", content: errorContent, action: params.action });
       } finally {
         requestIdRef.current = null;
         setIsLoading(false);
       }
     },
-    [isLoading, selectedText, chapterContent, messages, ai, aiService, ensureSession, saveMessage],
+    [messages, ai, aiService, ensureSession, saveMessage],
+  );
+
+  const handleQuickAction = useCallback(
+    async (action: QuickAction) => {
+      if (isLoading) return;
+      if (action.needsSelection && !selectedText) return;
+
+      const context =
+        action.key === "continuation" ? chapterContent.slice(-500) : selectedText;
+      const userContent =
+        action.key === "continuation"
+          ? "请续写下面的内容，保持风格一致：\n\n" + (context || "（从这里开始续写）")
+          : `请对以下内容进行${action.label}：\n\n${context}`;
+
+      await runChat({
+        systemPrompt: getSystemPrompt(action.key),
+        userContent,
+        displayContent:
+          action.key === "continuation" ? "续写以下内容" : `${action.label}选中内容`,
+        action: action.key,
+        applyMode: action.applyMode,
+        canApply: true,
+      });
+    },
+    [isLoading, selectedText, chapterContent, runChat],
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: input.trim(),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
+    const content = input.trim();
     setInput("");
-    setIsLoading(true);
-
-    const sid = await ensureSession(userMsg.content);
-    saveMessage(sid, { role: "user", content: userMsg.content });
-
-    const requestId = crypto.randomUUID();
-    requestIdRef.current = requestId;
-
-    try {
-      const systemPrompt = getSystemPrompt("writer");
-      const chatMessages = [
-        { role: "system" as const, content: systemPrompt },
-        ...messages
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .slice(-Math.max(2, ai.contextMessageCount))
-          .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-        { role: "user" as const, content: userMsg.content },
-      ];
-
-      let fullResponse = "";
-      const assistantId = crypto.randomUUID();
-
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: "assistant", content: "" },
-      ]);
-
-      await aiService.chatStream(
-        chatMessages,
-        {
-          temperature: ai.temperature,
-          topP: ai.topP,
-          topK: ai.topK,
-          repeatPenalty: ai.repeatPenalty,
-          numPredict: ai.maxTokens,
-          think: ai.think,
-        },
-        (chunk) => {
-          fullResponse += chunk;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: fullResponse } : m,
-            ),
-          );
-        },
-        requestId,
-      );
-      saveMessage(sid, { role: "assistant", content: fullResponse });
-    } catch {
-      const errorContent = "抱歉，无法连接到 AI 模型。请确保服务已启动。";
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: errorContent,
-        },
-      ]);
-      saveMessage(sid, { role: "assistant", content: errorContent });
-    } finally {
-      requestIdRef.current = null;
-      setIsLoading(false);
-    }
+    await runChat({
+      systemPrompt: getSystemPrompt("writer"),
+      userContent: content,
+    });
   };
+
+  /** 使用"更多"菜单中的提示词（内置或自定义）发起对话 */
+  const handleUsePrompt = useCallback(
+    async (opts: { label: string; systemPrompt: string; action?: string }) => {
+      if (isLoading) return;
+      const context = selectedText || chapterContent.slice(-500);
+      const userContent = context
+        ? `请运用「${opts.label}」处理以下内容：\n\n${context}`
+        : `请以「${opts.label}」的职责开始工作，我随后提供具体内容。`;
+
+      await runChat({
+        systemPrompt: opts.systemPrompt,
+        userContent,
+        action: opts.action,
+        canApply: false,
+      });
+    },
+    [isLoading, selectedText, chapterContent, runChat],
+  );
 
   const handleStop = async () => {
     const requestId = requestIdRef.current;
@@ -497,27 +499,88 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       </div>
 
       {/* Quick Actions */}
-      <div className="flex gap-1 border-b border-line px-3 py-2">
-        {quickActions.map((action) => {
-          const disabled = isLoading || (action.needsSelection && !selectedText);
-          return (
+      <div className="flex items-center justify-between gap-1 border-b border-line px-3 py-2">
+        <div className="flex gap-1">
+          {quickActions.map((action) => {
+            const disabled = isLoading || (action.needsSelection && !selectedText);
+            return (
+              <button
+                key={action.key}
+                type="button"
+                disabled={disabled}
+                onClick={() => handleQuickAction(action)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+                  "disabled:cursor-not-allowed disabled:opacity-45",
+                  "border-line text-ink-2 hover:border-line-strong hover:bg-hover hover:text-ink",
+                )}
+              >
+                <action.icon size={11} />
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 更多提示词（内置其余 + 自定义） */}
+        <Menu>
+          <MenuTrigger asChild>
             <button
-              key={action.key}
               type="button"
-              disabled={disabled}
-              onClick={() => handleQuickAction(action)}
+              aria-label="更多提示词"
+              title="更多提示词"
+              disabled={isLoading}
               className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
-                "disabled:cursor-not-allowed disabled:opacity-45",
-                "border-line text-ink-2 hover:border-line-strong hover:bg-hover hover:text-ink",
+                "rounded-md p-1.5 text-ink-3 transition-colors",
+                "hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+                "disabled:cursor-not-allowed disabled:opacity-40",
               )}
             >
-              <action.icon size={11} />
-              {action.label}
+              <MoreHorizontal size={14} />
             </button>
-          );
-        })}
+          </MenuTrigger>
+          <MenuContent align="end" className="max-h-80 w-56 overflow-auto">
+            <MenuLabel>内置提示词</MenuLabel>
+            {builtinPromptList
+              .filter((p) => !quickActions.some((q) => q.key === p.key))
+              .map((p) => (
+                <MenuItem
+                  key={p.key}
+                  onSelect={() =>
+                    handleUsePrompt({
+                      label: p.label,
+                      systemPrompt: systemPrompts[p.key],
+                      action: p.key,
+                    })
+                  }
+                >
+                  <span className="min-w-0 flex-1 truncate">{p.label}</span>
+                  <span className="ml-2 shrink-0 truncate text-[11px] text-ink-3">
+                    {p.description}
+                  </span>
+                </MenuItem>
+              ))}
+            {morePrompts.length > 0 && (
+              <>
+                <MenuSeparator />
+                <MenuLabel>自定义提示词</MenuLabel>
+                {morePrompts.map((p) => (
+                  <MenuItem
+                    key={p.id}
+                    onSelect={() =>
+                      handleUsePrompt({ label: p.name, systemPrompt: p.content })
+                    }
+                  >
+                    <span className="min-w-0 flex-1 truncate" title={p.description || p.name}>
+                      {p.name}
+                    </span>
+                  </MenuItem>
+                ))}
+              </>
+            )}
+          </MenuContent>
+        </Menu>
       </div>
 
       {quickActions.some((a) => a.needsSelection) && !selectedText && (
