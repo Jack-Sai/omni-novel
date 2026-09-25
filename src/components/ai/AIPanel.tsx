@@ -239,6 +239,30 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       const requestId = crypto.randomUUID();
       requestIdRef.current = requestId;
 
+      // 本地模型未就绪时插入启动提示，首帧输出后自动移除
+      let hintId: string | null = null;
+      if (ai.backend === "llamacpp") {
+        try {
+          const st = await invoke<{ running: boolean; loading: boolean }>(
+            "get_llama_server_status",
+            { baseUrl: ai.baseUrl },
+          );
+          if (!st.running) {
+            hintId = crypto.randomUUID();
+            const hintContent = st.loading
+              ? "正在加载模型，预计 1~2 分钟，请稍候…"
+              : "本地模型未运行，正在启动，预计 1~2 分钟，请稍候…";
+            const id = hintId;
+            setMessages((prev) => [
+              ...prev,
+              { id, role: "assistant", content: hintContent },
+            ]);
+          }
+        } catch {
+          // 状态查询失败不影响正常发送
+        }
+      }
+
       try {
         let fullResponse = "";
         const assistantId = crypto.randomUUID();
@@ -274,25 +298,34 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           },
           (chunk) => {
             fullResponse += chunk;
-            setMessages((prev) =>
-              prev.map((m) =>
+            const hideHint = hintId;
+            if (hideHint) hintId = null;
+            setMessages((prev) => {
+              const base = hideHint
+                ? prev.filter((m) => m.id !== hideHint)
+                : prev;
+              return base.map((m) =>
                 m.id === assistantId ? { ...m, content: fullResponse } : m,
-              ),
-            );
+              );
+            });
           },
           requestId,
         );
         saveMessage(sid, { role: "assistant", content: fullResponse, action: params.action });
       } catch {
         const errorContent = "抱歉，无法连接到 AI 模型。请确保服务已启动。";
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: errorContent,
-          },
-        ]);
+        const hideHint = hintId;
+        setMessages((prev) => {
+          const base = hideHint ? prev.filter((m) => m.id !== hideHint) : prev;
+          return [
+            ...base,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: errorContent,
+            },
+          ];
+        });
         saveMessage(sid, { role: "assistant", content: errorContent, action: params.action });
       } finally {
         requestIdRef.current = null;
