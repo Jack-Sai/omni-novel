@@ -21,10 +21,12 @@ import {
   builtinPromptList,
   aiDb,
   promptDb,
+  retrieveMemories,
   type PromptKey,
   type AiMessageRow,
   type AiSessionRow,
   type CustomPromptRow,
+  type RetrievedMemory,
 } from "../../services";
 import { createAIService, toLlamaConfig } from "../../services/aiService";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -53,6 +55,8 @@ interface Message {
   content: string;
   /** 模型思考内容（Qwen3 等思考模型，不持久化，仅会话内展示） */
   reasoning?: string;
+  /** 本次发送注入的相关记忆（不持久化，仅会话内展示） */
+  memories?: RetrievedMemory[];
   action?: string;
   canApply?: boolean;
   applyMode?: "replace" | "append";
@@ -86,8 +90,19 @@ function rowToMessage(row: AiMessageRow): Message {
   };
 }
 
+const memoryKindLabels: Record<string, string> = {
+  summary: "摘要",
+  event: "事件",
+  entity: "实体",
+  note: "笔记",
+  preference: "偏好",
+  character: "人物",
+  worldview: "设定",
+  foreshadowing: "伏笔",
+};
+
 export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) {
-  const { ai, aiPanelWidth, updateAiPanelWidth } = useSettingsStore();
+  const { ai, aiPanelWidth, updateAiPanelWidth, updateAISettings } = useSettingsStore();
   const { currentProject } = useProjectStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -95,6 +110,8 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [sessions, setSessions] = useState<AiSessionRow[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  /** 展开记忆注入明细的消息 ID */
+  const [expandedMemoriesId, setExpandedMemoriesId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   /** 当前进行中的流式请求 ID，用于取消生成 */
   const requestIdRef = useRef<string | null>(null);
@@ -220,16 +237,37 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       userContent: string;
       /** 界面上显示的用户消息（默认同 userContent） */
       displayContent?: string;
+      /** 记忆检索词（默认同 userContent，快捷操作传正文片段以提升命中） */
+      retrievalQuery?: string;
       action?: string;
       applyMode?: "replace" | "append";
       canApply?: boolean;
     }) => {
       const display = params.displayContent ?? params.userContent;
+
+      // 检索相关记忆（记忆系统 M1.4：注入 AI 上下文）
+      let memories: RetrievedMemory[] = [];
+      if (ai.memoryInject) {
+        const project = useProjectStore.getState().currentProject;
+        if (project) {
+          try {
+            memories = await retrieveMemories(
+              project.id,
+              params.retrievalQuery ?? params.userContent,
+              { limit: 6 },
+            );
+          } catch (e) {
+            console.warn("记忆检索失败:", e);
+          }
+        }
+      }
+
       const userMsg: Message = {
         id: crypto.randomUUID(),
         role: "user",
         content: display,
         action: params.action,
+        memories: memories.length > 0 ? memories : undefined,
       };
 
       setMessages((prev) => [...prev, userMsg]);
@@ -282,9 +320,17 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           },
         ]);
 
+        // 注入相关记忆到 system prompt 尾部
+        const systemContent =
+          memories.length > 0
+            ? `${params.systemPrompt}\n\n[相关记忆]\n${memories
+                .map((m) => `- ${m.title}：${m.content.slice(0, 300)}`)
+                .join("\n")}\n（以上是项目相关记忆，仅供参考，请勿直接复述。）`
+            : params.systemPrompt;
+
         await aiService.chatStream(
           [
-            { role: "system", content: params.systemPrompt },
+            { role: "system", content: systemContent },
             ...messages
               .filter((m) => m.role === "user" || m.role === "assistant")
               .slice(-Math.max(2, ai.contextMessageCount))
@@ -361,6 +407,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
         userContent,
         displayContent:
           action.key === "continuation" ? "续写以下内容" : `${action.label}选中内容`,
+        retrievalQuery: context || undefined,
         action: action.key,
         applyMode: action.applyMode,
         canApply: true,
@@ -393,6 +440,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       await runChat({
         systemPrompt: opts.systemPrompt,
         userContent,
+        retrievalQuery: context || undefined,
         action: opts.action,
         canApply: false,
       });
@@ -653,6 +701,20 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
                 ))}
               </>
             )}
+            <MenuSeparator />
+            <MenuItem
+              onSelect={() => updateAISettings({ memoryInject: !ai.memoryInject })}
+            >
+              <span className="min-w-0 flex-1">注入项目记忆</span>
+              <span
+                className={cn(
+                  "ml-2 shrink-0 text-[11px]",
+                  ai.memoryInject ? "text-primary" : "text-ink-3",
+                )}
+              >
+                {ai.memoryInject ? "开" : "关"}
+              </span>
+            </MenuItem>
           </MenuContent>
         </Menu>
       </div>
@@ -713,6 +775,44 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
                       </div>
                     )}
                   </div>
+
+                  {/* 记忆注入明细（仅当前会话展示） */}
+                  {isUser && msg.memories && msg.memories.length > 0 && (
+                    <div className="mt-1 flex justify-end">
+                      <div className="max-w-[85%]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedMemoriesId(
+                              expandedMemoriesId === msg.id ? null : msg.id,
+                            )
+                          }
+                          className={cn(
+                            "text-[11px] transition-colors",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+                            expandedMemoriesId === msg.id
+                              ? "text-primary"
+                              : "text-ink-3 hover:text-ink-2",
+                          )}
+                        >
+                          注入 {msg.memories.length} 条记忆{" "}
+                          {expandedMemoriesId === msg.id ? "▴" : "▾"}
+                        </button>
+                        {expandedMemoriesId === msg.id && (
+                          <div className="mt-1 space-y-1.5 rounded-md border border-line bg-surface p-2">
+                            {msg.memories.map((m) => (
+                              <div key={`${m.kind}-${m.id}`} className="text-[11px] leading-relaxed">
+                                <span className="font-medium text-primary">
+                                  {memoryKindLabels[m.kind] ?? "记忆"} · {m.title}
+                                </span>
+                                <p className="text-ink-3">{m.content.slice(0, 160)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Apply button for assistant messages */}
                   {!isUser && msg.canApply && msg.content && (
