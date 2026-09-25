@@ -31,11 +31,33 @@ export interface EditorSettings {
   editorWidth: number;
 }
 
+/** llama.cpp 模型档案：记录模型位置与启动参数，切换模型时一键套用 */
+export interface ModelPreset {
+  id: string;
+  name: string;
+  /** GGUF 模型文件路径 */
+  llamaModelPath: string;
+  /** llama-server 启动参数 */
+  llamaExtraArgs: string;
+  /** OpenAI 兼容接口的 model 字段 */
+  model: string;
+  /** 服务端点 */
+  baseUrl: string;
+  /** 空闲自动卸载分钟数 */
+  idleUnloadMinutes: number;
+}
+
 interface SettingsStore {
   ai: AISettings;
   editor: EditorSettings;
+  modelPresets: ModelPreset[];
   updateAISettings: (settings: Partial<AISettings>) => void;
   updateEditorSettings: (settings: Partial<EditorSettings>) => void;
+  /** 保存模型档案；同名档案覆盖更新 */
+  saveModelPreset: (preset: Omit<ModelPreset, "id">) => void;
+  removeModelPreset: (id: string) => void;
+  /** 将档案字段应用到当前 AI 设置 */
+  applyModelPreset: (id: string) => void;
   loadFromDisk: () => Promise<void>;
   saveToDisk: () => void;
 }
@@ -70,6 +92,7 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   ai: defaultAISettings,
   editor: defaultEditorSettings,
+  modelPresets: [],
 
   updateAISettings: (settings) => {
     set((state) => ({ ai: { ...state.ai, ...settings } }));
@@ -81,12 +104,49 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     get().saveToDisk();
   },
 
+  saveModelPreset: (preset) => {
+    const { modelPresets } = get();
+    const existing = modelPresets.find((p) => p.name === preset.name);
+    if (existing) {
+      set({
+        modelPresets: modelPresets.map((p) =>
+          p.id === existing.id ? { ...preset, id: existing.id } : p,
+        ),
+      });
+    } else {
+      set({ modelPresets: [...modelPresets, { ...preset, id: crypto.randomUUID() }] });
+    }
+    get().saveToDisk();
+  },
+
+  removeModelPreset: (id) => {
+    set((state) => ({ modelPresets: state.modelPresets.filter((p) => p.id !== id) }));
+    get().saveToDisk();
+  },
+
+  applyModelPreset: (id) => {
+    const preset = get().modelPresets.find((p) => p.id === id);
+    if (!preset) return;
+    get().updateAISettings({
+      llamaModelPath: preset.llamaModelPath,
+      llamaExtraArgs: preset.llamaExtraArgs,
+      model: preset.model,
+      baseUrl: preset.baseUrl,
+      idleUnloadMinutes: preset.idleUnloadMinutes,
+    });
+  },
+
   loadFromDisk: async () => {
-    const data = await loadGlobalConfig<{ ai: AISettings; editor: EditorSettings }>("data", "settings.json");
+    const data = await loadGlobalConfig<{
+      ai: AISettings;
+      editor: EditorSettings;
+      modelPresets?: ModelPreset[];
+    }>("data", "settings.json");
     if (data) {
       set({
         ai: { ...defaultAISettings, ...data.ai },
         editor: { ...defaultEditorSettings, ...data.editor },
+        modelPresets: data.modelPresets ?? [],
       });
     }
   },
@@ -94,8 +154,8 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   saveToDisk: () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      const { ai, editor } = get();
-      saveGlobalConfig("data", "settings.json", { ai, editor }).catch((e) =>
+      const { ai, editor, modelPresets } = get();
+      saveGlobalConfig("data", "settings.json", { ai, editor, modelPresets }).catch((e) =>
         console.error("保存设置失败:", e)
       );
     }, 500);

@@ -12,6 +12,7 @@ import {
   Save,
   Sparkles,
   Square,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -28,6 +29,7 @@ import { BackupService } from "../services";
 import {
   Badge,
   Button,
+  Dialog,
   Field,
   Input,
   Page,
@@ -35,6 +37,7 @@ import {
   PageHeader,
   Section,
   SegmentedControl,
+  Select,
   SettingRow,
   ThemeToggle,
 } from "../components/ui";
@@ -52,7 +55,16 @@ const backendItems = (Object.keys(backendPresets) as BackendType[]).map((key) =>
 }));
 
 export function SettingsPage() {
-  const { ai, editor, updateAISettings, updateEditorSettings } = useSettingsStore();
+  const {
+    ai,
+    editor,
+    modelPresets,
+    updateAISettings,
+    updateEditorSettings,
+    saveModelPreset,
+    removeModelPreset,
+    applyModelPreset,
+  } = useSettingsStore();
   const { currentProject } = useProjectStore();
   const [saved, setSaved] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -104,16 +116,18 @@ export function SettingsPage() {
   const [stopping, setStopping] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
+  // 用 getState() 读取最新配置，避免异步回调里的 stale closure
   const refreshLlamaStatus = useCallback(async () => {
     try {
+      const { baseUrl } = useSettingsStore.getState().ai;
       const status = await invoke<LlamaServerStatus>("get_llama_server_status", {
-        baseUrl: ai.baseUrl,
+        baseUrl,
       });
       setLlamaStatus(status);
     } catch {
       setLlamaStatus(null);
     }
-  }, [ai.baseUrl]);
+  }, []);
 
   useEffect(() => {
     if (ai.backend !== "llamacpp") {
@@ -129,13 +143,14 @@ export function SettingsPage() {
     setStarting(true);
     setStartError(null);
     try {
+      const { ai: current } = useSettingsStore.getState();
       await invoke("ensure_llama_ready", {
         llama: toLlamaConfig({
-          baseUrl: ai.baseUrl,
-          llamaServerPath: ai.llamaServerPath,
-          llamaModelPath: ai.llamaModelPath,
-          llamaExtraArgs: ai.llamaExtraArgs,
-          idleUnloadMinutes: ai.idleUnloadMinutes,
+          baseUrl: current.baseUrl,
+          llamaServerPath: current.llamaServerPath,
+          llamaModelPath: current.llamaModelPath,
+          llamaExtraArgs: current.llamaExtraArgs,
+          idleUnloadMinutes: current.idleUnloadMinutes,
         }),
       });
       await refreshLlamaStatus();
@@ -157,6 +172,56 @@ export function SettingsPage() {
     } finally {
       setStopping(false);
     }
+  };
+
+  // ── 模型档案 ──
+  const [savePresetOpen, setSavePresetOpen] = useState(false);
+  const [presetName, setPresetName] = useState("");
+
+  const activePreset =
+    modelPresets.find(
+      (p) =>
+        p.llamaModelPath === ai.llamaModelPath &&
+        p.llamaExtraArgs === ai.llamaExtraArgs &&
+        p.model === ai.model &&
+        p.baseUrl === ai.baseUrl,
+    ) ?? null;
+
+  const handlePresetChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    if (!id) return;
+    applyModelPreset(id);
+    // 已托管的进程仍运行旧模型，切换后重启以加载新模型
+    if (llamaStatus?.running || llamaStatus?.loading) {
+      try {
+        await invoke("stop_llama_server");
+      } catch {
+        // 忽略停止失败，后续启动会自行处理
+      }
+      await handleStartServer();
+    }
+    await refreshLlamaStatus();
+  };
+
+  const openSaveDialog = () => {
+    const baseName = (activePreset?.name ?? ai.llamaModelPath.split(/[\\/]/).pop() ?? "")
+      .replace(/\.gguf$/i, "");
+    setPresetName(baseName);
+    setSavePresetOpen(true);
+  };
+
+  const handleSavePreset = () => {
+    const name = presetName.trim();
+    if (!name) return;
+    saveModelPreset({
+      name,
+      llamaModelPath: ai.llamaModelPath,
+      llamaExtraArgs: ai.llamaExtraArgs,
+      model: ai.model,
+      baseUrl: ai.baseUrl,
+      idleUnloadMinutes: ai.idleUnloadMinutes,
+    });
+    setSavePresetOpen(false);
   };
 
   const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -338,6 +403,45 @@ export function SettingsPage() {
             {/* llama-server 进程托管（仅 llamacpp） */}
             {isLlama && (
               <div className="space-y-4 rounded-lg border border-line bg-subtle p-4">
+                {/* 模型档案：保存/切换模型位置与启动参数 */}
+                <Field
+                  label="模型档案"
+                  hint="保存当前模型路径与启动参数，下次切换模型时一键套用，无需重新填写"
+                >
+                  <div className="flex gap-2">
+                    <Select
+                      className="flex-1"
+                      value={activePreset?.id ?? ""}
+                      onChange={handlePresetChange}
+                    >
+                      <option value="">自定义配置（未保存）</option>
+                      {modelPresets.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button
+                      variant="secondary"
+                      className="shrink-0"
+                      onClick={openSaveDialog}
+                    >
+                      <Save size={14} />
+                      {activePreset ? "更新档案" : "保存当前"}
+                    </Button>
+                    {activePreset && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="删除当前档案"
+                        onClick={() => removeModelPreset(activePreset.id)}
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                    )}
+                  </div>
+                </Field>
+
                 <SettingRow
                   title="llama-server 进程"
                   description={
@@ -670,6 +774,45 @@ export function SettingsPage() {
           </Section>
         </div>
       </PageBody>
+
+      {/* 保存模型档案 */}
+      <Dialog
+        open={savePresetOpen}
+        onOpenChange={setSavePresetOpen}
+        title="保存模型档案"
+        description="记录当前模型路径与启动参数，下次切换模型时直接使用"
+        icon={Save}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setSavePresetOpen(false)}>
+              取消
+            </Button>
+            <Button variant="primary" disabled={!presetName.trim()} onClick={handleSavePreset}>
+              {activePreset ? "更新" : "保存"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="档案名称" required>
+            <Input
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && presetName.trim()) handleSavePreset();
+              }}
+              placeholder="例如 Qwen3.8-9B-Q8"
+              autoFocus
+            />
+          </Field>
+          <div className="space-y-1 rounded-lg border border-line bg-subtle p-3 text-[12px] text-ink-2">
+            <p className="truncate">模型：{ai.llamaModelPath}</p>
+            <p className="truncate">参数：{ai.llamaExtraArgs}</p>
+            <p className="truncate">端点：{ai.baseUrl}</p>
+          </div>
+        </div>
+      </Dialog>
     </Page>
   );
 }
