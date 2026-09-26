@@ -32,7 +32,7 @@ export function EmptyState({
       {Icon && (
         <div
           className={cn(
-            "flex items-center justify-center rounded-full bg-subtle text-ink-3",
+            "omni-pop flex items-center justify-center rounded-full bg-subtle text-ink-3 ring-4 ring-primary-soft/50",
             isSmall ? "h-12 w-12" : "h-16 w-16",
           )}
         >

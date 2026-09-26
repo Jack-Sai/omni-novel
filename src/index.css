@@ -108,7 +108,7 @@
 
   --app-ink: #0f172a;
   --app-ink-2: #5b6b80;
-  --app-ink-3: #94a3b8;
+  --app-ink-3: #8494ab;
   --app-ink-inverse: #ffffff;
 
   --app-primary: #2563eb;
@@ -161,8 +161,8 @@
   --app-line-strong: #46566e;
 
   --app-ink: #e9eef5;
-  --app-ink-2: #94a3b8;
-  --app-ink-3: #64748b;
+  --app-ink-2: #9aabc0;
+  --app-ink-3: #8291a8;
   --app-ink-inverse: #0c1017;
 
   --app-primary: #3b82f6;
@@ -565,6 +565,22 @@
 
 .omni-pop {
   animation: omni-fade-up 160ms var(--ease-out-expo);
+}
+
+@keyframes omni-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 路由切换入场过渡（Layout 按 pathname 触发） */
+.omni-page-enter {
+  animation: omni-page-in 200ms var(--ease-out-expo) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

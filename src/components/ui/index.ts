@@ -10,6 +10,9 @@ export type { CardProps } from "./Card";
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
 
+export { Skeleton, SkeletonCard } from "./Skeleton";
+export type { SkeletonProps, SkeletonCardProps } from "./Skeleton";
+
 export { Field, Input, Label, Select, Textarea } from "./Input";
 export type {
   ControlSize,

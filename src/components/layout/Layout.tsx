@@ -36,7 +36,12 @@ export function Layout() {
     <div className="flex h-screen overflow-hidden bg-canvas">
       <Sidebar activeTab={activeTab} onTabChange={(tab) => navigate(`/${tab}`)} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Outlet />
+        <div
+          key={location.pathname}
+          className="omni-page-enter flex min-h-0 flex-1 flex-col"
+        >
+          <Outlet />
+        </div>
       </main>
       <ShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />

@@ -13,6 +13,7 @@ import {
   PageBody,
   PageHeader,
   Select,
+  SkeletonCard,
   Textarea,
 } from "../components/ui";
 
@@ -354,7 +355,13 @@ export function MemoryPage() {
             </Card>
           )}
 
-          {filtered.length === 0 && !loading ? (
+          {loading && items.length === 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          ) : filtered.length === 0 && !loading ? (
             <EmptyState
               icon={Brain}
               title={items.length === 0 ? "还没有记忆" : "没有匹配的记忆"}

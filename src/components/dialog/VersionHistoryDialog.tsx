@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { diffLines } from "diff";
 import { History, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { versionDb, type ChapterVersionRow } from "../../services";
-import { Badge, Button, Dialog, EmptyState } from "../ui";
+import { Badge, Button, Dialog, EmptyState, Skeleton } from "../ui";
 import { cn } from "../../lib/cn";
 
 interface VersionHistoryDialogProps {
@@ -171,7 +171,15 @@ export function VersionHistoryDialog({
         {/* 版本列表 */}
         <div className="shrink-0 overflow-auto rounded-lg border border-line">
           {loading ? (
-            <p className="px-3 py-4 text-center text-[13px] text-ink-3">加载中…</p>
+            <div className="space-y-2 p-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-12" />
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 flex-1" />
+                </div>
+              ))}
+            </div>
           ) : versions.length === 0 ? (
             <EmptyState
               icon={History}
