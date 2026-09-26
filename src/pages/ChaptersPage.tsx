@@ -465,6 +465,33 @@ export function ChaptersPage() {
         }
       />
       <PageBody>
+        {showAddVolume && (
+          <div className="omni-pop mb-4 flex items-center gap-2">
+            <Input
+              autoFocus
+              inputSize="sm"
+              value={newVolumeTitle}
+              onChange={(e) => setNewVolumeTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddVolume();
+                if (e.key === "Escape") setShowAddVolume(false);
+              }}
+              placeholder="输入卷名，回车创建"
+              className="max-w-72"
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleAddVolume}
+              disabled={!newVolumeTitle.trim()}
+            >
+              创建
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowAddVolume(false)}>
+              取消
+            </Button>
+          </div>
+        )}
         {isEmpty ? (
           <EmptyState
             icon={BookOpen}
@@ -480,34 +507,6 @@ export function ChaptersPage() {
           />
         ) : (
           <div className="space-y-4">
-            {showAddVolume && (
-              <div className="omni-pop flex items-center gap-2">
-                <Input
-                  autoFocus
-                  inputSize="sm"
-                  value={newVolumeTitle}
-                  onChange={(e) => setNewVolumeTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddVolume();
-                    if (e.key === "Escape") setShowAddVolume(false);
-                  }}
-                  placeholder="输入卷名，回车创建"
-                  className="max-w-72"
-                />
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleAddVolume}
-                  disabled={!newVolumeTitle.trim()}
-                >
-                  创建
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setShowAddVolume(false)}>
-                  取消
-                </Button>
-              </div>
-            )}
-
             {projectVolumes.map((volume) => {
               const isOpen = !collapsed.has(volume.id);
               const volChapters = chaptersByVolume.get(volume.id) ?? [];

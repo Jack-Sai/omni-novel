@@ -3,8 +3,10 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  Handle,
   MarkerType,
   MiniMap,
+  Position,
   ReactFlow,
   useEdgesState,
   useNodesState,
@@ -33,7 +35,18 @@ function CharacterNode({ data }: NodeProps<CharacterNodeType>) {
   const { character } = data;
   const initial = character.name?.trim()?.[0];
   return (
-    <div className="cursor-pointer rounded-xl border border-line bg-surface px-3 py-2 shadow-xs transition-shadow hover:shadow-md">
+    <div className="relative cursor-pointer rounded-xl border border-line bg-surface px-3 py-2 shadow-xs transition-shadow hover:shadow-md">
+      {/* 连接点：左侧接入、右侧引出（悬停才明显） */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!h-3 !w-3 !border-2 !border-primary !bg-surface hover:!scale-125"
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!h-3 !w-3 !border-2 !border-primary !bg-surface hover:!scale-125"
+      />
       <div className="flex items-center gap-2">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-[12px] font-semibold text-primary">
           {initial ?? "?"}
@@ -155,7 +168,7 @@ export function RelationGraph() {
     setDialogOpen(true);
   }, []);
 
-  const onNodeClick = useCallback(
+  const onNodeDoubleClick = useCallback(
     (_: unknown, node: CharacterNodeType) => {
       setSelectedEdgeId(null);
       const c = characters.find((x) => x.id === node.id);
@@ -254,7 +267,7 @@ export function RelationGraph() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={onNodeClick}
+        onNodeDoubleClick={onNodeDoubleClick}
         onEdgeClick={onEdgeClick}
         onEdgeDoubleClick={onEdgeDoubleClick}
         onNodeDragStop={onNodeDragStop}
@@ -307,7 +320,7 @@ export function RelationGraph() {
 
       {!selectedRelation && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-elevated/80 px-3 py-1 text-[11px] text-ink-3 backdrop-blur">
-          拖线建关系 · 单击选中 · 双击编辑
+          拖线建关系 · 单击选中 · 双击编辑 · 双击节点看人物
         </div>
       )}
 
