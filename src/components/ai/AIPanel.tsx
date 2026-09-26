@@ -5,6 +5,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Bot,
+  Check,
+  Copy,
   History,
   Loader2,
   Maximize2,
@@ -12,6 +14,7 @@ import {
   MoreHorizontal,
   PenTool,
   Plus,
+  RefreshCw,
   Send,
   Sparkles,
   Square,
@@ -51,6 +54,24 @@ interface AIPanelProps {
   editor: Editor | null;
   selectedText: string;
   chapterContent: string;
+  /** 外部触发的预填输入（点「问 AI」时传入，消费后由调用方清空） */
+  prefill?: string;
+  onPrefillConsumed?: () => void;
+}
+
+interface ChatParams {
+  systemPrompt: string;
+  /** 发送给模型的用户消息 */
+  userContent: string;
+  /** 界面上显示的用户消息（默认同 userContent） */
+  displayContent?: string;
+  /** 记忆检索词（默认同 userContent，快捷操作传正文片段以提升命中） */
+  retrievalQuery?: string;
+  action?: string;
+  applyMode?: "replace" | "append";
+  canApply?: boolean;
+  /** 重新生成用：不追加/不落库用户消息，直接发起新一轮回复 */
+  skipUserMessage?: boolean;
 }
 
 interface Message {
@@ -190,7 +211,7 @@ function MarkdownText({ content }: { content: string }) {
   );
 }
 
-export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) {
+export function AIPanel({ editor, selectedText, chapterContent, prefill, onPrefillConsumed }: AIPanelProps) {
   const { ai, aiPanelWidth, updateAiPanelWidth, updateAISettings } = useSettingsStore();
   const { currentProject } = useProjectStore();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -201,7 +222,13 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
   const [sessionId, setSessionId] = useState<string | null>(null);
   /** 展开记忆注入明细的消息 ID */
   const [expandedMemoriesId, setExpandedMemoriesId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  /** 刚复制成功的消息 ID（短暂显示"已复制"） */
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  /** 最近一次发起的对话参数（供"重新生成"复用） */
+  const lastRunParamsRef = useRef<ChatParams | null>(null);
+  /** runChat 的稳定引用，供"重新生成"按钮回调 */
+  const runChatRef = useRef<((params: ChatParams) => Promise<void>) | null>(null);
   /** 当前进行中的流式请求 ID，用于取消生成 */
   const requestIdRef = useRef<string | null>(null);
 
@@ -309,9 +336,21 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       .catch((e) => console.warn("加载自定义提示词失败:", e));
   }, []);
 
+  // 就近自动滚动：仅当用户在底部附近时跟随，上翻阅读时不打扰
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  // 外部「问 AI」预填
+  useEffect(() => {
+    if (prefill) {
+      setInput(prefill);
+      onPrefillConsumed?.();
+    }
+  }, [prefill, onPrefillConsumed]);
 
   const checkConnection = async () => {
     const connected = await aiService.checkConnection();
@@ -320,18 +359,8 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
 
   /** 统一的对话执行流程：追加消息 → 确保会话 → 流式生成 → 落库 */
   const runChat = useCallback(
-    async (params: {
-      systemPrompt: string;
-      /** 发送给模型的用户消息 */
-      userContent: string;
-      /** 界面上显示的用户消息（默认同 userContent） */
-      displayContent?: string;
-      /** 记忆检索词（默认同 userContent，快捷操作传正文片段以提升命中） */
-      retrievalQuery?: string;
-      action?: string;
-      applyMode?: "replace" | "append";
-      canApply?: boolean;
-    }) => {
+    async (params: ChatParams) => {
+      lastRunParamsRef.current = params;
       const display = params.displayContent ?? params.userContent;
 
       // 检索相关记忆 + 启用的文风卡片（注入 AI 上下文）
@@ -357,19 +386,22 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
         }
       }
 
-      const userMsg: Message = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: display,
-        action: params.action,
-        memories: memories.length > 0 ? memories : undefined,
-      };
-
-      setMessages((prev) => [...prev, userMsg]);
+      if (!params.skipUserMessage) {
+        const userMsg: Message = {
+          id: crypto.randomUUID(),
+          role: "user",
+          content: display,
+          action: params.action,
+          memories: memories.length > 0 ? memories : undefined,
+        };
+        setMessages((prev) => [...prev, userMsg]);
+      }
       setIsLoading(true);
 
       const sid = await ensureSession(display);
-      saveMessage(sid, { role: "user", content: display, action: params.action });
+      if (!params.skipUserMessage) {
+        saveMessage(sid, { role: "user", content: display, action: params.action });
+      }
 
       const requestId = crypto.randomUUID();
       requestIdRef.current = requestId;
@@ -490,6 +522,35 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
     },
     [messages, ai, aiService, ensureSession, saveMessage],
   );
+
+  useEffect(() => {
+    runChatRef.current = runChat;
+  }, [runChat]);
+
+  /** 重新生成：删除最后一条回复，复用上一次参数跳过用户消息重发 */
+  const handleRegenerate = useCallback(async () => {
+    const last = lastRunParamsRef.current;
+    if (!last || isLoading) return;
+    setMessages((prev) => {
+      const next = [...prev];
+      while (next.length > 0 && next[next.length - 1].role === "assistant") {
+        next.pop();
+      }
+      return next;
+    });
+    await runChat({ ...last, skipUserMessage: true });
+  }, [isLoading, runChat]);
+
+  /** 复制消息内容 */
+  const handleCopy = useCallback(async (msgId: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedId(msgId);
+      setTimeout(() => setCopiedId((prev) => (prev === msgId ? null : prev)), 1500);
+    } catch (e) {
+      console.warn("复制失败:", e);
+    }
+  }, []);
 
   const handleQuickAction = useCallback(
     async (action: QuickAction) => {
@@ -827,7 +888,7 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-auto px-3 py-3">
+      <div ref={messagesContainerRef} className="flex-1 overflow-auto px-3 py-3">
         {messages.length === 0 && !isLoading ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <Bot size={32} className="mb-3 text-ink-3" />
@@ -838,8 +899,10 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           </div>
         ) : (
           <div className="space-y-3">
-            {messages.map((msg) => {
+            {messages.map((msg, index) => {
               const isUser = msg.role === "user";
+              const isLast = index === messages.length - 1;
+              const isStreaming = !isUser && isLast && isLoading && !!msg.content;
               return (
                 <div key={msg.id}>
                   <div
@@ -872,7 +935,19 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
                             {msg.reasoning}
                           </div>
                         )}
-                        {isUser ? msg.content : <MarkdownText content={msg.content} />}
+                        {isUser ? (
+                          msg.content
+                        ) : (
+                          <>
+                            <MarkdownText content={msg.content} />
+                            {isStreaming && (
+                              <span
+                                aria-hidden
+                                className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-[2px] animate-pulse bg-primary"
+                              />
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                     {isUser && (
@@ -920,17 +995,48 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
                     </div>
                   )}
 
-                  {/* Apply button for assistant messages */}
-                  {!isUser && msg.canApply && msg.content && (
-                    <div className="mt-1.5 flex justify-start pl-7">
+                  {/* assistant 操作栏：应用 / 复制 / 重新生成 */}
+                  {!isUser && msg.content && !isStreaming && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-7">
+                      {msg.canApply && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleApply(msg)}
+                          className="text-xs"
+                        >
+                          应用到正文
+                        </Button>
+                      )}
                       <Button
-                        variant="secondary"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleApply(msg)}
-                        className="text-xs"
+                        onClick={() => void handleCopy(msg.id, msg.content)}
+                        className="h-6 gap-1 px-1.5 text-[11px] text-ink-3"
                       >
-                        应用到正文
+                        {copiedId === msg.id ? (
+                          <>
+                            <Check size={11} className="text-success" />
+                            已复制
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={11} />
+                            复制
+                          </>
+                        )}
                       </Button>
+                      {isLast && !isLoading && lastRunParamsRef.current && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleRegenerate()}
+                          className="h-6 gap-1 px-1.5 text-[11px] text-ink-3"
+                        >
+                          <RefreshCw size={11} />
+                          重新生成
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -948,8 +1054,6 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
                 </div>
               </div>
             )}
-
-            <div ref={messagesEndRef} />
           </div>
         )}
       </div>

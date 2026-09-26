@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   Check,
+  Copy,
   Download,
   FileText,
   History,
@@ -57,6 +58,10 @@ export function EditorPage() {
   const [showStats, setShowStats] = useState(false);
   const [selectedText, setSelectedText] = useState("");
   const [versionDialogOpen, setVersionDialogOpen] = useState(false);
+  /** 选区浮层位置（视口坐标） */
+  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
+  /** 「问 AI」预填输入 */
+  const [askAiPrefill, setAskAiPrefill] = useState("");
   const editorRef = useRef<EditorRef>(null);
   const { projects, currentProject, addProject, setCurrentProject, deleteProject } =
     useProjectStore();
@@ -149,6 +154,39 @@ export function EditorPage() {
 
   const handleSelectChapter = (chapter: Chapter) => {
     setCurrentChapter(chapter);
+  };
+
+  /** 选区变化：记录文字并把浮层锚到选区末尾（视口坐标） */
+  const handleSelectionUpdate = useCallback((text: string) => {
+    setSelectedText(text);
+    const ed = editorRef.current?.getEditor();
+    if (!text || !ed) {
+      setSelectionPos(null);
+      return;
+    }
+    try {
+      const { to } = ed.state.selection;
+      const coords = ed.view.coordsAtPos(to);
+      setSelectionPos({ x: coords.left, y: coords.top });
+    } catch {
+      setSelectionPos(null);
+    }
+  }, []);
+
+  const handleCopySelection = async () => {
+    try {
+      await navigator.clipboard.writeText(selectedText);
+    } catch (e) {
+      console.warn("复制选区失败:", e);
+    }
+  };
+
+  const handleAskAi = () => {
+    setAiPanelOpen(true);
+    setAskAiPrefill(
+      `请分析这段文字并给出改进建议（结构、节奏、画面感）：\n\n${selectedText.slice(0, 800)}`,
+    );
+    setSelectionPos(null);
   };
 
   const handleExport = async (format: "txt" | "markdown" | "html" | "docx" | "epub") => {
@@ -377,7 +415,7 @@ export function EditorPage() {
                 content={currentChapter.content}
                 placeholder={`开始写作 ${currentChapter.title}…`}
                 onUpdate={(content) => updateChapterContent(currentChapter.id, content)}
-                onSelectionUpdate={setSelectedText}
+                onSelectionUpdate={handleSelectionUpdate}
               />
 
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas px-5 py-2 text-[12px] text-ink-3">
@@ -425,9 +463,43 @@ export function EditorPage() {
             editor={editorRef.current?.getEditor() ?? null}
             selectedText={selectedText}
             chapterContent={currentChapter.content}
+            prefill={askAiPrefill}
+            onPrefillConsumed={() => setAskAiPrefill("")}
           />
         )}
       </div>
+
+      {/* 选区快捷浮层：复制 / 问 AI */}
+      {selectionPos && selectedText && !versionDialogOpen && (
+        <div
+          style={{ left: selectionPos.x, top: selectionPos.y }}
+          className="fixed z-40 -translate-x-1/3 -translate-y-[calc(100%+8px)]"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <div className="flex items-center gap-0.5 rounded-lg border border-line bg-elevated p-1 shadow-lg">
+            <Button
+              variant="ghost"
+              size="sm"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void handleCopySelection()}
+              className="h-7 gap-1 px-2 text-xs"
+            >
+              <Copy size={12} />
+              复制
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleAskAi}
+              className="h-7 gap-1 px-2 text-xs"
+            >
+              <Sparkles size={12} />
+              问 AI
+            </Button>
+          </div>
+        </div>
+      )}
 
       {currentProject && currentChapter && (
         <VersionHistoryDialog
