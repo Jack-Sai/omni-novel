@@ -346,9 +346,9 @@
   .tiptap {
     outline: none;
     min-height: 60vh;
-    font-family: var(--font-serif);
+    font-family: var(--app-reading-font, var(--font-serif));
     font-size: var(--app-reading-size);
-    line-height: 1.95;
+    line-height: var(--app-reading-leading, 1.95);
     color: var(--app-ink);
     letter-spacing: 0.01em;
   }

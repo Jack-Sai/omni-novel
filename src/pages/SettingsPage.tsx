@@ -69,6 +69,17 @@ const backendItems = (Object.keys(backendPresets) as BackendType[]).map((key) =>
   label: backendPresets[key].label,
 }));
 
+/** 编辑器正文字体预设（值为空串 = 默认衬线） */
+const fontPresets: { value: string; label: string }[] = [
+  { value: "", label: "默认衬线" },
+  { value: 'SimSun, "宋体", serif', label: "宋体" },
+  { value: 'KaiTi, "楷体", "STKaiti", serif', label: "楷体" },
+  { value: 'FangSong, "仿宋", "STFangsong", serif', label: "仿宋" },
+  { value: '"Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif', label: "黑体" },
+  { value: "__custom__", label: "自定义" },
+];
+const presetFontValues = fontPresets.filter((p) => p.value !== "__custom__").map((p) => p.value);
+
 export function SettingsPage() {
   const {
     ai,
@@ -87,6 +98,8 @@ export function SettingsPage() {
   const [testResult, setTestResult] = useState<"success" | "failure" | null>(null);
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState<boolean | null>(null);
+  /** 是否处于"自定义字体"编辑态（值为预设外的 font stack 时也视为自定义） */
+  const [fontCustom, setFontCustom] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
@@ -516,8 +529,68 @@ export function SettingsPage() {
       <PageBody padded>
         <div className="mx-auto w-full max-w-4xl space-y-4">
           {/* 外观 */}
-          <Section title="外观" icon={Palette}>
+          <Section title="外观" icon={Palette} contentClassName="space-y-5">
             <ThemeToggle />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field label="正文字体" hint="小说正文（编辑器）使用的字体">
+                <div className="flex gap-2">
+                  <Select
+                    value={fontCustom ? "__custom__" : editor.fontFamily}
+                    onChange={(e) => {
+                      if (e.target.value === "__custom__") {
+                        setFontCustom(true);
+                      } else {
+                        setFontCustom(false);
+                        updateEditorSettings({ fontFamily: e.target.value });
+                      }
+                    }}
+                    className="flex-1"
+                  >
+                    {fontPresets.map((p) => (
+                      <option key={p.value || "__default__"} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </Select>
+                  {(fontCustom || !presetFontValues.includes(editor.fontFamily)) && (
+                    <Input
+                      value={editor.fontFamily}
+                      onChange={(e) => updateEditorSettings({ fontFamily: e.target.value })}
+                      placeholder="如：KaiTi, 楷体, serif"
+                      className="flex-1"
+                    />
+                  )}
+                </div>
+              </Field>
+              <Field
+                label={`正文字号 · ${Math.round(editor.fontSize * 16)}px`}
+                hint="小说正文的字体大小，范围 14~24px"
+              >
+                <input
+                  type="range"
+                  min="0.875"
+                  max="1.5"
+                  step="0.0625"
+                  value={editor.fontSize}
+                  onChange={(e) => updateEditorSettings({ fontSize: parseFloat(e.target.value) })}
+                  className="w-full"
+                />
+              </Field>
+            </div>
+            <Field
+              label={`正文行高 · ${editor.lineHeight.toFixed(2)}`}
+              hint="段落行间距，越大行与行之间越宽松"
+            >
+              <input
+                type="range"
+                min="1.4"
+                max="2.4"
+                step="0.05"
+                value={editor.lineHeight}
+                onChange={(e) => updateEditorSettings({ lineHeight: parseFloat(e.target.value) })}
+                className="w-full"
+              />
+            </Field>
           </Section>
 
           {/* 编辑器 */}

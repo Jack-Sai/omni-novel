@@ -30,8 +30,12 @@ export interface AISettings {
 export interface EditorSettings {
   autoSaveEnabled: boolean;
   autoSaveInterval: number;
+  /** 正文字号（rem，1 = 16px） */
   fontSize: number;
+  /** 正文行高（倍数） */
   lineHeight: number;
+  /** 正文字体（CSS font stack，"" = 默认衬线） */
+  fontFamily: string;
   editorWidth: number;
   /** 打字机滚动：输入时保持光标在视口中部 */
   typewriterScroll: boolean;
@@ -97,6 +101,7 @@ const defaultEditorSettings: EditorSettings = {
   autoSaveInterval: 30000,
   fontSize: 1.0625,
   lineHeight: 1.95,
+  fontFamily: "",
   editorWidth: 42,
   typewriterScroll: false,
   chapterWordTarget: 3000,

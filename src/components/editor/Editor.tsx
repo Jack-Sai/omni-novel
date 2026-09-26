@@ -1,8 +1,9 @@
-import { forwardRef, useImperativeHandle } from "react";
+import { forwardRef, useImperativeHandle, useEffect } from "react";
 import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount } from "@tiptap/extensions";
 import { Toolbar } from "./Toolbar";
+import { useSettingsStore } from "../../stores/settingsStore";
 
 export interface EditorRef {
   getEditor: () => TiptapEditor | null;
@@ -44,6 +45,19 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
   useImperativeHandle(ref, () => ({
     getEditor: () => editor,
   }));
+
+  // 把字体/字号/行高设置写入 CSS 变量（.tiptap 通过 var() 消费）
+  const { fontSize, lineHeight, fontFamily } = useSettingsStore((s) => s.editor);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--app-reading-size", `${fontSize}rem`);
+    root.style.setProperty("--app-reading-leading", String(lineHeight));
+    if (fontFamily) {
+      root.style.setProperty("--app-reading-font", fontFamily);
+    } else {
+      root.style.removeProperty("--app-reading-font");
+    }
+  }, [fontSize, lineHeight, fontFamily]);
 
   if (!editor) {
     return null;
