@@ -134,12 +134,14 @@ export function BookshelfPage() {
               <Plus size={15} />
               新建作品
             </Button>
-            <span className="text-sm text-ink-2">
-              {currentUser?.display_name || currentUser?.username}
-            </span>
-            <Button variant="ghost" size="icon-sm" onClick={handleLogout} title="退出登录">
-              <LogOut size={16} />
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-sm text-ink-2">
+                {currentUser?.display_name || currentUser?.username}
+              </span>
+              <Button variant="ghost" size="icon-sm" onClick={handleLogout} title="退出登录">
+                <LogOut size={16} />
+              </Button>
+            </div>
           </>
         }
       />
@@ -158,7 +160,7 @@ export function BookshelfPage() {
             }
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
               <div
                 key={project.id}
