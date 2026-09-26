@@ -56,7 +56,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         collapsed ? "w-16" : "w-64",
       )}
     >
-      <div className={cn("flex items-center gap-3 py-5", collapsed ? "px-2" : "px-4")}>
+      <div className={cn("flex items-center gap-3 py-5", collapsed ? "pl-2.5 pr-2" : "px-4")}>
         <img
           src="/logo.png"
           alt=""

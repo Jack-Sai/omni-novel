@@ -52,6 +52,7 @@ import {
   PageBody,
   PageHeader,
   Section,
+  SearchSelect,
   SegmentedControl,
   Select,
   SettingRow,
@@ -78,9 +79,7 @@ const fontPresets: { value: string; label: string }[] = [
   { value: 'KaiTi, "楷体", "STKaiti", serif', label: "楷体" },
   { value: 'FangSong, "仿宋", "STFangsong", serif', label: "仿宋" },
   { value: '"Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif', label: "黑体" },
-  { value: "__custom__", label: "自定义" },
 ];
-const presetFontValues = fontPresets.filter((p) => p.value !== "__custom__").map((p) => p.value);
 
 export function SettingsPage() {
   const {
@@ -101,9 +100,7 @@ export function SettingsPage() {
   const [testResult, setTestResult] = useState<"success" | "failure" | null>(null);
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState<boolean | null>(null);
-  /** 是否处于"自定义字体"编辑态（值为预设外的 font stack 时也视为自定义） */
-  const [fontCustom, setFontCustom] = useState(false);
-  /** 系统已安装字体列表（供正文字体下拉选择，防止手输错名） */
+  /** 系统已安装字体列表（供正文字体检索选择，防止输错字体名） */
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
   /** llama-server PATH 自动检测状态 */
   const [serverDetect, setServerDetect] = useState<"loading" | "found" | "missing">("loading");
@@ -657,43 +654,21 @@ export function SettingsPage() {
           <Section title="外观" icon={Palette} contentClassName="space-y-5">
             <ThemeToggle />
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="正文字体" hint="小说正文（编辑器）使用的字体">
-                <div className="flex gap-2">
-                  <Select
-                    value={fontCustom ? "__custom__" : editor.fontFamily}
-                    onChange={(e) => {
-                      if (e.target.value === "__custom__") {
-                        setFontCustom(true);
-                      } else {
-                        setFontCustom(false);
-                        updateEditorSettings({ fontFamily: e.target.value });
-                      }
-                    }}
-                    className="flex-1"
-                  >
-                    {[
-                      ...fontPresets.filter((p) => p.value !== "__custom__"),
-                      ...systemFonts
-                        .filter((f) => f && !fontPresets.some((p) => p.value === f))
-                        .map((f) => ({ value: f, label: f })),
-                      ...fontPresets.filter((p) => p.value === "__custom__"),
-                    ].map((p) => (
-                      <option key={p.value || "__default__"} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </Select>
-                  {(fontCustom ||
-                    (!presetFontValues.includes(editor.fontFamily) &&
-                      !systemFonts.includes(editor.fontFamily))) && (
-                    <Input
-                      value={editor.fontFamily}
-                      onChange={(e) => updateEditorSettings({ fontFamily: e.target.value })}
-                      placeholder="如：KaiTi, 楷体, serif"
-                      className="flex-1"
-                    />
-                  )}
-                </div>
+              <Field
+                label="正文字体"
+                hint="输入可检索系统已安装字体，也支持直接输入字体名（CSS font-family）"
+              >
+                <SearchSelect
+                  value={editor.fontFamily}
+                  onChange={(v) => updateEditorSettings({ fontFamily: v })}
+                  options={[
+                    ...fontPresets,
+                    ...systemFonts
+                      .filter((f) => f && !fontPresets.some((p) => p.value === f))
+                      .map((f) => ({ value: f, label: f })),
+                  ]}
+                  placeholder="搜索或输入字体…"
+                />
               </Field>
               <Field
                 label={`正文字号 · ${Math.round(editor.fontSize * 16)}px`}

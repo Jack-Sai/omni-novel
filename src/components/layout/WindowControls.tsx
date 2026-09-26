@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Minus, PanelLeftClose, PanelLeftOpen, Square, X } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { cn } from "../../lib/cn";
 import { useUIStore } from "../../stores/uiStore";
@@ -11,8 +12,15 @@ import { useUIStore } from "../../stores/uiStore";
 export function WindowControls() {
   const win = getCurrentWindow();
   const [maximized, setMaximized] = useState(false);
+  const [version, setVersion] = useState("");
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+
+  useEffect(() => {
+    void getVersion()
+      .then(setVersion)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     void win
@@ -51,15 +59,22 @@ export function WindowControls() {
   return (
     <div className="fixed inset-x-0 top-0 z-[60] h-8">
       <div className="absolute inset-0" data-tauri-drag-region />
-      <button
-        type="button"
-        aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
-        title={collapsed ? "展开侧边栏" : "收起侧边栏"}
-        onClick={toggleSidebar}
-        className={cn(btnCls(), "absolute left-0 top-0")}
-      >
-        {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-      </button>
+      <div className="absolute left-0 top-0 flex h-8 items-center">
+        {version && (
+          <span className="pointer-events-none select-none pl-2 pr-1 text-[11px] leading-none text-ink-3">
+            v{version}
+          </span>
+        )}
+        <button
+          type="button"
+          aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
+          title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+          onClick={toggleSidebar}
+          className={cn(btnCls(), "w-8")}
+        >
+          {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+        </button>
+      </div>
       <div className="absolute right-0 top-0 flex h-8">
         <button type="button" aria-label="最小化" title="最小化" className={btnCls()} onClick={handleMinimize}>
           <Minus size={14} />

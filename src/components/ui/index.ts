@@ -22,6 +22,9 @@ export type {
   TextareaProps,
 } from "./Input";
 
+export { SearchSelect } from "./SearchSelect";
+export type { SearchSelectOption, SearchSelectProps } from "./SearchSelect";
+
 export { Page, PageBody, PageHeader, SectionTitle } from "./Page";
 export type { PageBodyProps, PageHeaderProps, PageProps } from "./Page";
 
