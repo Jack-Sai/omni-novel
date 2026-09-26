@@ -1,7 +1,7 @@
 ; Omni Novel - Inno Setup 安装脚本 (Windows 11 x64)
 #define MyAppName "Omni Novel"
 #define MyAppNameNoSpace "OmniNovel"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "JackSai"
 #define MyAppURL "https://github.com/Jack-Sai/omni-novel"
 #define MyAppExeName "omni-novel.exe"
