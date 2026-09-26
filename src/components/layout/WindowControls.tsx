@@ -2,11 +2,23 @@ import { useCallback, useEffect, useState } from "react";
 import { Minus, PanelLeftClose, PanelLeftOpen, Square, X } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useLocation } from "react-router-dom";
 import { cn } from "../../lib/cn";
 import { useUIStore } from "../../stores/uiStore";
+import { useProjectStore } from "../../stores/projectStore";
+
+/** 项目工作区路由（进入这些页面时标题栏中间显示项目名） */
+const PROJECT_ROUTES = [
+  "/editor",
+  "/outline",
+  "/characters",
+  "/worldview",
+  "/foreshadowing",
+  "/memory",
+];
 
 /**
- * 自定义标题栏：顶部 32px 拖拽条 + 右上角最小化/最大化/关闭按钮。
+ * 自定义标题栏：顶部 32px 拖拽条 + 左侧版本号/折叠按钮 + 正中项目名 + 右上角最小化/最大化/关闭按钮。
  * 需要配合 tauri.conf.json 的 decorations:false；内容区需 pt-8 避让。
  */
 export function WindowControls() {
@@ -15,6 +27,10 @@ export function WindowControls() {
   const [version, setVersion] = useState("");
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const currentProject = useProjectStore((s) => s.currentProject);
+  const { pathname } = useLocation();
+  const projectName =
+    currentProject && PROJECT_ROUTES.includes(pathname) ? currentProject.title : null;
 
   useEffect(() => {
     void getVersion()
@@ -81,6 +97,14 @@ export function WindowControls() {
           {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
       </div>
+      {projectName && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-0 flex h-8 max-w-[46vw] -translate-x-1/2 select-none items-center"
+          title={projectName}
+        >
+          <span className="truncate text-[12px] font-medium text-ink-2">{projectName}</span>
+        </div>
+      )}
       <div className="absolute right-0 top-0 flex h-8">
         <button type="button" aria-label="最小化" title="最小化" className={btnCls()} onClick={handleMinimize}>
           <Minus size={14} />

@@ -14,7 +14,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Network } from "lucide-react";
+import { Network, Pencil, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useCharacterStore, type Character } from "../../stores/characterStore";
 import {
@@ -23,7 +23,7 @@ import {
   useRelationStore,
   type CharacterRelation,
 } from "../../stores/relationStore";
-import { EmptyState } from "../ui";
+import { Button, EmptyState } from "../ui";
 import { RelationDialog } from "./RelationDialog";
 
 type CharacterNodeData = { character: Character };
@@ -77,7 +77,7 @@ function ringPosition(index: number, total: number): { x: number; y: number } {
 export function RelationGraph() {
   const { currentProject } = useProjectStore();
   const { characters, setCurrentCharacter } = useCharacterStore();
-  const { relations, positions, setPosition } = useRelationStore();
+  const { relations, positions, setPosition, deleteRelation } = useRelationStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<CharacterNodeType>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -86,6 +86,8 @@ export function RelationGraph() {
   const [preset, setPreset] = useState<{ sourceId?: string; targetId?: string } | undefined>(
     undefined,
   );
+  /** 单击选中的关系边（浮层提供编辑/删除） */
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   const projectCharacters = useMemo(
     () =>
@@ -122,36 +124,51 @@ export function RelationGraph() {
         .map((r) => {
           const color = relationTypeColors[r.type] ?? "#94a3b8";
           const typeLabel = relationTypes.find((t) => t.value === r.type)?.label ?? "关系";
+          const selected = r.id === selectedEdgeId;
           return {
             id: r.id,
             source: r.sourceId,
             target: r.targetId,
             label: r.label || typeLabel,
-            style: { stroke: color, strokeWidth: 2 },
+            selected,
+            style: { stroke: color, strokeWidth: selected ? 3.5 : 2 },
             labelStyle: { fill: "var(--app-ink)", fontSize: 11, fontWeight: 500 },
             labelBgStyle: { fill: "var(--app-elevated)" },
             markerEnd: r.directed
-              ? { type: MarkerType.ArrowClosed, color, width: 16, height: 16 }
+              ? {
+                  type: MarkerType.ArrowClosed,
+                  color,
+                  width: selected ? 18 : 16,
+                  height: selected ? 18 : 16,
+                }
               : undefined,
           };
         }),
     );
-  }, [projectRelations, nameById, setEdges]);
+  }, [projectRelations, nameById, selectedEdgeId, setEdges]);
 
   const onConnect = useCallback((conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return;
     setEditRelation(null);
     setPreset({ sourceId: conn.source, targetId: conn.target });
+    setSelectedEdgeId(null);
     setDialogOpen(true);
   }, []);
 
   const onNodeClick = useCallback(
     (_: unknown, node: CharacterNodeType) => {
+      setSelectedEdgeId(null);
       const c = characters.find((x) => x.id === node.id);
       if (c) setCurrentCharacter(c);
     },
     [characters, setCurrentCharacter],
   );
+
+  const onEdgeClick = useCallback((_: unknown, edge: Edge) => {
+    setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id));
+  }, []);
+
+  const onPaneClick = useCallback(() => setSelectedEdgeId(null), []);
 
   const onEdgeDoubleClick = useCallback(
     (_: unknown, edge: Edge) => {
@@ -159,6 +176,7 @@ export function RelationGraph() {
       if (r) {
         setEditRelation(r);
         setPreset(undefined);
+        setSelectedEdgeId(null);
         setDialogOpen(true);
       }
     },
@@ -172,6 +190,50 @@ export function RelationGraph() {
     [setPosition],
   );
 
+  const selectedRelation = useMemo(
+    () => projectRelations.find((r) => r.id === selectedEdgeId) ?? null,
+    [projectRelations, selectedEdgeId],
+  );
+
+  const handleEditSelected = useCallback(() => {
+    if (!selectedRelation) return;
+    setEditRelation(selectedRelation);
+    setPreset(undefined);
+    setSelectedEdgeId(null);
+    setDialogOpen(true);
+  }, [selectedRelation]);
+
+  const handleDeleteSelected = useCallback(() => {
+    if (!selectedRelation) return;
+    const s = nameById.get(selectedRelation.sourceId) ?? "?";
+    const t = nameById.get(selectedRelation.targetId) ?? "?";
+    if (!window.confirm(`删除「${s}」与「${t}」之间的关系？`)) return;
+    deleteRelation(selectedRelation.id);
+    setSelectedEdgeId(null);
+  }, [selectedRelation, nameById, deleteRelation]);
+
+  // 选中边时支持 Delete/Backspace 删除、Escape 取消选中
+  useEffect(() => {
+    if (!selectedEdgeId) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        handleDeleteSelected();
+      } else if (e.key === "Escape") {
+        setSelectedEdgeId(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedEdgeId, handleDeleteSelected]);
+
   if (projectCharacters.length < 2) {
     return (
       <EmptyState
@@ -184,7 +246,7 @@ export function RelationGraph() {
   }
 
   return (
-    <div className="h-[min(72vh,760px)] overflow-hidden rounded-xl border border-line">
+    <div className="relative h-[min(72vh,760px)] overflow-hidden rounded-xl border border-line">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -193,8 +255,10 @@ export function RelationGraph() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onEdgeDoubleClick={onEdgeDoubleClick}
         onNodeDragStop={onNodeDragStop}
+        onPaneClick={onPaneClick}
         fitView
         minZoom={0.2}
         maxZoom={2}
@@ -213,6 +277,39 @@ export function RelationGraph() {
           nodeColor={() => "var(--app-primary-soft)"}
         />
       </ReactFlow>
+
+      {selectedRelation && (
+        <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-line bg-elevated/95 px-3 py-2 shadow-lg backdrop-blur">
+          <span className="max-w-52 truncate text-[12px] text-ink-2">
+            {nameById.get(selectedRelation.sourceId)} → {nameById.get(selectedRelation.targetId)}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={handleEditSelected}
+          >
+            <Pencil size={12} />
+            编辑
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs text-red-500 hover:text-red-600"
+            onClick={handleDeleteSelected}
+          >
+            <Trash2 size={12} />
+            删除
+          </Button>
+          <span className="text-[11px] text-ink-3">Del 删除 · Esc 取消</span>
+        </div>
+      )}
+
+      {!selectedRelation && (
+        <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-elevated/80 px-3 py-1 text-[11px] text-ink-3 backdrop-blur">
+          拖线建关系 · 单击选中 · 双击编辑
+        </div>
+      )}
 
       <RelationDialog
         open={dialogOpen}
