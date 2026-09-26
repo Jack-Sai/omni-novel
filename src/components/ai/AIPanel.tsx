@@ -134,6 +134,45 @@ function stripChatter(raw: string): string {
   return raw;
 }
 
+/** HTML → 纯文本：作为 AI 上下文，避免模型模仿输出 <p> 等标签 */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** 气泡显示前剥 HTML 标签（模型仍输出 <p> 时的显示兜底）；无标签原样返回 */
+function stripHtmlForDisplay(text: string): string {
+  if (!/<[a-z][^>]*>/i.test(text)) return text;
+  return htmlToText(text);
+}
+
+/** 应用到正文前格式化：含 HTML 标签按原样插入；纯文本转义并分段包 <p> */
+function formatForApply(raw: string): string {
+  const content = stripChatter(raw);
+  if (!content) return "";
+  if (/<[a-z][^>]*>/i.test(content)) return content;
+  return content
+    .split(/\n{2,}/)
+    .map((para) => {
+      const escaped = para
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<p>${escaped.replace(/\n/g, "<br>")}</p>`;
+    })
+    .join("");
+}
+
 const memoryKindLabels: Record<string, string> = {
   summary: "摘要",
   event: "事件",
@@ -233,6 +272,8 @@ function MarkdownText({ content }: { content: string }) {
 export function AIPanel({ getEditor, selectedText, chapterContent, onContentApplied, prefill, onPrefillConsumed }: AIPanelProps) {
   const { ai, aiPanelWidth, updateAiPanelWidth, updateAISettings } = useSettingsStore();
   const { currentProject } = useProjectStore();
+  /** 章节正文的纯文本形态：作为续写/检索上下文，避免模型模仿 HTML 输出 <p> 标签 */
+  const plainChapter = useMemo(() => htmlToText(chapterContent), [chapterContent]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -587,7 +628,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
       if (action.needsSelection && !selectedText) return;
 
       const context =
-        action.key === "continuation" ? chapterContent.slice(-500) : selectedText;
+        action.key === "continuation" ? plainChapter.slice(-500) : selectedText;
       const userContent =
         action.key === "continuation"
           ? "请续写下面的内容，保持风格一致：\n\n" + (context || "（从这里开始续写）")
@@ -627,7 +668,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
   const handleUsePrompt = useCallback(
     async (opts: { label: string; systemPrompt: string; action?: string }) => {
       if (isLoading) return;
-      const context = selectedText || chapterContent.slice(-500);
+      const context = selectedText || plainChapter.slice(-500);
       const userContent = context
         ? `请运用「${opts.label}」处理以下内容：\n\n${context}`
         : `请以「${opts.label}」的职责开始工作，我随后提供具体内容。`;
@@ -694,7 +735,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
     // 实例为空或已销毁（切章重挂载）时直接返回，避免静默失效造成不同步
     if (!editor || editor.isDestroyed) return;
 
-    const content = stripChatter(msg.content);
+    const content = formatForApply(msg.content);
     if (!content) return;
 
     if (msg.applyMode === "append") {
@@ -981,7 +1022,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
                           msg.content
                         ) : (
                           <>
-                            <MarkdownText content={msg.content} />
+                            <MarkdownText content={stripHtmlForDisplay(msg.content)} />
                             {isStreaming && (
                               <span
                                 aria-hidden
