@@ -51,17 +51,23 @@ export function Dialog({
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="omni-overlay fixed inset-0 z-50 bg-[var(--app-scrim)]" />
-        <RadixDialog.Content
+        <RadixDialog.Overlay
           className={cn(
-            "fixed left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2",
-            "overflow-hidden rounded-2xl border border-line bg-elevated shadow-xl",
-            "focus:outline-none",
-            isTop ? "omni-panel-top top-[12vh]" : "omni-panel top-1/2 -translate-y-1/2",
-            sizeStyles[size],
-            className,
+            "omni-overlay fixed inset-0 z-50 flex bg-[var(--app-scrim)]",
+            isTop
+              ? "items-start justify-center p-4 pt-[12vh]"
+              : "items-center justify-center p-4",
           )}
         >
+          <RadixDialog.Content
+            className={cn(
+              "max-h-[85dvh] w-full overflow-y-auto rounded-2xl border border-line bg-elevated shadow-xl",
+              "focus:outline-none",
+              isTop ? "omni-panel omni-panel-top" : "omni-panel",
+              sizeStyles[size],
+              className,
+            )}
+          >
           {hideHeader ? (
             <RadixDialog.Title className="sr-only">{title}</RadixDialog.Title>
           ) : (
@@ -103,6 +109,7 @@ export function Dialog({
             </div>
           )}
         </RadixDialog.Content>
+        </RadixDialog.Overlay>
       </RadixDialog.Portal>
     </RadixDialog.Root>
   );
