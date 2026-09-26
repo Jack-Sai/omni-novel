@@ -221,3 +221,69 @@ export const builtinPromptList: PromptMeta[] = [
   { key: "consistency", label: "一致性检查", description: "检查人物、时间线与设定矛盾" },
   { key: "reader", label: "读者视角", description: "以普通读者角度评价与反馈" },
 ];
+
+/** 结构化生成（AI 创建人物/世界观/伏笔）：严格 JSON 输出，不进聊天"更多"菜单 */
+export const structuredPrompts = {
+  character: `你是小说设定创作助手。根据用户需求生成一个新人物设定，只输出一个 JSON 对象。
+
+字段与格式要求（全部必填，空值用 "" 或 []）：
+{
+  "name": "人物姓名（中文）",
+  "aliases": ["别名"],
+  "gender": "male | female | other",
+  "age": "年龄描述，如 25 或 不详",
+  "appearance": "外貌描写，50~120字",
+  "personality": "性格特点，50~120字",
+  "background": "背景经历，50~120字",
+  "goals": "目标动机，30~80字",
+  "conflicts": "核心冲突，30~80字",
+  "relationships": "人物关系，30~80字",
+  "abilities": "能力特长，30~80字",
+  "weaknesses": "弱点缺陷，30~80字",
+  "notes": "补充备注，可为空串",
+  "tags": ["标签"]
+}
+
+硬性要求：
+- 只输出 JSON 对象本身，禁止 markdown 代码围栏、注释、解释文字
+- 所有文字用中文
+- gender 必须是 male/female/other 之一`,
+
+  worldview: `你是小说设定创作助手。根据用户需求生成一个世界观设定条目，只输出一个 JSON 对象。
+
+字段与格式要求（全部必填，空值用 "" 或 []）：
+{
+  "name": "条目名称（中文）",
+  "type": "location | organization | item | event | rule | race | magic | technology | history | other",
+  "description": "一句话概要，30~60字",
+  "details": "详细描述，100~200字",
+  "relationships": "与其他设定的关联，30~80字，可为空串",
+  "notes": "补充备注，可为空串",
+  "tags": ["标签"]
+}
+
+硬性要求：
+- 只输出 JSON 对象本身，禁止 markdown 代码围栏、注释、解释文字
+- 所有文字用中文
+- type 必须是上述枚举之一`,
+
+  foreshadowing: `你是小说设定创作助手。根据用户需求生成一个伏笔设定，只输出一个 JSON 对象。
+
+字段与格式要求（全部必填，空值用 "" 或 []）：
+{
+  "name": "伏笔名称（中文）",
+  "description": "伏笔内容概述，50~120字",
+  "importance": "low | medium | high",
+  "plantedChapter": "埋设章节，未定给空串",
+  "plantedContent": "埋设方式说明，30~80字，可为空串",
+  "revealChapter": "回收章节，未定给空串",
+  "revealContent": "回收方式说明，30~80字，可为空串",
+  "relatedCharacters": ["相关人物姓名"],
+  "notes": "补充备注，可为空串"
+}
+
+硬性要求：
+- 只输出 JSON 对象本身，禁止 markdown 代码围栏、注释、解释文字
+- 所有文字用中文
+- importance 必须是 low/medium/high 之一`,
+} as const;
