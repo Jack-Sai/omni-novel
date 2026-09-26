@@ -60,7 +60,15 @@ interface AIPanelProps {
   /** 外部触发的预填输入（点「问 AI」时传入，消费后由调用方清空） */
   prefill?: string;
   onPrefillConsumed?: () => void;
+  /** 外部触发的快捷操作请求（选区浮层点击，消费后由调用方清空） */
+  quickActionRequest?: { id: number; request: AiQuickActionRequest } | null;
+  onQuickActionConsumed?: () => void;
 }
+
+/** 选区浮层触发的快捷操作：quick = 面板快捷按钮；prompt = 内置/自定义提示词 */
+export type AiQuickActionRequest =
+  | { type: "quick"; key: PromptKey }
+  | { type: "prompt"; label: string; systemPrompt: string };
 
 interface ChatParams {
   systemPrompt: string;
@@ -269,7 +277,7 @@ function MarkdownText({ content }: { content: string }) {
   );
 }
 
-export function AIPanel({ getEditor, selectedText, chapterContent, onContentApplied, prefill, onPrefillConsumed }: AIPanelProps) {
+export function AIPanel({ getEditor, selectedText, chapterContent, onContentApplied, prefill, onPrefillConsumed, quickActionRequest, onQuickActionConsumed }: AIPanelProps) {
   const { ai, aiPanelWidth, updateAiPanelWidth, updateAISettings } = useSettingsStore();
   const { currentProject } = useProjectStore();
   /** 章节正文的纯文本形态：作为续写/检索上下文，避免模型模仿 HTML 输出 <p> 标签 */
@@ -282,6 +290,8 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
   const [sessionId, setSessionId] = useState<string | null>(null);
   /** 展开记忆注入明细的消息 ID */
   const [expandedMemoriesId, setExpandedMemoriesId] = useState<string | null>(null);
+  /** 已消费的外部快捷操作请求 ID（防 effect 因依赖变化重复执行） */
+  const consumedActionIdRef = useRef<number | null>(null);
   /** 刚复制成功的消息 ID（短暂显示"已复制"） */
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -684,6 +694,21 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
     },
     [isLoading, selectedText, chapterContent, runChat],
   );
+
+  /** 消费选区浮层的快捷操作请求（面板打开后自动执行一次） */
+  useEffect(() => {
+    if (!quickActionRequest) return;
+    if (consumedActionIdRef.current === quickActionRequest.id) return;
+    consumedActionIdRef.current = quickActionRequest.id;
+    const req = quickActionRequest.request;
+    if (req.type === "quick") {
+      const qa = quickActions.find((a) => a.key === req.key);
+      if (qa) void handleQuickAction(qa);
+    } else {
+      void handleUsePrompt({ label: req.label, systemPrompt: req.systemPrompt });
+    }
+    onQuickActionConsumed?.();
+  }, [quickActionRequest, handleQuickAction, handleUsePrompt, onQuickActionConsumed]);
 
   const handleStop = async () => {
     const requestId = requestIdRef.current;

@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   Check,
+  ChevronDown,
   Copy,
   Download,
   FileText,
@@ -21,7 +22,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor, type EditorRef } from "../components/editor";
-import { AIPanel } from "../components/ai";
+import { AIPanel, type AiQuickActionRequest } from "../components/ai";
 import { ChapterList } from "../components/chapter";
 import {
   ExportService,
@@ -30,6 +31,8 @@ import {
   versionDb,
   loadProjectStores,
   createProjectDir,
+  builtinPromptList,
+  getSystemPrompt,
 } from "../services";
 import { cn } from "../lib/cn";
 import { useAutoSave } from "../hooks";
@@ -73,6 +76,11 @@ export function EditorPage() {
   const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
   /** 「问 AI」预填输入 */
   const [askAiPrefill, setAskAiPrefill] = useState("");
+  /** 选区浮层触发的 AI 快捷操作请求（AIPanel 消费后清空） */
+  const [aiQuickAction, setAiQuickAction] = useState<{
+    id: number;
+    request: AiQuickActionRequest;
+  } | null>(null);
   /** 专注模式：隐藏顶栏、侧栏与 AI 面板 */
   const [focusMode, setFocusMode] = useState(false);
   const editorRef = useRef<EditorRef>(null);
@@ -279,10 +287,19 @@ export function EditorPage() {
   };
 
   const handleAskAi = () => {
+    setFocusMode(false); // 专注模式下面板被隐藏，先退出以确保请求被消费
     setAiPanelOpen(true);
     setAskAiPrefill(
       `请分析这段文字并给出改进建议（结构、节奏、画面感）：\n\n${selectedText.slice(0, 800)}`,
     );
+    setSelectionPos(null);
+  };
+
+  /** 选区浮层点 AI 按钮：打开面板并触发对应快捷操作 */
+  const handleFloatAiAction = (request: AiQuickActionRequest) => {
+    setFocusMode(false); // 专注模式下面板被隐藏，先退出以确保请求被消费
+    setAiPanelOpen(true);
+    setAiQuickAction({ id: Date.now(), request });
     setSelectionPos(null);
   };
 
@@ -610,18 +627,20 @@ export function EditorPage() {
             onContentApplied={(html) => updateChapterContent(currentChapter.id, html)}
             prefill={askAiPrefill}
             onPrefillConsumed={() => setAskAiPrefill("")}
+            quickActionRequest={aiQuickAction}
+            onQuickActionConsumed={() => setAiQuickAction(null)}
           />
         )}
       </div>
 
-      {/* 选区快捷浮层：复制 / 问 AI */}
+      {/* 选区快捷浮层：复制 / 润色 扩写 缩写 / AI 菜单 / 问 AI */}
       {selectionPos && selectedText && !versionDialogOpen && (
         <div
           style={{ left: selectionPos.x, top: selectionPos.y }}
           className="fixed z-40 -translate-x-1/3 -translate-y-[calc(100%+8px)]"
           onMouseDown={(e) => e.preventDefault()}
         >
-          <div className="flex items-center gap-0.5 rounded-lg border border-line bg-elevated p-1 shadow-lg">
+          <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-0.5 rounded-lg border border-line bg-elevated p-1 shadow-lg">
             <Button
               variant="ghost"
               size="sm"
@@ -632,6 +651,73 @@ export function EditorPage() {
               <Copy size={12} />
               复制
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleFloatAiAction({ type: "quick", key: "polish" })}
+              className="h-7 px-2 text-xs"
+            >
+              润色
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleFloatAiAction({ type: "quick", key: "expand" })}
+              className="h-7 px-2 text-xs"
+            >
+              扩写
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleFloatAiAction({ type: "quick", key: "compress" })}
+              className="h-7 px-2 text-xs"
+            >
+              缩写
+            </Button>
+            <Menu>
+              <MenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onMouseDown={(e) => e.preventDefault()}
+                  className="h-7 gap-0.5 px-2 text-xs"
+                >
+                  AI
+                  <ChevronDown size={11} />
+                </Button>
+              </MenuTrigger>
+              <MenuContent align="start" className="max-h-72 overflow-y-auto">
+                <MenuItem
+                  onSelect={() => handleFloatAiAction({ type: "quick", key: "continuation" })}
+                >
+                  续写
+                </MenuItem>
+                <MenuSeparator />
+                {builtinPromptList
+                  .filter(
+                    (p) =>
+                      !["continuation", "polish", "expand", "compress"].includes(p.key),
+                  )
+                  .map((p) => (
+                    <MenuItem
+                      key={p.key}
+                      onSelect={() =>
+                        handleFloatAiAction({
+                          type: "prompt",
+                          label: p.label,
+                          systemPrompt: getSystemPrompt(p.key),
+                        })
+                      }
+                    >
+                      {p.label}
+                    </MenuItem>
+                  ))}
+              </MenuContent>
+            </Menu>
             <Button
               variant="primary"
               size="sm"
