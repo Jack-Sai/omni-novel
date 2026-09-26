@@ -2828,7 +2828,7 @@ dependencies = [
 
 [[package]]
 name = "omni-novel"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "futures-util",
  "log",
