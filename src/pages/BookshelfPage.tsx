@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, BookOpen, MoreVertical, Trash2, Edit, LogOut, Calendar, FileText } from "lucide-react";
 import { useUserStore } from "../stores/userStore";
-import { useProjectStore } from "../stores/projectStore";
+import { useProjectStore, Project } from "../stores/projectStore";
 import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -19,6 +19,8 @@ export function BookshelfPage() {
   const { projects, setCurrentProject, addProjectFromRecord, deleteProject } = useProjectStore();
   const [showMenu, setShowMenu] = useState<string | null>(null);
   const [wordCounts, setWordCounts] = useState<Record<string, number>>({});
+  /** 打开项目加载中，防重复点击 */
+  const [opening, setOpening] = useState(false);
 
   // 如果未登录，跳转到登录页
   useEffect(() => {
@@ -79,11 +81,26 @@ export function BookshelfPage() {
     navigate("/new-project");
   };
 
-  const handleOpenProject = async (project: any) => {
-    setCurrentProject(project);
-    // 加载该项目的章节与设定数据
-    await loadProjectStores(project.storagePath || "");
-    navigate("/editor");
+  const handleOpenProject = async (project: Project) => {
+    if (opening) return;
+    setOpening(true);
+    try {
+      setCurrentProject(project);
+      // 加载该项目的章节与设定数据
+      await loadProjectStores(project.storagePath || "");
+      navigate("/editor");
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  /** 点击卡片：菜单展开时只关闭菜单，否则打开项目进入编辑 */
+  const handleCardClick = (project: Project) => {
+    if (showMenu) {
+      setShowMenu(null);
+      return;
+    }
+    void handleOpenProject(project);
   };
 
   const handleDeleteProject = async (projectId: string) => {
@@ -145,7 +162,8 @@ export function BookshelfPage() {
             {projects.map((project) => (
               <div
                 key={project.id}
-                className="group relative rounded-xl border border-neutral-200 bg-white p-5 transition-all hover:border-ink-4 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-900"
+                onClick={() => handleCardClick(project)}
+                className="group relative cursor-pointer rounded-xl border border-neutral-200 bg-white p-5 transition-all hover:border-ink-4 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-900"
               >
                 <div className="mb-3 flex items-start justify-between">
                   <div className="min-w-0 flex-1">
@@ -160,22 +178,35 @@ export function BookshelfPage() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setShowMenu(showMenu === project.id ? null : project.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMenu(showMenu === project.id ? null : project.id);
+                      }}
                     >
                       <MoreVertical size={16} />
                     </Button>
                     {showMenu === project.id && (
-                      <div className="absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800">
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                      >
                         <button
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                          onClick={() => handleOpenProject(project)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMenu(null);
+                            void handleOpenProject(project);
+                          }}
                         >
                           <Edit size={14} />
                           打开
                         </button>
                         <button
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                          onClick={() => handleDeleteProject(project.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDeleteProject(project.id);
+                          }}
                         >
                           <Trash2 size={14} />
                           删除
