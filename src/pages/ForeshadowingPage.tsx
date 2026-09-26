@@ -5,6 +5,7 @@ import {
   CheckCircle,
   Eye,
   Plus,
+  Sparkles,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import {
   ForeshadowingStatus,
 } from "../stores/foreshadowingStore";
 import { useProjectStore } from "../stores/projectStore";
+import { AICreateDialog } from "../components/ai/AICreateDialog";
 import {
   Badge,
   Button,
@@ -50,6 +52,7 @@ export function ForeshadowingPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterValue>("all");
+  const [aiOpen, setAiOpen] = useState(false);
 
   const projectItems = useMemo(
     () => (currentProject ? items.filter((item) => item.projectId === currentProject.id) : []),
@@ -260,10 +263,16 @@ export function ForeshadowingPage() {
         title="伏笔管理"
         description={`共 ${stats.total} 条伏笔，其中 ${stats.planted} 条待回收`}
         actions={
-          <Button variant="primary" onClick={() => setShowAdd(true)}>
-            <Plus size={15} />
-            添加伏笔
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setAiOpen(true)}>
+              <Sparkles size={15} />
+              AI 创建
+            </Button>
+            <Button variant="primary" onClick={() => setShowAdd(true)}>
+              <Plus size={15} />
+              添加伏笔
+            </Button>
+          </div>
         }
       />
 
@@ -397,6 +406,18 @@ export function ForeshadowingPage() {
           )}
         </div>
       </PageBody>
+
+      <AICreateDialog
+        kind="foreshadowing"
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        project={currentProject}
+        existingNames={projectItems.map((i) => i.name)}
+        onCreated={(data) => {
+          addItem({ projectId: currentProject.id, ...data });
+          setAiOpen(false);
+        }}
+      />
     </Page>
   );
 }

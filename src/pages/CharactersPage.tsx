@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
-import { ArrowLeft, Plus, Trash2, User, Users } from "lucide-react";
+import { ArrowLeft, Plus, Sparkles, Trash2, User, Users } from "lucide-react";
 import { useCharacterStore, Character } from "../stores/characterStore";
 import { useProjectStore } from "../stores/projectStore";
+import { AICreateDialog } from "../components/ai/AICreateDialog";
 import {
   Badge,
   Button,
@@ -55,6 +56,7 @@ export function CharactersPage() {
   } = useCharacterStore();
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
+  const [aiOpen, setAiOpen] = useState(false);
 
   const projectCharacters = useMemo(
     () =>
@@ -286,10 +288,16 @@ export function CharactersPage() {
         title="人物管理"
         description={`共 ${projectCharacters.length} 位人物`}
         actions={
-          <Button variant="primary" onClick={() => setShowAdd(true)}>
-            <Plus size={15} />
-            添加人物
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setAiOpen(true)}>
+              <Sparkles size={15} />
+              AI 创建
+            </Button>
+            <Button variant="primary" onClick={() => setShowAdd(true)}>
+              <Plus size={15} />
+              添加人物
+            </Button>
+          </div>
         }
       />
 
@@ -398,6 +406,18 @@ export function CharactersPage() {
           )}
         </div>
       </PageBody>
+
+      <AICreateDialog
+        kind="character"
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        project={currentProject}
+        existingNames={projectCharacters.map((c) => c.name)}
+        onCreated={(data) => {
+          addCharacter({ projectId: currentProject.id, ...data });
+          setAiOpen(false);
+        }}
+      />
     </Page>
   );
 }

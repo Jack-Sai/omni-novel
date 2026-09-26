@@ -7,6 +7,7 @@ import {
   Map,
   Plus,
   Scroll,
+  Sparkles,
   Swords,
   Trash2,
   Zap,
@@ -18,6 +19,7 @@ import {
   worldviewTypes,
 } from "../stores/worldviewStore";
 import { useProjectStore } from "../stores/projectStore";
+import { AICreateDialog } from "../components/ai/AICreateDialog";
 import {
   Badge,
   Button,
@@ -54,6 +56,7 @@ export function WorldviewPage() {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<WorldviewType>("location");
   const [filterType, setFilterType] = useState<WorldviewType | "all">("all");
+  const [aiOpen, setAiOpen] = useState(false);
 
   const projectItems = useMemo(
     () => (currentProject ? items.filter((item) => item.projectId === currentProject.id) : []),
@@ -211,10 +214,16 @@ export function WorldviewPage() {
         title="世界观管理"
         description={`共 ${projectItems.length} 条设定`}
         actions={
-          <Button variant="primary" size="md" onClick={() => setShowAdd(true)}>
-            <Plus size={15} />
-            添加设定
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="md" onClick={() => setAiOpen(true)}>
+              <Sparkles size={15} />
+              AI 创建
+            </Button>
+            <Button variant="primary" size="md" onClick={() => setShowAdd(true)}>
+              <Plus size={15} />
+              添加设定
+            </Button>
+          </div>
         }
       />
 
@@ -330,6 +339,18 @@ export function WorldviewPage() {
           )}
         </div>
       </PageBody>
+
+      <AICreateDialog
+        kind="worldview"
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        project={currentProject}
+        existingNames={projectItems.map((i) => i.name)}
+        onCreated={(data) => {
+          addItem({ projectId: currentProject.id, ...data });
+          setAiOpen(false);
+        }}
+      />
     </Page>
   );
 }
