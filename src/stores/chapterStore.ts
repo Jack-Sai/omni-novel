@@ -98,9 +98,8 @@ export const useChapterStore = create<ChapterStore>()((set, get) => ({
 
   loadFromDisk: async (projectDir: string) => {
     const data = await loadProjectJson<{ chapters: Chapter[] }>(projectDir, "data", "chapters.json");
-    if (data?.chapters) {
-      set({ chapters: data.chapters });
-    }
+    // 无数据时清空，避免切换项目后残留上一项目内容
+    set({ chapters: data?.chapters ?? [] });
   },
 
   saveToDisk: (projectDir: string) => {

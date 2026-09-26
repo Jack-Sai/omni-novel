@@ -64,3 +64,7 @@ export {
   saveExport,
 } from "./fileStorage";
 export type { ProjectMetadata } from "./fileStorage";
+
+export { initGlobalStores, loadProjectStores } from "./storeInit";
+
+export { saveGlobalConfig, loadGlobalConfig, saveProjectJson, loadProjectJson } from "./storage";

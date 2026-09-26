@@ -622,6 +622,15 @@ fn global_config_dir() -> PathBuf {
     PathBuf::from(home).join(".omni-novel")
 }
 
+/// 默认项目根目录：~/.omni-novel/projects（用户未选择存储路径时使用）
+#[tauri::command]
+fn default_projects_dir() -> Result<String, String> {
+    Ok(global_config_dir()
+        .join("projects")
+        .to_string_lossy()
+        .to_string())
+}
+
 // ── App Entry ────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -657,6 +666,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             create_project_dir,
+            default_projects_dir,
             save_chapter,
             load_chapter,
             save_novel_json,

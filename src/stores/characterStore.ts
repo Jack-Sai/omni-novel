@@ -80,9 +80,8 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
 
   loadFromDisk: async (projectDir: string) => {
     const data = await loadProjectJson<{ characters: Character[] }>(projectDir, "data", "characters.json");
-    if (data?.characters) {
-      set({ characters: data.characters });
-    }
+    // 无数据时清空，避免切换项目后残留上一项目内容
+    set({ characters: data?.characters ?? [] });
   },
 
   saveToDisk: (projectDir: string) => {

@@ -103,9 +103,8 @@ export const useWorldviewStore = create<WorldviewStore>()((set, get) => ({
 
   loadFromDisk: async (projectDir: string) => {
     const data = await loadProjectJson<{ items: WorldviewItem[] }>(projectDir, "data", "worldview.json");
-    if (data?.items) {
-      set({ items: data.items });
-    }
+    // 无数据时清空，避免切换项目后残留上一项目内容
+    set({ items: data?.items ?? [] });
   },
 
   saveToDisk: (projectDir: string) => {

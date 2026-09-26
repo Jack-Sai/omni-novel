@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { useUserStore } from "../stores/userStore";
-import { projectDb, createProjectDir } from "../services";
+import { projectDb, createProjectDir, loadProjectStores } from "../services";
 import { useProjectStore } from "../stores/projectStore";
 import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Section } from "../components/ui/Section";
@@ -75,34 +76,40 @@ export function NewProjectPage() {
     setError("");
 
     try {
+      // 未选择路径时使用默认项目根目录 ~/.omni-novel/projects
+      const basePath =
+        storagePath.trim() || (await invoke<string>("default_projects_dir"));
+      // 项目目录 = 根目录/书名（createProjectDir 内部同款拼接）
+      const projectDir = `${basePath}/${title.trim()}`;
+
       const newProject = await projectDb.create({
         user_id: currentUser.id,
         title: title.trim(),
         author: author.trim() || currentUser.display_name,
         genre,
         synopsis: synopsis.trim(),
-        storage_path: storagePath,
+        storage_path: projectDir,
       });
 
       if (newProject) {
-        // 如果指定了存储路径，创建项目目录
-        if (storagePath) {
-          try {
-            await createProjectDir(storagePath, title.trim(), {
-              id: newProject.id,
-              title: title.trim(),
-              author: author.trim() || currentUser.display_name,
-              genre,
-              synopsis: synopsis.trim(),
-              targetWords,
-            });
-          } catch (err) {
-            console.error("Failed to create project directory:", err);
-          }
+        // 创建项目目录结构（.novel、manuscript 等）
+        try {
+          await createProjectDir(basePath, title.trim(), {
+            id: newProject.id,
+            title: title.trim(),
+            author: author.trim() || currentUser.display_name,
+            genre,
+            synopsis: synopsis.trim(),
+            targetWords,
+          });
+        } catch (err) {
+          console.error("Failed to create project directory:", err);
         }
 
         // 同步写入项目 store（projects.json），书架与编辑器均可立即看到
         addProjectFromRecord(newProject);
+        // 加载（初始化空）项目级 store，接管自动持久化
+        await loadProjectStores(projectDir);
         navigate("/editor");
       }
     } catch (err) {

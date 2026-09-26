@@ -17,12 +17,20 @@ import {
   Trash2,
 } from "lucide-react";
 import { NewProjectDialog, NewProject, VersionHistoryDialog } from "../components/dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor, type EditorRef } from "../components/editor";
 import { AIPanel } from "../components/ai";
 import { ChapterList } from "../components/chapter";
-import { ExportService, saveChapter, titleToFilename, versionDb } from "../services";
+import {
+  ExportService,
+  saveChapter,
+  titleToFilename,
+  versionDb,
+  loadProjectStores,
+  createProjectDir,
+} from "../services";
 import { cn } from "../lib/cn";
 import { useAutoSave } from "../hooks";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -68,7 +76,7 @@ export function EditorPage() {
   /** 专注模式：隐藏顶栏、侧栏与 AI 面板 */
   const [focusMode, setFocusMode] = useState(false);
   const editorRef = useRef<EditorRef>(null);
-  const { projects, currentProject, addProject, setCurrentProject, deleteProject } =
+  const { projects, currentProject, addProject, setCurrentProject, updateProject, deleteProject } =
     useProjectStore();
   const {
     chapters,
@@ -210,8 +218,34 @@ export function EditorPage() {
     return { pct, over: stats.chapterWords > editor.chapterWordTarget };
   }, [stats.chapterWords, editor.chapterWordTarget]);
 
-  const handleCreateProject = (project: NewProject) => {
+  const handleCreateProject = async (project: NewProject) => {
     addProject(project);
+    // 快速创建的项目同样落到默认项目目录，并接管持久化
+    try {
+      const basePath = await invoke<string>("default_projects_dir");
+      const created = useProjectStore.getState().currentProject;
+      if (!created) return;
+      const dir = `${basePath}/${created.title}`;
+      await createProjectDir(basePath, created.title, {
+        id: created.id,
+        title: created.title,
+        author: created.author,
+        genre: created.genre,
+        synopsis: created.synopsis,
+      });
+      updateProject(created.id, { storagePath: dir });
+      await loadProjectStores(dir);
+    } catch (err) {
+      console.error("初始化项目目录失败:", err);
+      await loadProjectStores("");
+    }
+  };
+
+  /** 从项目列表进入某个项目：加载其章节与设定数据 */
+  const handleSwitchProject = async (project: Parameters<typeof setCurrentProject>[0]) => {
+    setCurrentProject(project);
+    setCurrentChapter(null);
+    await loadProjectStores(project?.storagePath || "");
   };
 
   const handleSelectChapter = (chapter: Chapter) => {
@@ -304,7 +338,7 @@ export function EditorPage() {
                   key={project.id}
                   interactive
                   className="group relative flex flex-col"
-                  onClick={() => setCurrentProject(project)}
+                  onClick={() => void handleSwitchProject(project)}
                 >
                   <div className="flex items-start justify-between gap-2 pr-6">
                     <h3 className="truncate text-sm font-medium text-ink">{project.title}</h3>
@@ -448,6 +482,8 @@ export function EditorPage() {
               onClick={() => {
                 setCurrentProject(null);
                 setCurrentChapter(null);
+                // 清空项目级 store 并解除落盘目标
+                void loadProjectStores("");
               }}
             >
               返回列表

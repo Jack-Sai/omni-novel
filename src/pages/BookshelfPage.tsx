@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, BookOpen, MoreVertical, Trash2, Edit, LogOut, Calendar, FileText } from "lucide-react";
 import { useUserStore } from "../stores/userStore";
 import { useProjectStore } from "../stores/projectStore";
-import { useChapterStore } from "../stores/chapterStore";
 import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
+import { projectDb, loadProjectStores, loadProjectJson } from "../services";
+import type { Chapter } from "../stores/chapterStore";
 
 function getWordCount(content: string): number {
   return content.replace(/<[^>]*>/g, "").replace(/\s/g, "").length;
@@ -15,9 +16,9 @@ function getWordCount(content: string): number {
 export function BookshelfPage() {
   const navigate = useNavigate();
   const { currentUser } = useUserStore();
-  const { projects, setCurrentProject, deleteProject } = useProjectStore();
-  const { chapters } = useChapterStore();
+  const { projects, setCurrentProject, addProjectFromRecord, deleteProject } = useProjectStore();
   const [showMenu, setShowMenu] = useState<string | null>(null);
+  const [wordCounts, setWordCounts] = useState<Record<string, number>>({});
 
   // 如果未登录，跳转到登录页
   useEffect(() => {
@@ -26,23 +27,62 @@ export function BookshelfPage() {
     }
   }, [currentUser, navigate]);
 
-  const projectWordCounts = useMemo(() => {
-    const wordCounts: Record<string, number> = {};
-    projects.forEach((project) => {
-      const projectChapters = chapters.filter((c) => c.projectId === project.id);
-      wordCounts[project.id] = projectChapters.reduce((sum, c) => {
-        return sum + getWordCount(c.content);
-      }, 0);
-    });
-    return wordCounts;
-  }, [projects, chapters]);
+  // 启动时从 SQLite 合并历史项目（旧版本创建的项目只存在于数据库）
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    projectDb
+      .getByUserId(currentUser.id)
+      .then((rows) => {
+        if (cancelled) return;
+        rows.forEach((row) => addProjectFromRecord(row, { setCurrent: false }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, addProjectFromRecord]);
+
+  // 逐项目读取章节统计字数（chapters.json 在各项目目录下）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        projects.map(async (project) => {
+          if (!project.storagePath) return;
+          try {
+            const data = await loadProjectJson<{ chapters: Chapter[] }>(
+              project.storagePath,
+              "data",
+              "chapters.json",
+            );
+            if (data?.chapters) {
+              counts[project.id] = data.chapters.reduce(
+                (sum, c) => sum + getWordCount(c.content),
+                0,
+              );
+            }
+          } catch {
+            // 忽略读取失败的项目
+          }
+        }),
+      );
+      if (!cancelled) setWordCounts(counts);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projects]);
 
   const handleCreateProject = () => {
     navigate("/new-project");
   };
 
-  const handleOpenProject = (project: any) => {
+  const handleOpenProject = async (project: any) => {
     setCurrentProject(project);
+    // 加载该项目的章节与设定数据
+    await loadProjectStores(project.storagePath || "");
     navigate("/editor");
   };
 
@@ -152,7 +192,7 @@ export function BookshelfPage() {
                 <div className="flex items-center gap-4 text-xs text-ink-3">
                   <span className="flex items-center gap-1">
                     <FileText size={12} />
-                    {projectWordCounts[project.id] || 0} 字
+                    {wordCounts[project.id] || 0} 字
                   </span>
                   <span className="flex items-center gap-1">
                     <Calendar size={12} />
