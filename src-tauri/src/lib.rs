@@ -659,53 +659,60 @@ fn find_llama_server_in_path() -> Option<String> {
     None
 }
 
-/// 枚举系统已安装字体（读 HKLM/HKCU 的 Fonts 注册表键），返回字体名列表
+#[derive(Serialize)]
+pub struct SystemFont {
+    pub zh: String,
+    pub en: String,
+}
+
+/// 枚举系统已安装字体（解析字体文件 name table，返回中英文 family 名）
 #[tauri::command]
-fn list_system_fonts() -> Result<Vec<String>, String> {
+fn list_system_fonts() -> Result<Vec<SystemFont>, String> {
     let script = r#"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$keys = @(
-  'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts',
-  'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
-)
-$names = foreach ($k in $keys) {
-  try {
-    (Get-ItemProperty -Path $k -ErrorAction Stop).PSObject.Properties |
-      Where-Object { $_.Name -notlike 'PS*' } |
-      ForEach-Object { $_.Name }
-  } catch {}
+Add-Type -AssemblyName PresentationCore
+$dirs = @("$env:WINDIR\Fonts", "$env:LOCALAPPDATA\Microsoft\Windows\Fonts")
+$seen = @{}
+foreach ($d in $dirs) {
+  if (-not (Test-Path -LiteralPath $d)) { continue }
+  Get-ChildItem -LiteralPath $d -File | Where-Object { $_.Extension -in @('.ttf','.ttc','.otf') } | ForEach-Object {
+    try {
+      $g = New-Object System.Windows.Media.GlyphTypeface($_.FullName)
+      $en = $g.FamilyNames[[System.Globalization.CultureInfo]::GetCultureInfo('en-US')]
+      $zh = $g.FamilyNames[[System.Globalization.CultureInfo]::GetCultureInfo('zh-CN')]
+      if (-not $en) { $en = ($g.FamilyNames.Values | Select-Object -First 1) }
+      if (-not $en) { return }
+      if (-not $zh) { $zh = $en }
+      if (-not $seen.ContainsKey($zh)) { $seen[$zh] = $true; $zh + "`t" + $en }
+    } catch {}
+  }
 }
-$names
 "#;
     let output = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-Command", script])
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
         .output()
         .map_err(|e| format!("启动 PowerShell 失败: {e}"))?;
     if !output.status.success() {
         return Err("读取系统字体失败".into());
     }
     let text = String::from_utf8_lossy(&output.stdout);
-    let mut fonts: Vec<String> = text
+    let mut fonts: Vec<SystemFont> = text
         .lines()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty())
-        .map(|l| {
-            let name = l
-                .rsplit_once(" (")
-                .filter(|(_, suffix)| {
-                    matches!(
-                        suffix.trim_end_matches(')'),
-                        "TrueType" | "OpenType" | "PostScript"
-                    )
-                })
-                .map(|(n, _)| n.to_string())
-                .unwrap_or(l);
-            name.trim().to_string()
+        .filter_map(|l| {
+            let l = l.trim();
+            if l.is_empty() {
+                return None;
+            }
+            let (zh, en) = l.split_once('\t').unwrap_or((l, l));
+            Some(SystemFont {
+                zh: zh.trim().to_string(),
+                en: en.trim().to_string(),
+            })
         })
-        .filter(|l| !l.is_empty())
+        .filter(|f| !f.en.is_empty())
         .collect();
-    fonts.sort();
-    fonts.dedup();
+    fonts.sort_by(|a, b| a.zh.cmp(&b.zh));
+    fonts.dedup_by(|a, b| a.zh == b.zh && a.en == b.en);
     Ok(fonts)
 }
 

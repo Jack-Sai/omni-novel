@@ -67,6 +67,12 @@ interface LlamaServerStatus {
   idle_minutes: number;
 }
 
+/** 系统字体：zh = 本地化名（如"微软雅黑"），en = 英文/PS 名（CSS 安全值） */
+interface SystemFont {
+  zh: string;
+  en: string;
+}
+
 const backendItems = (Object.keys(backendPresets) as BackendType[]).map((key) => ({
   value: key,
   label: backendPresets[key].label,
@@ -100,8 +106,8 @@ export function SettingsPage() {
   const [testResult, setTestResult] = useState<"success" | "failure" | null>(null);
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState<boolean | null>(null);
-  /** 系统已安装字体列表（供正文字体检索选择，防止输错字体名） */
-  const [systemFonts, setSystemFonts] = useState<string[]>([]);
+  /** 系统已安装字体列表（供正文字体检索选择，含中英文名） */
+  const [systemFonts, setSystemFonts] = useState<SystemFont[]>([]);
   /** llama-server PATH 自动检测状态 */
   const [serverDetect, setServerDetect] = useState<"loading" | "found" | "missing">("loading");
   const [detectedServerPath, setDetectedServerPath] = useState("");
@@ -164,10 +170,10 @@ export function SettingsPage() {
     }
   }, []);
 
-  // 加载系统字体列表（注册表 Fonts 键）
+  // 加载系统字体列表（解析字体文件 name table，含中文本地化名）
   useEffect(() => {
     let cancelled = false;
-    invoke<string[]>("list_system_fonts")
+    invoke<SystemFont[]>("list_system_fonts")
       .then((fonts) => {
         if (!cancelled) setSystemFonts(fonts);
       })
@@ -664,8 +670,8 @@ export function SettingsPage() {
                   options={[
                     ...fontPresets,
                     ...systemFonts
-                      .filter((f) => f && !fontPresets.some((p) => p.value === f))
-                      .map((f) => ({ value: f, label: f })),
+                      .filter((f) => f.en && !fontPresets.some((p) => p.label === f.zh))
+                      .map((f) => ({ value: f.en, label: f.zh })),
                   ]}
                   placeholder="搜索或输入字体…"
                 />
