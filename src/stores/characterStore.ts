@@ -26,7 +26,9 @@ export interface Character {
 interface CharacterStore {
   characters: Character[];
   currentCharacter: Character | null;
-  addCharacter: (character: Omit<Character, "id" | "createdAt" | "updatedAt">) => void;
+  addCharacter: (
+    character: Omit<Character, "id" | "createdAt" | "updatedAt">,
+  ) => Character;
   setCurrentCharacter: (character: Character | null) => void;
   updateCharacter: (id: string, updates: Partial<Character>) => void;
   deleteCharacter: (id: string) => void;
@@ -52,6 +54,7 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
       characters: [...state.characters, newCharacter],
       currentCharacter: newCharacter,
     }));
+    return newCharacter;
   },
 
   setCurrentCharacter: (character) => set({ currentCharacter: character }),

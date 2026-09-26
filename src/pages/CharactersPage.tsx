@@ -1,5 +1,14 @@
 import { useState, useMemo, useCallback } from "react";
-import { ArrowLeft, Link2, Network, Plus, Sparkles, Trash2, User, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  Network,
+  Plus,
+  ScanText,
+  Sparkles,
+  Trash2,
+  User,
+  Users,
+} from "lucide-react";
 import { useCharacterStore, Character } from "../stores/characterStore";
 import { useProjectStore } from "../stores/projectStore";
 import {
@@ -8,6 +17,9 @@ import {
   type CharacterRelation,
 } from "../stores/relationStore";
 import { AICreateDialog } from "../components/ai/AICreateDialog";
+import { AIExtractDialog } from "../components/ai/AIExtractDialog";
+import { AIRelationsDialog } from "../components/ai/AIRelationsDialog";
+import { AIRefineDialog } from "../components/ai/AIRefineDialog";
 import { RelationDialog } from "../components/characters/RelationDialog";
 import { RelationGraph } from "../components/characters/RelationGraph";
 import {
@@ -66,6 +78,9 @@ export function CharactersPage() {
   const [newName, setNewName] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
   const [view, setView] = useState<"list" | "graph">("list");
+  const [refineOpen, setRefineOpen] = useState(false);
+  const [aiRelOpen, setAiRelOpen] = useState(false);
+  const [extractOpen, setExtractOpen] = useState(false);
   const { relations } = useRelationStore();
   const [relationOpen, setRelationOpen] = useState(false);
   const [relationTarget, setRelationTarget] = useState<CharacterRelation | null>(null);
@@ -166,6 +181,12 @@ export function CharactersPage() {
             ]
               .filter(Boolean)
               .join(" · ") || "人物档案"
+          }
+          actions={
+            <Button variant="secondary" onClick={() => setRefineOpen(true)}>
+              <Sparkles size={15} />
+              AI 完善
+            </Button>
           }
         />
         <PageBody width="reading">
@@ -411,6 +432,17 @@ export function CharactersPage() {
           relation={relationTarget}
           preset={relationPreset}
         />
+
+        <AIRefineDialog
+          open={refineOpen}
+          onOpenChange={setRefineOpen}
+          project={currentProject}
+          character={currentCharacter}
+          siblingNames={projectCharacters
+            .filter((c) => c.id !== currentCharacter.id)
+            .map((c) => c.name)}
+          onApply={(updated) => updateCharacter(currentCharacter.id, updated)}
+        />
       </Page>
     );
   }
@@ -422,20 +454,31 @@ export function CharactersPage() {
         title="人物管理"
         description={`共 ${projectCharacters.length} 位人物`}
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => openNewRelation()}>
-              <Link2 size={15} />
-              新建关系
-            </Button>
-            <Button variant="secondary" onClick={() => setAiOpen(true)}>
+          view === "graph" ? (
+            <Button
+              variant="secondary"
+              onClick={() => setAiRelOpen(true)}
+              disabled={projectCharacters.length < 2}
+            >
               <Sparkles size={15} />
-              AI 创建
+              AI 建议关系
             </Button>
-            <Button variant="primary" onClick={() => setShowAdd(true)}>
-              <Plus size={15} />
-              添加人物
-            </Button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setExtractOpen(true)}>
+                <ScanText size={15} />
+                从文本提取
+              </Button>
+              <Button variant="secondary" onClick={() => setAiOpen(true)}>
+                <Sparkles size={15} />
+                AI 创建
+              </Button>
+              <Button variant="primary" onClick={() => setShowAdd(true)}>
+                <Plus size={15} />
+                添加人物
+              </Button>
+            </div>
+          )
         }
       />
 
@@ -568,6 +611,26 @@ export function CharactersPage() {
         characters={projectCharacters}
         relation={relationTarget}
         preset={relationPreset}
+      />
+
+      <AIExtractDialog
+        open={extractOpen}
+        onOpenChange={setExtractOpen}
+        project={currentProject}
+        characters={projectCharacters}
+      />
+
+      <AIRelationsDialog
+        open={aiRelOpen}
+        onOpenChange={setAiRelOpen}
+        project={currentProject}
+        characters={projectCharacters}
+        existing={projectRelations.map((r) => {
+          const src = characters.find((c) => c.id === r.sourceId)?.name ?? "?";
+          const tgt = characters.find((c) => c.id === r.targetId)?.name ?? "?";
+          const typeLabel = relationTypes.find((t) => t.value === r.type)?.label ?? "关系";
+          return `${src}→${tgt} ${r.label || typeLabel}`;
+        })}
       />
 
       <AICreateDialog
