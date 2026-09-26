@@ -264,6 +264,21 @@ async function initializeTables(db: Database) {
     )
   `);
 
+  // 创建章节版本快照表（版本对比）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS chapter_versions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      chapter_id TEXT NOT NULL,
+      title TEXT DEFAULT '',
+      content TEXT NOT NULL,
+      word_count INTEGER DEFAULT 0,
+      source TEXT DEFAULT 'auto',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log("Database tables initialized successfully");
 
   // Schema migration: 确保 users 表有 phone 和 password 列
@@ -1091,5 +1106,113 @@ export const memoryDb = {
     }
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, limit).map((s) => s.row);
+  },
+};
+
+// ── 章节版本快照（版本对比） ──
+
+export interface ChapterVersionRow {
+  id: string;
+  project_id: string;
+  chapter_id: string;
+  title: string;
+  content: string;
+  word_count: number;
+  source: "auto" | "manual" | "restore";
+  created_at: string;
+}
+
+export interface ChapterVersionInput {
+  title?: string;
+  content: string;
+  source?: "auto" | "manual" | "restore";
+}
+
+/** 每章最多保留的版本数 */
+const VERSION_KEEP = 20;
+
+export const versionDb = {
+  /**
+   * 新建版本快照；内容与该章最新快照相同则跳过（返回 null）。
+   * 创建后自动裁剪到最近 VERSION_KEEP 条。
+   */
+  async create(
+    projectId: string,
+    chapterId: string,
+    input: ChapterVersionInput
+  ): Promise<ChapterVersionRow | null> {
+    const db = await getDatabase();
+    const latest = await db.select<ChapterVersionRow[]>(
+      "SELECT * FROM chapter_versions WHERE project_id = ? AND chapter_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+      [projectId, chapterId]
+    );
+    if (latest[0] && latest[0].content === input.content) return null;
+
+    const id = crypto.randomUUID();
+    const wordCount = input.content.replace(/<[^>]*>/g, "").replace(/\s/g, "").length;
+    const now = new Date().toISOString();
+    await db.execute(
+      `INSERT INTO chapter_versions (id, project_id, chapter_id, title, content, word_count, source, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        projectId,
+        chapterId,
+        input.title || "",
+        input.content,
+        wordCount,
+        input.source || "auto",
+        now,
+      ]
+    );
+    // 裁剪旧版本：每章仅保留最近 N 条
+    await db.execute(
+      `DELETE FROM chapter_versions
+       WHERE project_id = ? AND chapter_id = ? AND id NOT IN (
+         SELECT id FROM chapter_versions WHERE project_id = ? AND chapter_id = ?
+         ORDER BY created_at DESC, rowid DESC LIMIT ?
+       )`,
+      [projectId, chapterId, projectId, chapterId, VERSION_KEEP]
+    );
+    const rows = await db.select<ChapterVersionRow[]>(
+      "SELECT * FROM chapter_versions WHERE id = ?",
+      [id]
+    );
+    return rows[0] || null;
+  },
+
+  /** 按章节列出版（新→旧） */
+  async list(
+    projectId: string,
+    chapterId: string
+  ): Promise<ChapterVersionRow[]> {
+    const db = await getDatabase();
+    return db.select<ChapterVersionRow[]>(
+      "SELECT * FROM chapter_versions WHERE project_id = ? AND chapter_id = ? ORDER BY created_at DESC, rowid DESC",
+      [projectId, chapterId]
+    );
+  },
+
+  async getById(id: string): Promise<ChapterVersionRow | null> {
+    const db = await getDatabase();
+    const rows = await db.select<ChapterVersionRow[]>(
+      "SELECT * FROM chapter_versions WHERE id = ?",
+      [id]
+    );
+    return rows[0] || null;
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute("DELETE FROM chapter_versions WHERE id = ?", [id]);
+  },
+
+  /** 删除章节的全部版本 */
+  async deleteByChapter(projectId: string, chapterId: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute(
+      "DELETE FROM chapter_versions WHERE project_id = ? AND chapter_id = ?",
+      [projectId, chapterId]
+    );
   },
 };

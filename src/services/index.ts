@@ -33,6 +33,7 @@ export {
   aiDb,
   promptDb,
   memoryDb,
+  versionDb,
 } from "./database";
 export type {
   AiSessionRow,
@@ -42,6 +43,8 @@ export type {
   MemoryItemInput,
   MemoryType,
   MemoryScope,
+  ChapterVersionRow,
+  ChapterVersionInput,
 } from "./database";
 
 export {
