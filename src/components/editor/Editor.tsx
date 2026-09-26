@@ -4,6 +4,8 @@ import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount } from "@tiptap/extensions";
 import { Toolbar } from "./Toolbar";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useCharacterStore } from "../../stores/characterStore";
+import { CharacterHighlight, CHARACTER_HIGHLIGHT_KEY } from "./characterHighlight";
 
 export interface EditorRef {
   getEditor: () => TiptapEditor | null;
@@ -21,7 +23,7 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
   ref,
 ) {
   const editor = useEditor({
-    extensions: [StarterKit, CharacterCount],
+    extensions: [StarterKit, CharacterCount, CharacterHighlight],
     content,
     editorProps: {
       attributes: {
@@ -58,6 +60,23 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
       root.style.removeProperty("--app-reading-font");
     }
   }, [fontSize, lineHeight, fontFamily]);
+
+  // 人物增删改 / 高亮开关变化时重建人名高亮 Decoration
+  useEffect(() => {
+    if (!editor) return;
+    const refresh = () => {
+      editor.view.dispatch(editor.state.tr.setMeta(CHARACTER_HIGHLIGHT_KEY, true));
+    };
+    const unsubChars = useCharacterStore.subscribe(refresh);
+    const unsubSettings = useSettingsStore.subscribe((state, prev) => {
+      if (state.editor.highlightNames !== prev.editor.highlightNames) refresh();
+    });
+    refresh();
+    return () => {
+      unsubChars();
+      unsubSettings();
+    };
+  }, [editor]);
 
   if (!editor) {
     return null;

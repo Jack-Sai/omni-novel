@@ -357,6 +357,22 @@
     margin-top: 0.85em;
   }
 
+  /* 人名高亮：颜色由 --char-hl-color（按人物 id 哈希）注入 */
+  .char-hl {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--char-hl-color, #4f6ef7) 15%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--char-hl-color, #4f6ef7) 28%, transparent);
+    cursor: pointer;
+    transition:
+      background-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  .char-hl:hover {
+    background: color-mix(in srgb, var(--char-hl-color, #4f6ef7) 30%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--char-hl-color, #4f6ef7) 45%, transparent);
+  }
+
   .tiptap p {
     margin-bottom: 0;
   }

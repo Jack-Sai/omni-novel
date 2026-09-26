@@ -19,9 +19,15 @@ import {
 } from "lucide-react";
 import { NewProjectDialog, NewProject, VersionHistoryDialog } from "../components/dialog";
 import { invoke } from "@tauri-apps/api/core";
+import { useNavigate } from "react-router-dom";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
+import { useCharacterStore, type Character } from "../stores/characterStore";
 import { Editor, type EditorRef } from "../components/editor";
+import {
+  CHAR_HIGHLIGHT_CLICK_EVENT,
+} from "../components/editor/characterHighlight";
+import { CharacterPopover } from "../components/editor/CharacterPopover";
 import { AIPanel, type AiQuickActionRequest } from "../components/ai";
 import { ChapterList } from "../components/chapter";
 import {
@@ -85,6 +91,7 @@ export function EditorPage() {
   /** 专注模式：隐藏顶栏、侧栏与 AI 面板 */
   const [focusMode, setFocusMode] = useState(false);
   const editorRef = useRef<EditorRef>(null);
+  const navigate = useNavigate();
   const { projects, currentProject, addProject, setCurrentProject, updateProject, deleteProject } =
     useProjectStore();
   const {
@@ -95,6 +102,27 @@ export function EditorPage() {
   } = useChapterStore();
 
   const { editor } = useSettingsStore();
+
+  /** 人名高亮点击弹出的人物速览 */
+  const [charPopover, setCharPopover] = useState<{
+    character: Character;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { characterId, clientX, clientY } = (e as CustomEvent).detail as {
+        characterId: string;
+        clientX: number;
+        clientY: number;
+      };
+      const c = useCharacterStore.getState().characters.find((x) => x.id === characterId);
+      if (c) setCharPopover({ character: c, x: clientX, y: clientY });
+    };
+    window.addEventListener(CHAR_HIGHLIGHT_CLICK_EVENT, handler);
+    return () => window.removeEventListener(CHAR_HIGHLIGHT_CLICK_EVENT, handler);
+  }, []);
 
   // 切换/新建章节时清理选区浮层，避免残留浮层拦截编辑器点击
   useEffect(() => {
@@ -745,6 +773,20 @@ export function EditorPage() {
           chapterTitle={currentChapter.title}
           currentContent={currentChapter.content}
           onRestore={(content) => void handleRestoreVersion(content)}
+        />
+      )}
+
+      {charPopover && (
+        <CharacterPopover
+          character={charPopover.character}
+          x={charPopover.x}
+          y={charPopover.y}
+          onClose={() => setCharPopover(null)}
+          onView={(c) => {
+            setCharPopover(null);
+            useCharacterStore.getState().setCurrentCharacter(c);
+            void navigate("/characters");
+          }}
         />
       )}
     </Page>

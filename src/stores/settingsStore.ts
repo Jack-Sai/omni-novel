@@ -43,6 +43,8 @@ export interface EditorSettings {
   typewriterScroll: boolean;
   /** 章节目标字数（0 = 不显示进度） */
   chapterWordTarget: number;
+  /** 正文中人名/别名高亮 */
+  highlightNames: boolean;
 }
 
 /** llama.cpp 模型档案：记录模型位置与启动参数，切换模型时一键套用 */
@@ -108,6 +110,7 @@ const defaultEditorSettings: EditorSettings = {
   editorWidth: 42,
   typewriterScroll: false,
   chapterWordTarget: 3000,
+  highlightNames: true,
 };
 
 const AI_PANEL_MIN_WIDTH = 240;

@@ -796,6 +796,29 @@ export function SettingsPage() {
               </button>
             </SettingRow>
 
+            <SettingRow
+              title="人名高亮"
+              description="正文中出现的人物姓名与别名按角色着色，点击可查看人物卡"
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={editor.highlightNames}
+                onClick={() =>
+                  updateEditorSettings({ highlightNames: !editor.highlightNames })
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                  editor.highlightNames ? "bg-primary" : "bg-line-strong"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                    editor.highlightNames ? "translate-x-5.5" : "translate-x-0.5"
+                  } mt-0.5`}
+                />
+              </button>
+            </SettingRow>
+
             <Field
               label={`章节目标字数 · ${editor.chapterWordTarget || "关闭"}`}
               hint="编辑器底部显示章节进度条；0 = 不显示"
