@@ -279,6 +279,23 @@ async function initializeTables(db: Database) {
     )
   `);
 
+  // 创建文风卡片表（文风系统）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS style_profiles (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      content TEXT NOT NULL,
+      sample TEXT DEFAULT '',
+      source TEXT DEFAULT 'manual',
+      is_active INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log("Database tables initialized successfully");
 
   // Schema migration: 确保 users 表有 phone 和 password 列
@@ -1214,5 +1231,135 @@ export const versionDb = {
       "DELETE FROM chapter_versions WHERE project_id = ? AND chapter_id = ?",
       [projectId, chapterId]
     );
+  },
+};
+
+// ── 文风卡片（文风系统） ──
+
+export interface StyleProfileRow {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  /** 文风画像正文（注入 AI 上下文用） */
+  content: string;
+  /** 训练样本（生成画像的原始文本，可空） */
+  sample: string;
+  source: "manual" | "ai";
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StyleProfileInput {
+  name: string;
+  description?: string;
+  content: string;
+  sample?: string;
+  source?: "manual" | "ai";
+  isActive?: boolean;
+}
+
+export const styleDb = {
+  async list(projectId: string): Promise<StyleProfileRow[]> {
+    const db = await getDatabase();
+    return db.select<StyleProfileRow[]>(
+      "SELECT * FROM style_profiles WHERE project_id = ? ORDER BY is_active DESC, updated_at DESC",
+      [projectId]
+    );
+  },
+
+  async getById(id: string): Promise<StyleProfileRow | null> {
+    const db = await getDatabase();
+    const rows = await db.select<StyleProfileRow[]>(
+      "SELECT * FROM style_profiles WHERE id = ?",
+      [id]
+    );
+    return rows[0] || null;
+  },
+
+  /** 当前启用的文风（无则 null） */
+  async getActive(projectId: string): Promise<StyleProfileRow | null> {
+    const db = await getDatabase();
+    const rows = await db.select<StyleProfileRow[]>(
+      "SELECT * FROM style_profiles WHERE project_id = ? AND is_active = 1 LIMIT 1",
+      [projectId]
+    );
+    return rows[0] || null;
+  },
+
+  async create(projectId: string, input: StyleProfileInput): Promise<StyleProfileRow> {
+    const db = await getDatabase();
+    if (input.isActive) {
+      await db.execute(
+        "UPDATE style_profiles SET is_active = 0, updated_at = datetime('now') WHERE project_id = ?",
+        [projectId]
+      );
+    }
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db.execute(
+      `INSERT INTO style_profiles (id, project_id, name, description, content, sample, source, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        projectId,
+        input.name,
+        input.description || "",
+        input.content,
+        input.sample || "",
+        input.source || "manual",
+        input.isActive ? 1 : 0,
+        now,
+        now,
+      ]
+    );
+    return (await this.getById(id))!;
+  },
+
+  async update(
+    id: string,
+    updates: Partial<StyleProfileInput>
+  ): Promise<void> {
+    const db = await getDatabase();
+    const row = await this.getById(id);
+    if (!row) return;
+    if (updates.isActive !== undefined) {
+      if (updates.isActive) {
+        await db.execute(
+          "UPDATE style_profiles SET is_active = 0, updated_at = datetime('now') WHERE project_id = ? AND id != ?",
+          [row.project_id, id]
+        );
+      }
+      await db.execute(
+        "UPDATE style_profiles SET is_active = ?, updated_at = datetime('now') WHERE id = ?",
+        [updates.isActive ? 1 : 0, id]
+      );
+    }
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    const map: Record<string, string> = {
+      name: "name",
+      description: "description",
+      content: "content",
+      sample: "sample",
+      source: "source",
+    };
+    Object.entries(map).forEach(([key, column]) => {
+      const value = (updates as Record<string, unknown>)[key];
+      if (value !== undefined) {
+        fields.push(`${column} = ?`);
+        values.push(value);
+      }
+    });
+    if (fields.length === 0) return;
+    fields.push("updated_at = datetime('now')");
+    values.push(id);
+    await db.execute(`UPDATE style_profiles SET ${fields.join(", ")} WHERE id = ?`, values);
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute("DELETE FROM style_profiles WHERE id = ?", [id]);
   },
 };

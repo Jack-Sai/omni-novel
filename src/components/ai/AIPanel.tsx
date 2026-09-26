@@ -22,11 +22,13 @@ import {
   aiDb,
   promptDb,
   retrieveMemories,
+  styleDb,
   type PromptKey,
   type AiMessageRow,
   type AiSessionRow,
   type CustomPromptRow,
   type RetrievedMemory,
+  type StyleProfileRow,
 } from "../../services";
 import { createAIService, toLlamaConfig } from "../../services/aiService";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -245,11 +247,12 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
     }) => {
       const display = params.displayContent ?? params.userContent;
 
-      // 检索相关记忆（记忆系统 M1.4：注入 AI 上下文）
+      // 检索相关记忆 + 启用的文风卡片（注入 AI 上下文）
       let memories: RetrievedMemory[] = [];
-      if (ai.memoryInject) {
-        const project = useProjectStore.getState().currentProject;
-        if (project) {
+      let styleProfile: StyleProfileRow | null = null;
+      const project = useProjectStore.getState().currentProject;
+      if (project) {
+        if (ai.memoryInject) {
           try {
             memories = await retrieveMemories(
               project.id,
@@ -259,6 +262,11 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           } catch (e) {
             console.warn("记忆检索失败:", e);
           }
+        }
+        try {
+          styleProfile = await styleDb.getActive(project.id);
+        } catch (e) {
+          console.warn("读取文风卡片失败:", e);
         }
       }
 
@@ -320,13 +328,19 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
           },
         ]);
 
-        // 注入相关记忆到 system prompt 尾部
-        const systemContent =
-          memories.length > 0
-            ? `${params.systemPrompt}\n\n[相关记忆]\n${memories
-                .map((m) => `- ${m.title}：${m.content.slice(0, 300)}`)
-                .join("\n")}\n（以上是项目相关记忆，仅供参考，请勿直接复述。）`
-            : params.systemPrompt;
+        // 组装 system prompt：基础提示词 + 启用的文风 + 相关记忆
+        const systemParts = [params.systemPrompt];
+        if (styleProfile) {
+          systemParts.push(`[文风要求]\n${styleProfile.content}`);
+        }
+        if (memories.length > 0) {
+          systemParts.push(
+            `[相关记忆]\n${memories
+              .map((m) => `- ${m.title}：${m.content.slice(0, 300)}`)
+              .join("\n")}\n（以上是项目相关记忆，仅供参考，请勿直接复述。）`,
+          );
+        }
+        const systemContent = systemParts.join("\n\n");
 
         await aiService.chatStream(
           [
