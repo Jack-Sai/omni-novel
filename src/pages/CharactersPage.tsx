@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { ArrowLeft, Link2, Network, Plus, Sparkles, Trash2, User, Users } from "lucide-react";
+import { ArrowLeft, Link2, Plus, Sparkles, Trash2, User, Users } from "lucide-react";
 import { useCharacterStore, Character } from "../stores/characterStore";
 import { useProjectStore } from "../stores/projectStore";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../stores/relationStore";
 import { AICreateDialog } from "../components/ai/AICreateDialog";
 import { RelationDialog } from "../components/characters/RelationDialog";
+import { RelationGraph } from "../components/characters/RelationGraph";
 import {
   Badge,
   Button,
@@ -451,12 +452,7 @@ export function CharactersPage() {
           />
 
           {view === "graph" ? (
-            <EmptyState
-              icon={Network}
-              title="关系图谱建设中"
-              description="下个迭代将支持画布查看与拖线编辑人物关系。"
-              className="py-16"
-            />
+            <RelationGraph />
           ) : (
             <>
           {showAdd && (
