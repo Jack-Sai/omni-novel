@@ -2,7 +2,7 @@ export { LoginPage } from "./LoginPage";
 export { BookshelfPage } from "./BookshelfPage";
 export { NewProjectPage } from "./NewProjectPage";
 export { EditorPage } from "./EditorPage";
-export { OutlinePage } from "./OutlinePage";
+export { ChaptersPage } from "./ChaptersPage";
 export { CharactersPage } from "./CharactersPage";
 export { WorldviewPage } from "./WorldviewPage";
 export { ForeshadowingPage } from "./ForeshadowingPage";

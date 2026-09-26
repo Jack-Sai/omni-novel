@@ -2,7 +2,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore } from "../stores/chapterStore";
 import { useCharacterStore } from "../stores/characterStore";
 import { useWorldviewStore } from "../stores/worldviewStore";
-import { useOutlineStore } from "../stores/outlineStore";
+import { useVolumeStore } from "../stores/volumeStore";
 import { useForeshadowingStore } from "../stores/foreshadowingStore";
 
 export interface BackupData {
@@ -12,7 +12,7 @@ export interface BackupData {
   chapters: any[];
   characters: any[];
   worldviewItems: any[];
-  outlineVolumes: any[];
+  volumes: any[];
   foreshadowingItems: any[];
 }
 
@@ -22,17 +22,17 @@ export class BackupService {
     const chapters = useChapterStore.getState().chapters;
     const characters = useCharacterStore.getState().characters;
     const worldviewItems = useWorldviewStore.getState().items;
-    const outlineVolumes = useOutlineStore.getState().volumes;
+    const volumes = useVolumeStore.getState().volumes;
     const foreshadowingItems = useForeshadowingStore.getState().items;
 
     const backupData: BackupData = {
-      version: "1.0.0",
+      version: "1.1.0",
       timestamp: new Date().toISOString(),
       projects,
       chapters,
       characters,
       worldviewItems,
-      outlineVolumes,
+      volumes,
       foreshadowingItems,
     };
 
@@ -70,8 +70,8 @@ export class BackupService {
       if (backupData.worldviewItems) {
         useWorldviewStore.setState({ items: backupData.worldviewItems });
       }
-      if (backupData.outlineVolumes) {
-        useOutlineStore.setState({ volumes: backupData.outlineVolumes });
+      if (backupData.volumes) {
+        useVolumeStore.setState({ volumes: backupData.volumes });
       }
       if (backupData.foreshadowingItems) {
         useForeshadowingStore.setState({ items: backupData.foreshadowingItems });
@@ -89,7 +89,7 @@ export class BackupService {
     const chapters = useChapterStore.getState().chapters;
     const characters = useCharacterStore.getState().characters;
     const worldviewItems = useWorldviewStore.getState().items;
-    const outlineVolumes = useOutlineStore.getState().volumes;
+    const volumes = useVolumeStore.getState().volumes;
     const foreshadowingItems = useForeshadowingStore.getState().items;
 
     const project = projects.find((p) => p.id === projectId);
@@ -98,17 +98,17 @@ export class BackupService {
     const projectChapters = chapters.filter((c) => c.projectId === projectId);
     const projectCharacters = characters.filter((c) => c.projectId === projectId);
     const projectWorldviewItems = worldviewItems.filter((w) => w.projectId === projectId);
-    const projectOutlineVolumes = outlineVolumes.filter((v) => v.projectId === projectId);
+    const projectVolumes = volumes.filter((v) => v.projectId === projectId);
     const projectForeshadowingItems = foreshadowingItems.filter((f) => f.projectId === projectId);
 
     const backupData: BackupData = {
-      version: "1.0.0",
+      version: "1.1.0",
       timestamp: new Date().toISOString(),
       projects: [project],
       chapters: projectChapters,
       characters: projectCharacters,
       worldviewItems: projectWorldviewItems,
-      outlineVolumes: projectOutlineVolumes,
+      volumes: projectVolumes,
       foreshadowingItems: projectForeshadowingItems,
     };
 

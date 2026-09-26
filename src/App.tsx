@@ -5,7 +5,7 @@ import {
   BookshelfPage,
   NewProjectPage,
   EditorPage,
-  OutlinePage,
+  ChaptersPage,
   CharactersPage,
   WorldviewPage,
   ForeshadowingPage,
@@ -24,7 +24,7 @@ function App() {
           <Route path="bookshelf" element={<BookshelfPage />} />
           <Route path="new-project" element={<NewProjectPage />} />
           <Route path="editor" element={<EditorPage />} />
-          <Route path="outline" element={<OutlinePage />} />
+          <Route path="chapters" element={<ChaptersPage />} />
           <Route path="characters" element={<CharactersPage />} />
           <Route path="worldview" element={<WorldviewPage />} />
           <Route path="foreshadowing" element={<ForeshadowingPage />} />

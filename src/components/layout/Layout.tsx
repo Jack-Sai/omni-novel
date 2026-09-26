@@ -20,7 +20,7 @@ export function Layout() {
 
   const shortcuts: Shortcut[] = [
     { key: "1", ctrl: true, description: "编辑器", action: () => navigate("/editor") },
-    { key: "2", ctrl: true, description: "大纲", action: () => navigate("/outline") },
+    { key: "2", ctrl: true, description: "章节", action: () => navigate("/chapters") },
     { key: "3", ctrl: true, description: "人物", action: () => navigate("/characters") },
     { key: "4", ctrl: true, description: "世界观", action: () => navigate("/worldview") },
     { key: "5", ctrl: true, description: "伏笔", action: () => navigate("/foreshadowing") },

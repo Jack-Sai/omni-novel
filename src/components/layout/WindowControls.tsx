@@ -10,7 +10,7 @@ import { useProjectStore } from "../../stores/projectStore";
 /** 项目工作区路由（进入这些页面时标题栏中间显示项目名） */
 const PROJECT_ROUTES = [
   "/editor",
-  "/outline",
+  "/chapters",
   "/characters",
   "/worldview",
   "/foreshadowing",

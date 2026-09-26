@@ -26,7 +26,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     label: "创作",
     items: [
       { id: "editor", icon: FileText, label: "编辑器" },
-      { id: "outline", icon: BookOpen, label: "大纲" },
+      { id: "chapters", icon: BookOpen, label: "章节" },
     ],
   },
   {

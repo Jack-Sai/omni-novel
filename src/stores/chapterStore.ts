@@ -1,17 +1,27 @@
 import { create } from "zustand";
 import { saveProjectJson, loadProjectJson } from "../services/storage";
 
+export type ChapterStatus = "draft" | "writing" | "completed";
+
 export interface Chapter {
   id: string;
   projectId: string;
+  /** 所属卷 id；null = 未分卷 */
   volumeId: string | null;
   title: string;
   content: string;
   summary: string;
+  status: ChapterStatus;
   order: number;
   createdAt: string;
   updatedAt: string;
 }
+
+export const chapterStatusLabels: Record<ChapterStatus, string> = {
+  draft: "草稿",
+  writing: "写作中",
+  completed: "已完成",
+};
 
 interface ChapterStore {
   chapters: Chapter[];
@@ -98,8 +108,10 @@ export const useChapterStore = create<ChapterStore>()((set, get) => ({
 
   loadFromDisk: async (projectDir: string) => {
     const data = await loadProjectJson<{ chapters: Chapter[] }>(projectDir, "data", "chapters.json");
-    // 无数据时清空，避免切换项目后残留上一项目内容
-    set({ chapters: data?.chapters ?? [] });
+    // 无数据时清空，避免切换项目后残留上一项目内容；旧数据缺 status 时补默认值
+    set({
+      chapters: (data?.chapters ?? []).map((c) => ({ ...c, status: c.status ?? "draft" })),
+    });
   },
 
   saveToDisk: (projectDir: string) => {
