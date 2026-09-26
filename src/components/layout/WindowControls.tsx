@@ -38,14 +38,20 @@ export function WindowControls() {
     };
   }, [win]);
 
-  const handleMinimize = useCallback(() => void win.minimize().catch(() => {}), [win]);
+  const handleMinimize = useCallback(
+    () => void win.minimize().catch((e) => console.error("窗口最小化失败:", e)),
+    [win],
+  );
   const handleToggleMax = useCallback(() => {
     void win
       .toggleMaximize()
       .then(() => setMaximized((v) => !v))
-      .catch(() => {});
+      .catch((e) => console.error("切换最大化失败:", e));
   }, [win]);
-  const handleClose = useCallback(() => void win.close().catch(() => {}), [win]);
+  const handleClose = useCallback(
+    () => void win.close().catch((e) => console.error("关闭窗口失败:", e)),
+    [win],
+  );
 
   const btnCls = (danger?: boolean) =>
     cn(
