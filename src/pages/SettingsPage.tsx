@@ -7,8 +7,10 @@ import {
   Download,
   Edit3,
   ExternalLink,
+  Feather,
   FileText,
   Info,
+  Loader2,
   MessageSquare,
   Palette,
   Play,
@@ -34,7 +36,9 @@ import {
   builtinPromptList,
   systemPrompts,
   promptDb,
+  styleDb,
   type CustomPromptRow,
+  type StyleProfileRow,
 } from "../services";
 import {
   Badge,
@@ -241,6 +245,147 @@ export function SettingsPage() {
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [promptForm, setPromptForm] = useState({ name: "", description: "", content: "" });
   const [openBuiltin, setOpenBuiltin] = useState<string | null>(null);
+
+  // ── 文风卡片 ──
+  const [styleProfiles, setStyleProfiles] = useState<StyleProfileRow[]>([]);
+  const [styleDialogOpen, setStyleDialogOpen] = useState(false);
+  const [editingStyleId, setEditingStyleId] = useState<string | null>(null);
+  const [styleForm, setStyleForm] = useState({
+    name: "",
+    description: "",
+    content: "",
+    sample: "",
+  });
+  const [styleGenerating, setStyleGenerating] = useState(false);
+  const [styleError, setStyleError] = useState<string | null>(null);
+
+  const reloadStyles = useCallback(async () => {
+    const project = useProjectStore.getState().currentProject;
+    if (!project) {
+      setStyleProfiles([]);
+      return;
+    }
+    try {
+      setStyleProfiles(await styleDb.list(project.id));
+    } catch (e) {
+      console.warn("加载文风卡片失败:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadStyles();
+  }, [reloadStyles, currentProject?.id]);
+
+  const openCreateStyle = () => {
+    setEditingStyleId(null);
+    setStyleForm({ name: "", description: "", content: "", sample: "" });
+    setStyleError(null);
+    setStyleDialogOpen(true);
+  };
+
+  const openEditStyle = (p: StyleProfileRow) => {
+    setEditingStyleId(p.id);
+    setStyleForm({
+      name: p.name,
+      description: p.description,
+      content: p.content,
+      sample: p.sample,
+    });
+    setStyleError(null);
+    setStyleDialogOpen(true);
+  };
+
+  const handleSaveStyle = async () => {
+    const name = styleForm.name.trim();
+    const content = styleForm.content.trim();
+    if (!name || !content) return;
+    try {
+      const payload = {
+        name,
+        description: styleForm.description.trim(),
+        content,
+        sample: styleForm.sample,
+      };
+      if (editingStyleId) {
+        await styleDb.update(editingStyleId, payload);
+      } else {
+        await styleDb.create(currentProject!.id, {
+          ...payload,
+          source: styleForm.sample.trim() ? "ai" : "manual",
+        });
+      }
+      await reloadStyles();
+      setStyleDialogOpen(false);
+    } catch (e) {
+      console.warn("保存文风卡片失败:", e);
+    }
+  };
+
+  const handleDeleteStyle = async (id: string) => {
+    try {
+      await styleDb.delete(id);
+      setStyleProfiles((prev) => prev.filter((s) => s.id !== id));
+    } catch (e) {
+      console.warn("删除文风卡片失败:", e);
+    }
+  };
+
+  const handleSetActiveStyle = async (p: StyleProfileRow, active: boolean) => {
+    try {
+      await styleDb.update(p.id, { isActive: active });
+      await reloadStyles();
+    } catch (e) {
+      console.warn("切换文风状态失败:", e);
+    }
+  };
+
+  /** 从样本 AI 生成文风画像（填入画像正文，可再编辑） */
+  const handleGenerateStyle = async () => {
+    const sample = styleForm.sample.trim();
+    if (!sample || styleGenerating) return;
+    setStyleGenerating(true);
+    setStyleError(null);
+    try {
+      const service = createAIService({
+        backend: ai.backend,
+        baseUrl: ai.baseUrl,
+        model: ai.model,
+        apiKey: ai.apiKey,
+        llama:
+          ai.backend === "llamacpp"
+            ? toLlamaConfig({
+                baseUrl: ai.baseUrl,
+                llamaServerPath: ai.llamaServerPath,
+                llamaModelPath: ai.llamaModelPath,
+                llamaExtraArgs: ai.llamaExtraArgs,
+                idleUnloadMinutes: ai.idleUnloadMinutes,
+              })
+            : undefined,
+      });
+      const profile = await service.chat(
+        [
+          { role: "system", content: systemPrompts.styleProfile },
+          { role: "user", content: `文本样本：\n\n${sample.slice(0, 6000)}` },
+        ],
+        { temperature: 0.4, numPredict: 800, think: false },
+      );
+      const clean = profile.trim();
+      if (!clean) {
+        setStyleError("模型没有返回内容，请检查模型设置后重试。");
+        return;
+      }
+      setStyleForm((f) => ({
+        ...f,
+        content: clean,
+        name: f.name || "AI 生成文风",
+      }));
+    } catch (e) {
+      console.warn("生成文风画像失败:", e);
+      setStyleError("生成失败，请确认 AI 模型已就绪。");
+    } finally {
+      setStyleGenerating(false);
+    }
+  };
 
   useEffect(() => {
     promptDb
@@ -770,6 +915,88 @@ export function SettingsPage() {
           </Section>
 
           {/* 提示词库 */}
+          {/* 文风卡片 */}
+          <Section
+            title="文风"
+            description="从样本提炼文风画像，启用后 AI 对话将自动套用（续写、润色等全部生效）"
+            icon={Feather}
+            contentClassName="space-y-4"
+          >
+            <SettingRow
+              title="文风卡片"
+              description="粘贴样本一键生成画像，或手动编写；启用的卡片会注入 AI 上下文"
+            >
+              <Button variant="secondary" onClick={openCreateStyle}>
+                <Plus size={15} />
+                新建文风
+              </Button>
+            </SettingRow>
+
+            {styleProfiles.length === 0 ? (
+              <p className="text-[13px] text-ink-3">
+                还没有文风卡片。点击「新建文风」，粘贴一段你满意的文字样本让 AI 提炼画像。
+              </p>
+            ) : (
+              styleProfiles.map((p) => (
+                <div
+                  key={p.id}
+                  className={
+                    "flex items-start gap-3 rounded-lg border p-3 " +
+                    (p.is_active
+                      ? "border-primary/40 bg-primary-soft/40"
+                      : "border-line bg-surface")
+                  }
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-[13px] font-medium text-ink">{p.name}</p>
+                      {p.is_active ? (
+                        <Badge variant="primary" size="sm">
+                          启用中
+                        </Badge>
+                      ) : null}
+                      <Badge variant="outline" size="sm">
+                        {p.source === "ai" ? "AI 生成" : "手动"}
+                      </Badge>
+                    </div>
+                    {p.description && (
+                      <p className="mt-0.5 text-[12px] text-ink-3">{p.description}</p>
+                    )}
+                    <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-ink-2">
+                      {p.content}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title={p.is_active ? "停用" : "启用"}
+                      onClick={() => void handleSetActiveStyle(p, !p.is_active)}
+                    >
+                      {p.is_active ? <Square size={14} /> : <Play size={14} />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="编辑"
+                      onClick={() => openEditStyle(p)}
+                    >
+                      <Edit3 size={14} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="删除"
+                      onClick={() => void handleDeleteStyle(p.id)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </Section>
+
           <Section
             title="提示词"
             description="内置提示词与自定义提示词，供 AI 面板调用"
@@ -1037,6 +1264,77 @@ export function SettingsPage() {
               value={promptForm.content}
               onChange={(e) => setPromptForm((f) => ({ ...f, content: e.target.value }))}
               placeholder="你是一位……"
+            />
+          </Field>
+        </div>
+      </Dialog>
+
+      {/* 新建/编辑文风 */}
+      <Dialog
+        open={styleDialogOpen}
+        onOpenChange={setStyleDialogOpen}
+        title={editingStyleId ? "编辑文风" : "新建文风"}
+        description="画像将以指令形式注入 AI 上下文；启用状态决定是否生效"
+        icon={Feather}
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setStyleDialogOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!styleForm.name.trim() || !styleForm.content.trim()}
+              onClick={() => void handleSaveStyle()}
+            >
+              保存
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="名称" required>
+            <Input
+              value={styleForm.name}
+              onChange={(e) => setStyleForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="例如：冷硬派悬疑风"
+            />
+          </Field>
+          <Field label="描述" hint="可选，一句话说明">
+            <Input
+              value={styleForm.description}
+              onChange={(e) => setStyleForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="例如：短句、克制、留白"
+            />
+          </Field>
+          <Field
+            label="文风样本"
+            hint="粘贴 300 字以上你满意的文字，点击「AI 提炼画像」自动生成下方画像"
+          >
+            <Textarea
+              rows={5}
+              value={styleForm.sample}
+              onChange={(e) => setStyleForm((f) => ({ ...f, sample: e.target.value }))}
+              placeholder="粘贴你的作品片段或喜欢的文段…"
+            />
+          </Field>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              disabled={!styleForm.sample.trim() || styleGenerating}
+              onClick={() => void handleGenerateStyle()}
+            >
+              {styleGenerating ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+              {styleGenerating ? "提炼中…" : "AI 提炼画像"}
+            </Button>
+            {styleError && <span className="text-[12px] text-danger">{styleError}</span>}
+          </div>
+          <Field label="文风画像" required hint="直接注入 system prompt 的指令正文，可手动修改">
+            <Textarea
+              rows={8}
+              value={styleForm.content}
+              onChange={(e) => setStyleForm((f) => ({ ...f, content: e.target.value }))}
+              placeholder="请模仿以下文风写作：…"
             />
           </Field>
         </div>
