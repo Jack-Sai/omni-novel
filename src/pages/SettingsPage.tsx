@@ -25,6 +25,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../stores/settingsStore";
+import { cn } from "../lib/cn";
 import { useProjectStore } from "../stores/projectStore";
 import {
   createAIService,
@@ -93,6 +94,7 @@ export function SettingsPage() {
     applyModelPreset,
   } = useSettingsStore();
   const { currentProject } = useProjectStore();
+  const [settingsTab, setSettingsTab] = useState("appearance");
   const [saved, setSaved] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
@@ -588,6 +590,16 @@ export function SettingsPage() {
     },
   ];
 
+  const settingsTabs = [
+    { key: "appearance", label: "外观", icon: Palette },
+    { key: "editor", label: "编辑器", icon: FileText },
+    { key: "ai", label: "AI 模型", icon: Sparkles },
+    { key: "style", label: "文风", icon: Feather },
+    { key: "prompts", label: "提示词", icon: MessageSquare },
+    { key: "backup", label: "数据备份与恢复", icon: Database },
+    { key: "about", label: "关于", icon: Info },
+  ];
+
   return (
     <Page>
       <PageHeader
@@ -602,8 +614,31 @@ export function SettingsPage() {
       />
 
       <PageBody padded>
-        <div className="mx-auto w-full max-w-4xl space-y-4">
+        <div className="mx-auto flex w-full max-w-5xl items-start gap-6">
+          <aside className="sticky top-8 w-44 shrink-0 rounded-xl border border-line bg-surface p-2">
+            <nav className="flex flex-col gap-0.5">
+              {settingsTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setSettingsTab(tab.key)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]",
+                    settingsTab === tab.key
+                      ? "bg-primary-soft font-medium text-primary"
+                      : "text-ink-2 hover:bg-hover hover:text-ink",
+                  )}
+                >
+                  <tab.icon size={15} />
+                  <span className="truncate">{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+          </aside>
+          <div className="min-w-0 flex-1 space-y-4">
           {/* 外观 */}
+          <div className={settingsTab !== "appearance" ? "hidden" : undefined}>
           <Section title="外观" icon={Palette} contentClassName="space-y-5">
             <ThemeToggle />
             <div className="grid gap-5 sm:grid-cols-2">
@@ -667,8 +702,10 @@ export function SettingsPage() {
               />
             </Field>
           </Section>
+          </div>
 
           {/* 编辑器 */}
+          <div className={settingsTab !== "editor" ? "hidden" : undefined}>
           <Section
             title="编辑器"
             description="写作体验与自动保存"
@@ -772,8 +809,10 @@ export function SettingsPage() {
               />
             </Field>
           </Section>
+          </div>
 
           {/* AI 模型 */}
+          <div className={settingsTab !== "ai" ? "hidden" : undefined}>
           <Section
             title="AI 模型"
             description={backendPreset.description}
@@ -1178,9 +1217,11 @@ export function SettingsPage() {
               </div>
             )}
           </Section>
+          </div>
 
           {/* 提示词库 */}
           {/* 文风卡片 */}
+          <div className={settingsTab !== "style" ? "hidden" : undefined}>
           <Section
             title="文风"
             description="从样本提炼文风画像，启用后 AI 对话将自动套用（续写、润色等全部生效）"
@@ -1261,7 +1302,9 @@ export function SettingsPage() {
               ))
             )}
           </Section>
+          </div>
 
+          <div className={settingsTab !== "prompts" ? "hidden" : undefined}>
           <Section
             title="提示词"
             description="内置提示词与自定义提示词，供 AI 面板调用"
@@ -1349,8 +1392,10 @@ export function SettingsPage() {
               </div>
             </div>
           </Section>
+          </div>
 
           {/* 数据备份 */}
+          <div className={settingsTab !== "backup" ? "hidden" : undefined}>
           <Section
             title="数据备份与恢复"
             icon={Database}
@@ -1411,8 +1456,10 @@ export function SettingsPage() {
               </p>
             </div>
           </Section>
+          </div>
 
           {/* 关于 */}
+          <div className={settingsTab !== "about" ? "hidden" : undefined}>
           <Section title="关于" icon={Info}>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
               <dt className="text-ink-3">版本</dt>
@@ -1443,6 +1490,8 @@ export function SettingsPage() {
               </dd>
             </dl>
           </Section>
+          </div>
+          </div>
         </div>
       </PageBody>
 
