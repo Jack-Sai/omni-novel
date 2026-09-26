@@ -105,7 +105,7 @@ const quickActions: QuickAction[] = [
   { key: "compress", label: "缩写", icon: Minimize2, needsSelection: true, applyMode: "replace" },
 ];
 
-/** DB 消息行 → 面板消息（从 action 推导"应用到正文"能力） */
+/** DB 消息行 → 面板消息（所有有内容的回复都可插入正文） */
 function rowToMessage(row: AiMessageRow): Message {
   const quick = row.action ? quickActions.find((a) => a.key === row.action) : undefined;
   return {
@@ -113,9 +113,23 @@ function rowToMessage(row: AiMessageRow): Message {
     role: row.role,
     content: row.content,
     action: row.action ?? undefined,
-    canApply: row.role === "assistant" && !!quick,
-    applyMode: quick?.applyMode,
+    canApply: row.role === "assistant" && !!row.content,
+    applyMode: quick?.applyMode ?? "append",
   };
+}
+
+/** 剥离首行客套/引导语（"好的""以下是……"等），仅当其后确有正文时生效 */
+function stripChatter(raw: string): string {
+  const lines = raw.split("\n");
+  if (lines.length < 2) return raw;
+  const first = lines[0].trim();
+  if (
+    first.length <= 40 &&
+    /^(好的|好的[，,]|以下是|没问题|当然可以|我来|稍等|修改后|润色后|扩写后|缩写后|续写)/.test(first)
+  ) {
+    return lines.slice(1).join("\n").replace(/^\s+/, "");
+  }
+  return raw;
 }
 
 const memoryKindLabels: Record<string, string> = {
@@ -594,6 +608,8 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
     await runChat({
       systemPrompt: getSystemPrompt("writer"),
       userContent: content,
+      canApply: true,
+      applyMode: "append",
     });
   };
 
@@ -611,7 +627,8 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
         userContent,
         retrievalQuery: context || undefined,
         action: opts.action,
-        canApply: false,
+        canApply: true,
+        applyMode: "append",
       });
     },
     [isLoading, selectedText, chapterContent, runChat],
@@ -667,14 +684,17 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
     // 实例为空或已销毁（切章重挂载）时直接返回，避免静默失效造成不同步
     if (!editor || editor.isDestroyed) return;
 
+    const content = stripChatter(msg.content);
+    if (!content) return;
+
     if (msg.applyMode === "append") {
-      editor.chain().focus().setContent(editor.getHTML() + msg.content).run();
+      editor.chain().focus().setContent(editor.getHTML() + content).run();
     } else {
       const { from, to } = editor.state.selection;
       if (from !== to) {
-        editor.chain().focus().deleteSelection().insertContent(msg.content).run();
+        editor.chain().focus().deleteSelection().insertContent(content).run();
       } else {
-        editor.chain().focus().insertContent(msg.content).run();
+        editor.chain().focus().insertContent(content).run();
       }
     }
     // 显式同步回 store（onUpdate 之外的兜底，保证自动保存写入最新内容）
