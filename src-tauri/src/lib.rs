@@ -636,6 +636,29 @@ fn default_projects_dir() -> Result<String, String> {
         .to_string())
 }
 
+/// 从环境变量 PATH 中自动查找 llama-server 可执行文件，找到返回绝对路径
+#[tauri::command]
+fn find_llama_server_in_path() -> Option<String> {
+    let path_var = std::env::var("PATH").ok()?;
+    let names: &[&str] = if cfg!(windows) {
+        &["llama-server.exe"]
+    } else {
+        &["llama-server", "llama-server.exe"]
+    };
+    for dir in std::env::split_paths(&path_var) {
+        if dir.as_os_str().is_empty() {
+            continue;
+        }
+        for name in names {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Some(candidate.to_string_lossy().to_string());
+            }
+        }
+    }
+    None
+}
+
 // ── App Entry ────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -672,6 +695,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             create_project_dir,
             default_projects_dir,
+            find_llama_server_in_path,
             save_chapter,
             load_chapter,
             save_novel_json,

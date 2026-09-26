@@ -101,6 +101,11 @@ export function SettingsPage() {
   const [importSuccess, setImportSuccess] = useState<boolean | null>(null);
   /** 是否处于"自定义字体"编辑态（值为预设外的 font stack 时也视为自定义） */
   const [fontCustom, setFontCustom] = useState(false);
+  /** llama-server PATH 自动检测状态 */
+  const [serverDetect, setServerDetect] = useState<"loading" | "found" | "missing">("loading");
+  const [detectedServerPath, setDetectedServerPath] = useState("");
+  /** 点过「手动指定」后强制显示输入框 */
+  const [serverPathManual, setServerPathManual] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
@@ -168,15 +173,57 @@ export function SettingsPage() {
     return () => clearInterval(timer);
   }, [ai.backend, refreshLlamaStatus]);
 
+  // llama-server 路径自动寻找：进入设置页时从环境变量 PATH 检测一次
+  useEffect(() => {
+    if (ai.backend !== "llamacpp") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const found = await invoke<string | null>("find_llama_server_in_path");
+        if (cancelled) return;
+        if (found) {
+          setServerDetect("found");
+          setDetectedServerPath(found);
+          // 当前路径为空才自动填充，不覆盖用户已有配置
+          if (!useSettingsStore.getState().ai.llamaServerPath) {
+            updateAISettings({ llamaServerPath: found });
+          }
+        } else {
+          setServerDetect("missing");
+        }
+      } catch (e) {
+        console.warn("PATH 中查找 llama-server 失败:", e);
+        if (!cancelled) setServerDetect("missing");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ai.backend]);
+
   const handleStartServer = async () => {
     setStarting(true);
     setStartError(null);
     try {
       const { ai: current } = useSettingsStore.getState();
+      // 路径为空时先从 PATH 兜底检测一次
+      let serverPath = current.llamaServerPath;
+      if (!serverPath) {
+        const found = await invoke<string | null>("find_llama_server_in_path");
+        if (found) {
+          updateAISettings({ llamaServerPath: found });
+          serverPath = found;
+        }
+      }
+      if (!serverPath) {
+        setStartError("未找到 llama-server 路径，请在下方手动指定或浏览选择。");
+        return;
+      }
       await invoke("ensure_llama_ready", {
         llama: toLlamaConfig({
           baseUrl: current.baseUrl,
-          llamaServerPath: current.llamaServerPath,
+          llamaServerPath: serverPath,
           llamaModelPath: current.llamaModelPath,
           llamaExtraArgs: current.llamaExtraArgs,
           idleUnloadMinutes: current.idleUnloadMinutes,
@@ -852,24 +899,59 @@ export function SettingsPage() {
                   <p className="text-[13px] text-danger">{startError}</p>
                 )}
 
-                <Field label="llama-server 路径" hint="llama-server.exe 可执行文件位置">
-                  <div className="flex gap-2">
-                    <Input
-                      value={ai.llamaServerPath}
-                      onChange={(e) => updateAISettings({ llamaServerPath: e.target.value })}
-                      placeholder="D:\llama.cpp\llama-server.exe"
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handlePickServerPath}
-                      className="shrink-0"
-                    >
-                      浏览
-                    </Button>
-                  </div>
-                </Field>
+                {serverDetect === "loading" ? (
+                  <Field label="llama-server 路径" hint="自动从环境变量 PATH 查找可执行文件">
+                    <p className="text-[13px] text-ink-3">正在从 PATH 查找 llama-server…</p>
+                  </Field>
+                ) : serverDetect === "found" &&
+                  !serverPathManual &&
+                  ai.llamaServerPath === detectedServerPath ? (
+                  <Field
+                    label="llama-server 路径"
+                    hint="已通过环境变量 PATH 自动找到，无需手动配置"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-line bg-subtle px-3 py-2 text-[13px] text-ink-2">
+                        <Check size={14} className="shrink-0 text-success" />
+                        <span className="truncate">{detectedServerPath}</span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setServerPathManual(true)}
+                        className="shrink-0"
+                      >
+                        手动指定
+                      </Button>
+                    </div>
+                  </Field>
+                ) : (
+                  <Field
+                    label="llama-server 路径"
+                    hint={
+                      serverDetect === "missing"
+                        ? "未在环境变量 PATH 中找到 llama-server，请手动输入或浏览选择"
+                        : "llama-server.exe 可执行文件位置"
+                    }
+                  >
+                    <div className="flex gap-2">
+                      <Input
+                        value={ai.llamaServerPath}
+                        onChange={(e) => updateAISettings({ llamaServerPath: e.target.value })}
+                        placeholder="D:\llama.cpp\llama-server.exe"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handlePickServerPath}
+                        className="shrink-0"
+                      >
+                        浏览
+                      </Button>
+                    </div>
+                  </Field>
+                )}
 
                 <Field label="模型文件路径" hint="GGUF 模型文件位置">
                   <div className="flex gap-2">
