@@ -79,6 +79,12 @@ export function EditorPage() {
 
   const { editor } = useSettingsStore();
 
+  // 切换/新建章节时清理选区浮层，避免残留浮层拦截编辑器点击
+  useEffect(() => {
+    setSelectedText("");
+    setSelectionPos(null);
+  }, [currentChapter?.id]);
+
   const handleSave = useCallback(async () => {
     if (!currentChapter || !currentProject) return;
 

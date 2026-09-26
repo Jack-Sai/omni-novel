@@ -345,6 +345,7 @@
   /* 编辑器正文排版 */
   .tiptap {
     outline: none;
+    min-height: 60vh;
     font-family: var(--font-serif);
     font-size: var(--app-reading-size);
     line-height: 1.95;

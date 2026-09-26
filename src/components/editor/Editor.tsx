@@ -49,13 +49,20 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
     return null;
   }
 
+  /** 点击正文区域空白处时聚焦编辑器（否则空白属于 wrapper，点击无法获得焦点） */
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    if (editor.view.dom.contains(e.target as Node)) return;
+    e.preventDefault();
+    editor.chain().focus("end").run();
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-surface">
       <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface px-4 py-2">
         <Toolbar editor={editor} />
       </div>
 
-      <div className="flex-1 overflow-auto bg-surface">
+      <div className="flex-1 overflow-auto bg-surface" onMouseDown={handleCanvasMouseDown}>
         <div className="mx-auto w-full max-w-[var(--app-reading-measure)] px-8 py-12 pb-32">
           <EditorContent editor={editor} />
         </div>
