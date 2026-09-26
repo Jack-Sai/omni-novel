@@ -75,6 +75,8 @@ interface ChatParams {
   canApply?: boolean;
   /** 重新生成用：不追加/不落库用户消息，直接发起新一轮回复 */
   skipUserMessage?: boolean;
+  /** 覆盖 ai.think：正文快捷任务（续写/润色/扩写/缩写）传 false，思考不再挤占输出预算 */
+  thinkOverride?: boolean;
 }
 
 interface Message {
@@ -467,7 +469,8 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
         // 组装 system prompt：基础提示词 + 启用的文风 + 相关记忆
         const systemParts = [params.systemPrompt];
         // 思考模式下引导模型用中文推理（Qwen3 等默认倾向英文思考）
-        if (ai.think) {
+        const effectiveThink = params.thinkOverride ?? ai.think;
+        if (effectiveThink) {
           systemParts.push("思考过程（reasoning）请一律使用中文。");
         }
         if (styleProfile) {
@@ -482,6 +485,11 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
         }
         const systemContent = systemParts.join("\n\n");
 
+        // Qwen3 思考语言主要跟随最后一条 user 消息：user 级注入中文思考指令（仅发送副本，不落库）
+        const sendUserContent = effectiveThink
+          ? `${params.userContent}\n\n（请用中文思考。）`
+          : params.userContent;
+
         await aiService.chatStream(
           [
             { role: "system", content: systemContent },
@@ -489,7 +497,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
               .filter((m) => m.role === "user" || m.role === "assistant")
               .slice(-Math.max(2, ai.contextMessageCount))
               .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-            { role: "user", content: params.userContent },
+            { role: "user", content: sendUserContent },
           ],
           {
             temperature: ai.temperature,
@@ -497,7 +505,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
             topK: ai.topK,
             repeatPenalty: ai.repeatPenalty,
             numPredict: ai.maxTokens,
-            think: ai.think,
+            think: effectiveThink,
           },
           (chunk, meta) => {
             if (meta?.reasoning) {
@@ -594,6 +602,8 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
         action: action.key,
         applyMode: action.applyMode,
         canApply: true,
+        // 正文执行任务不思考：思考与正文共享 max_tokens 预算，思考过长会吃掉全部输出
+        thinkOverride: false,
       });
     },
     [isLoading, selectedText, chapterContent, runChat],
