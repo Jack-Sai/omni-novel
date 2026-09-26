@@ -89,14 +89,14 @@ export function LoginPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[var(--color-bg)]">
+      <div className="flex h-screen items-center justify-center bg-[var(--color-bg)] pt-8">
         <Loader2 className="h-8 w-8 animate-spin text-[var(--color-primary)]" />
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[var(--color-bg)]">
+    <div className="relative flex h-screen overflow-hidden bg-[var(--color-bg)] pt-8">
       {/* 登录模式：左侧蓝色品牌区域 */}
       <div
         className={`absolute inset-y-0 left-0 z-20 hidden w-1/2 bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] transition-all duration-500 ease-in-out lg:block ${

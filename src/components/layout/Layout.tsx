@@ -33,7 +33,7 @@ export function Layout() {
   useKeyboardShortcuts(shortcuts);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-canvas">
+    <div className="flex h-screen overflow-hidden bg-canvas pt-8">
       <Sidebar activeTab={activeTab} onTabChange={(tab) => navigate(`/${tab}`)} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div
