@@ -29,7 +29,6 @@ export {
   closeDatabase,
   userDb,
   projectDb,
-  chapterDb,
   characterDb,
   worldviewDb,
   foreshadowingDb,
@@ -56,13 +55,8 @@ export type {
 
 export {
   createProjectDir,
-  saveChapter,
-  loadChapter,
   saveMetadata,
   loadMetadata,
-  listChapters,
-  listVolumes,
-  titleToFilename,
   isNovelProject,
   saveDraft,
   saveExport,

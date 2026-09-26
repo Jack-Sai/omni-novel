@@ -64,23 +64,6 @@ async function initializeTables(db: Database) {
     )
   `);
 
-  // 创建章节表
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS chapters (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      volume_id TEXT,
-      title TEXT NOT NULL,
-      content TEXT DEFAULT '',
-      word_count INTEGER DEFAULT 0,
-      status TEXT DEFAULT 'draft',
-      order_index INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-    )
-  `);
-
   // 创建人物表
   await db.execute(`
     CREATE TABLE IF NOT EXISTS characters (
@@ -122,49 +105,6 @@ async function initializeTables(db: Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-    )
-  `);
-
-  // 创建大纲卷表
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS outline_volumes (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT DEFAULT '',
-      order_index INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-    )
-  `);
-
-  // 创建大纲章表
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS outline_chapters (
-      id TEXT PRIMARY KEY,
-      volume_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT DEFAULT '',
-      status TEXT DEFAULT 'draft',
-      order_index INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (volume_id) REFERENCES outline_volumes(id) ON DELETE CASCADE
-    )
-  `);
-
-  // 创建大纲场景表
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS outline_scenes (
-      id TEXT PRIMARY KEY,
-      chapter_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT DEFAULT '',
-      order_index INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (chapter_id) REFERENCES outline_chapters(id) ON DELETE CASCADE
     )
   `);
 
@@ -466,73 +406,6 @@ export const projectDb = {
   async delete(id: string) {
     const db = await getDatabase();
     await db.execute("DELETE FROM projects WHERE id = ?", [id]);
-  }
-};
-
-// 章节相关操作
-export const chapterDb = {
-  async create(chapter: {
-    project_id: string;
-    title: string;
-    volume_id?: string;
-    order_index?: number;
-  }) {
-    const db = await getDatabase();
-    const id = crypto.randomUUID();
-    await db.execute(
-      `INSERT INTO chapters (id, project_id, title, volume_id, order_index)
-       VALUES (?, ?, ?, ?, ?)`,
-      [id, chapter.project_id, chapter.title, chapter.volume_id || null, chapter.order_index || 0]
-    );
-    return this.getById(id);
-  },
-
-  async getById(id: string) {
-    const db = await getDatabase();
-    const results = await db.select<any[]>("SELECT * FROM chapters WHERE id = ?", [id]);
-    return results[0] || null;
-  },
-
-  async getByProjectId(projectId: string) {
-    const db = await getDatabase();
-    return await db.select<any[]>(
-      "SELECT * FROM chapters WHERE project_id = ? ORDER BY order_index",
-      [projectId]
-    );
-  },
-
-  async update(id: string, updates: Partial<{
-    title: string;
-    content: string;
-    summary: string;
-    volume_id: string;
-    status: string;
-    order_index: number;
-  }>) {
-    const db = await getDatabase();
-    const fields = [];
-    const values = [];
-    
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined) {
-        fields.push(`${key} = ?`);
-        values.push(value);
-      }
-    });
-    
-    fields.push("updated_at = datetime('now')");
-    values.push(id);
-    
-    await db.execute(
-      `UPDATE chapters SET ${fields.join(", ")} WHERE id = ?`,
-      values
-    );
-    return this.getById(id);
-  },
-
-  async delete(id: string) {
-    const db = await getDatabase();
-    await db.execute("DELETE FROM chapters WHERE id = ?", [id]);
   }
 };
 

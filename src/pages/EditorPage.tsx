@@ -32,8 +32,6 @@ import { AIPanel, type AiQuickActionRequest } from "../components/ai";
 import { ChapterList } from "../components/chapter";
 import {
   ExportService,
-  saveChapter,
-  titleToFilename,
   versionDb,
   loadProjectStores,
   createProjectDir,
@@ -134,16 +132,6 @@ export function EditorPage() {
     if (!currentChapter || !currentProject) return;
 
     setLastSaved(new Date());
-
-    // 保存到磁盘
-    if (currentProject.storagePath) {
-      try {
-        const filename = titleToFilename(currentChapter.title, currentChapter.order);
-        await saveChapter(currentProject.storagePath, filename, currentChapter.content);
-      } catch (err) {
-        console.error("Failed to save chapter to disk:", err);
-      }
-    }
 
     // 自动版本快照（内容无变化时 versionDb 内部跳过）
     try {
