@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { Editor } from "@tiptap/react";
 import { invoke } from "@tauri-apps/api/core";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Bot,
   History,
@@ -102,6 +104,91 @@ const memoryKindLabels: Record<string, string> = {
   worldview: "设定",
   foreshadowing: "伏笔",
 };
+
+/** AI 回复的 Markdown 渲染（GFM），手写紧凑样式贴合气泡 */
+function MarkdownText({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
+        h1: ({ children }) => (
+          <h3 className="mb-1 mt-3 text-[14px] font-semibold text-ink first:mt-0">{children}</h3>
+        ),
+        h2: ({ children }) => (
+          <h4 className="mb-1 mt-3 text-[13.5px] font-semibold text-ink first:mt-0">{children}</h4>
+        ),
+        h3: ({ children }) => (
+          <h5 className="mb-1 mt-2.5 text-[13px] font-semibold text-ink first:mt-0">{children}</h5>
+        ),
+        ul: ({ children }) => (
+          <ul className="my-1.5 list-disc space-y-1 pl-5 marker:text-ink-3">{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="my-1.5 list-decimal space-y-1 pl-5 marker:text-ink-3 marker:tabular-nums">
+            {children}
+          </ol>
+        ),
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        code: ({ className, children, ...props }) => {
+          const isBlock = /language-/.test(className || "");
+          if (isBlock) {
+            return (
+              <code className={`block font-mono text-[12px] ${className || ""}`} {...props}>
+                {children}
+              </code>
+            );
+          }
+          return (
+            <code
+              className="rounded bg-subtle px-1 py-0.5 font-mono text-[12px] text-ink-2"
+              {...props}
+            >
+              {children}
+            </code>
+          );
+        },
+        pre: ({ children }) => (
+          <pre className="my-2 overflow-auto rounded-lg bg-subtle p-2.5 text-[12px] leading-relaxed">
+            {children}
+          </pre>
+        ),
+        blockquote: ({ children }) => (
+          <blockquote className="my-2 border-l-2 border-line-strong pl-2.5 italic text-ink-3">
+            {children}
+          </blockquote>
+        ),
+        a: ({ children, href }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary underline underline-offset-2"
+          >
+            {children}
+          </a>
+        ),
+        hr: () => <hr className="my-3 border-line" />,
+        table: ({ children }) => (
+          <div className="my-2 overflow-auto">
+            <table className="w-full border-collapse text-[12px]">{children}</table>
+          </div>
+        ),
+        th: ({ children }) => (
+          <th className="border border-line bg-subtle px-2 py-1 text-left font-medium text-ink-2">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="border border-line px-2 py-1 text-ink-2">{children}</td>
+        ),
+        strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) {
   const { ai, aiPanelWidth, updateAiPanelWidth, updateAISettings } = useSettingsStore();
@@ -774,13 +861,18 @@ export function AIPanel({ editor, selectedText, chapterContent }: AIPanelProps) 
                           : "rounded-tl-sm border border-line bg-surface text-ink",
                       )}
                     >
-                      <div className="whitespace-pre-wrap break-words">
+                      <div
+                        className={cn(
+                          "break-words",
+                          isUser && "whitespace-pre-wrap",
+                        )}
+                      >
                         {msg.reasoning && (
                           <div className="mb-1.5 max-h-40 overflow-auto whitespace-pre-wrap border-l-2 border-line-strong pl-2 text-[12px] italic leading-relaxed text-ink-3">
                             {msg.reasoning}
                           </div>
                         )}
-                        {msg.content}
+                        {isUser ? msg.content : <MarkdownText content={msg.content} />}
                       </div>
                     </div>
                     {isUser && (
