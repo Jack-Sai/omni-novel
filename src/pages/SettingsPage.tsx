@@ -22,6 +22,7 @@ import {
   Upload,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useProjectStore } from "../stores/projectStore";
@@ -199,6 +200,33 @@ export function SettingsPage() {
       setStartError(String(e));
     } finally {
       setStopping(false);
+    }
+  };
+
+  // ── 路径文件选择 ──
+  const handlePickServerPath = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        title: "选择 llama-server 可执行文件",
+        filters: [{ name: "可执行文件", extensions: ["exe"] }],
+      });
+      if (selected) updateAISettings({ llamaServerPath: selected as string });
+    } catch (e) {
+      console.error("选择文件失败:", e);
+    }
+  };
+
+  const handlePickModelPath = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        title: "选择 GGUF 模型文件",
+        filters: [{ name: "GGUF 模型", extensions: ["gguf"] }],
+      });
+      if (selected) updateAISettings({ llamaModelPath: selected as string });
+    } catch (e) {
+      console.error("选择文件失败:", e);
     }
   };
 
@@ -825,19 +853,41 @@ export function SettingsPage() {
                 )}
 
                 <Field label="llama-server 路径" hint="llama-server.exe 可执行文件位置">
-                  <Input
-                    value={ai.llamaServerPath}
-                    onChange={(e) => updateAISettings({ llamaServerPath: e.target.value })}
-                    placeholder="D:\llama.cpp\llama-server.exe"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={ai.llamaServerPath}
+                      onChange={(e) => updateAISettings({ llamaServerPath: e.target.value })}
+                      placeholder="D:\llama.cpp\llama-server.exe"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handlePickServerPath}
+                      className="shrink-0"
+                    >
+                      浏览
+                    </Button>
+                  </div>
                 </Field>
 
                 <Field label="模型文件路径" hint="GGUF 模型文件位置">
-                  <Input
-                    value={ai.llamaModelPath}
-                    onChange={(e) => updateAISettings({ llamaModelPath: e.target.value })}
-                    placeholder="E:\Models\Qwen3.8-9B-Q8_0.gguf"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={ai.llamaModelPath}
+                      onChange={(e) => updateAISettings({ llamaModelPath: e.target.value })}
+                      placeholder="E:\Models\Qwen3.8-9B-Q8_0.gguf"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handlePickModelPath}
+                      className="shrink-0"
+                    >
+                      浏览
+                    </Button>
+                  </div>
                 </Field>
 
                 <Field
