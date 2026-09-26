@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -7,6 +7,8 @@ import {
   Download,
   FileText,
   History,
+  Maximize2,
+  Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -21,6 +23,7 @@ import { Editor, type EditorRef } from "../components/editor";
 import { AIPanel } from "../components/ai";
 import { ChapterList } from "../components/chapter";
 import { ExportService, saveChapter, titleToFilename, versionDb } from "../services";
+import { cn } from "../lib/cn";
 import { useAutoSave } from "../hooks";
 import { useSettingsStore } from "../stores/settingsStore";
 import {
@@ -62,6 +65,8 @@ export function EditorPage() {
   const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
   /** 「问 AI」预填输入 */
   const [askAiPrefill, setAskAiPrefill] = useState("");
+  /** 专注模式：隐藏顶栏、侧栏与 AI 面板 */
+  const [focusMode, setFocusMode] = useState(false);
   const editorRef = useRef<EditorRef>(null);
   const { projects, currentProject, addProject, setCurrentProject, deleteProject } =
     useProjectStore();
@@ -127,6 +132,51 @@ export function EditorPage() {
     enabled: !!currentChapter && editor.autoSaveEnabled,
   });
 
+  // 打字机滚动：输入后把光标行滚到编辑器视口中部（rAF 节流）
+  const typewriterRafRef = useRef<number | null>(null);
+  const handleEditorUpdate = useCallback(
+    (content: string) => {
+      if (!currentChapter) return;
+      updateChapterContent(currentChapter.id, content);
+      if (!editor.typewriterScroll) return;
+      if (typewriterRafRef.current !== null) return;
+      typewriterRafRef.current = requestAnimationFrame(() => {
+        typewriterRafRef.current = null;
+        const ed = editorRef.current?.getEditor();
+        if (!ed) return;
+        try {
+          const node = ed.view.domAtPos(ed.state.selection.head).node;
+          const el = node instanceof Element ? node : node.parentElement;
+          el?.scrollIntoView({ block: "center" });
+        } catch {
+          // 光标节点不可用时忽略
+        }
+      });
+    },
+    [currentChapter, editor.typewriterScroll, updateChapterContent],
+  );
+
+  // 快捷键：Ctrl+S 保存、专注模式下 Esc 退出
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void saveNow();
+      }
+      if (e.key === "Escape" && focusMode) {
+        setFocusMode(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      if (typewriterRafRef.current !== null) {
+        cancelAnimationFrame(typewriterRafRef.current);
+        typewriterRafRef.current = null;
+      }
+    };
+  }, [saveNow, focusMode]);
+
   const stats = useMemo(() => {
     if (!currentProject) {
       return { totalWords: 0, chapterWords: 0, averageWordsPerChapter: 0 };
@@ -147,6 +197,12 @@ export function EditorPage() {
 
     return { totalWords, chapterWords, averageWordsPerChapter };
   }, [currentProject, chapters, currentChapter]);
+
+  const targetProgress = useMemo(() => {
+    if (!editor.chapterWordTarget) return null;
+    const pct = Math.min(100, Math.round((stats.chapterWords / editor.chapterWordTarget) * 100));
+    return { pct, over: stats.chapterWords > editor.chapterWordTarget };
+  }, [stats.chapterWords, editor.chapterWordTarget]);
 
   const handleCreateProject = (project: NewProject) => {
     addProject(project);
@@ -298,7 +354,8 @@ export function EditorPage() {
   /* ================= 写作界面 ================= */
   return (
     <Page>
-      <PageHeader
+      {!focusMode && (
+        <PageHeader
         leading={
           <Button
             variant="ghost"
@@ -320,6 +377,15 @@ export function EditorPage() {
                 已保存 {lastSaved.toLocaleTimeString()}
               </span>
             )}
+            <Button
+              variant="secondary"
+              disabled={!currentChapter}
+              onClick={() => setFocusMode(true)}
+              title="专注模式（Esc 退出）"
+            >
+              <Minimize2 size={15} />
+              专注
+            </Button>
             <Button
               variant={showStats ? "primary" : "secondary"}
               onClick={() => setShowStats(!showStats)}
@@ -382,10 +448,25 @@ export function EditorPage() {
             </Button>
           </>
         }
-      />
+        >
+      </PageHeader>
+      )}
+
+      {/* 专注模式浮动退出按钮 */}
+      {focusMode && (
+        <button
+          type="button"
+          onClick={() => setFocusMode(false)}
+          title="退出专注（Esc）"
+          className="fixed right-4 top-4 z-40 flex items-center gap-1.5 rounded-full border border-line bg-elevated/90 px-3 py-1.5 text-xs text-ink-2 shadow-md backdrop-blur transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]"
+        >
+          <Maximize2 size={13} />
+          退出专注
+        </button>
+      )}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {sidebarOpen && (
+        {sidebarOpen && !focusMode && (
           <div className="w-56 shrink-0 border-r border-line">
             <ChapterList
               projectId={currentProject.id}
@@ -395,7 +476,7 @@ export function EditorPage() {
           </div>
         )}
 
-        {showStats && (
+        {showStats && !focusMode && (
           <div className="w-64 shrink-0 overflow-auto border-r border-line bg-canvas p-4">
             <WordStats
               totalWords={stats.totalWords}
@@ -414,7 +495,7 @@ export function EditorPage() {
                 ref={editorRef}
                 content={currentChapter.content}
                 placeholder={`开始写作 ${currentChapter.title}…`}
-                onUpdate={(content) => updateChapterContent(currentChapter.id, content)}
+                onUpdate={handleEditorUpdate}
                 onSelectionUpdate={handleSelectionUpdate}
               />
 
@@ -423,6 +504,26 @@ export function EditorPage() {
                   <span>
                     本章 <span className="tabular-nums text-ink-2">{stats.chapterWords}</span> 字
                   </span>
+                  {targetProgress && (
+                    <span className="flex items-center gap-2">
+                      <span>
+                        目标{" "}
+                        <span className="tabular-nums text-ink-2">
+                          {editor.chapterWordTarget}
+                        </span>
+                      </span>
+                      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-line">
+                        <span
+                          className={cn(
+                            "block h-full rounded-full transition-all",
+                            targetProgress.over ? "bg-success" : "bg-primary",
+                          )}
+                          style={{ width: `${targetProgress.pct}%` }}
+                        />
+                      </span>
+                      <span className="tabular-nums text-ink-2">{targetProgress.pct}%</span>
+                    </span>
+                  )}
                   <span>
                     全书 <span className="tabular-nums text-ink-2">{stats.totalWords}</span> 字
                   </span>
@@ -458,7 +559,7 @@ export function EditorPage() {
           )}
         </div>
 
-        {aiPanelOpen && currentChapter && (
+        {aiPanelOpen && !focusMode && currentChapter && (
           <AIPanel
             editor={editorRef.current?.getEditor() ?? null}
             selectedText={selectedText}

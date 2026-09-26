@@ -33,6 +33,10 @@ export interface EditorSettings {
   fontSize: number;
   lineHeight: number;
   editorWidth: number;
+  /** 打字机滚动：输入时保持光标在视口中部 */
+  typewriterScroll: boolean;
+  /** 章节目标字数（0 = 不显示进度） */
+  chapterWordTarget: number;
 }
 
 /** llama.cpp 模型档案：记录模型位置与启动参数，切换模型时一键套用 */
@@ -94,6 +98,8 @@ const defaultEditorSettings: EditorSettings = {
   fontSize: 1.0625,
   lineHeight: 1.95,
   editorWidth: 42,
+  typewriterScroll: false,
+  chapterWordTarget: 3000,
 };
 
 const AI_PANEL_MIN_WIDTH = 240;
