@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { saveProjectJson, loadProjectJson } from "../services/storage";
+import { useRelationStore } from "./relationStore";
 
 export interface Character {
   id: string;
@@ -68,11 +69,13 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
       return { characters, currentCharacter };
     }),
 
-  deleteCharacter: (id) =>
+  deleteCharacter: (id) => {
+    useRelationStore.getState().deleteByCharacter(id);
     set((state) => ({
       characters: state.characters.filter((c) => c.id !== id),
       currentCharacter: state.currentCharacter?.id === id ? null : state.currentCharacter,
-    })),
+    }));
+  },
 
   getCharactersByProject: (projectId) => {
     return get().characters.filter((c) => c.projectId === projectId);

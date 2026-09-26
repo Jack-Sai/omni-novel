@@ -5,6 +5,7 @@ import { useCharacterStore } from "../stores/characterStore";
 import { useWorldviewStore } from "../stores/worldviewStore";
 import { useOutlineStore } from "../stores/outlineStore";
 import { useForeshadowingStore } from "../stores/foreshadowingStore";
+import { useRelationStore } from "../stores/relationStore";
 
 /**
  * 应用启动时调用，从磁盘加载全局数据
@@ -36,6 +37,7 @@ function installProjectPersistence(): void {
     useWorldviewStore.getState().saveToDisk(dir);
     useOutlineStore.getState().saveToDisk(dir);
     useForeshadowingStore.getState().saveToDisk(dir);
+    useRelationStore.getState().saveToDisk(dir);
   };
 
   useChapterStore.subscribe(persist);
@@ -43,6 +45,7 @@ function installProjectPersistence(): void {
   useWorldviewStore.subscribe(persist);
   useOutlineStore.subscribe(persist);
   useForeshadowingStore.subscribe(persist);
+  useRelationStore.subscribe(persist);
 }
 
 /**
@@ -57,5 +60,6 @@ export async function loadProjectStores(projectDir: string): Promise<void> {
     useWorldviewStore.getState().loadFromDisk(projectDir),
     useOutlineStore.getState().loadFromDisk(projectDir),
     useForeshadowingStore.getState().loadFromDisk(projectDir),
+    useRelationStore.getState().loadFromDisk(projectDir),
   ]);
 }
