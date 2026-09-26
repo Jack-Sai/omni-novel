@@ -31,7 +31,7 @@ const genres = [
 export function NewProjectPage() {
   const navigate = useNavigate();
   const { currentUser } = useUserStore();
-  const { setCurrentProject } = useProjectStore();
+  const { addProjectFromRecord } = useProjectStore();
 
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
@@ -101,10 +101,8 @@ export function NewProjectPage() {
           }
         }
 
-        setCurrentProject({
-          ...newProject,
-          storagePath: storagePath || undefined,
-        } as any);
+        // 同步写入项目 store（projects.json），书架与编辑器均可立即看到
+        addProjectFromRecord(newProject);
         navigate("/editor");
       }
     } catch (err) {

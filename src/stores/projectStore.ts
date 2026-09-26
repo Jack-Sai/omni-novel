@@ -17,6 +17,17 @@ interface ProjectStore {
   projects: Project[];
   currentProject: Project | null;
   addProject: (project: Omit<Project, "id" | "createdAt" | "updatedAt" | "content">) => void;
+  /** 接收 SQLite projects 表行（snake_case），映射为 Project 并写入 store（保留原 id） */
+  addProjectFromRecord: (record: {
+    id: string;
+    title: string;
+    author?: string | null;
+    genre?: string | null;
+    synopsis?: string | null;
+    storage_path?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }) => void;
   setCurrentProject: (project: Project | null) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
@@ -47,6 +58,25 @@ export const useProjectStore = create<ProjectStore>()((set, get) => ({
   },
 
   setCurrentProject: (project) => set({ currentProject: project }),
+
+  addProjectFromRecord: (record) => {
+    const project: Project = {
+      id: record.id,
+      title: record.title,
+      author: record.author ?? "",
+      genre: record.genre ?? "",
+      synopsis: record.synopsis ?? "",
+      content: "",
+      storagePath: record.storage_path || undefined,
+      createdAt: record.created_at ?? new Date().toISOString(),
+      updatedAt: record.updated_at ?? new Date().toISOString(),
+    };
+    set((state) => ({
+      projects: [...state.projects.filter((p) => p.id !== project.id), project],
+      currentProject: project,
+    }));
+    get().saveToDisk();
+  },
 
   updateProject: (id, updates) =>
     set((state) => {

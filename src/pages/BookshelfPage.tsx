@@ -73,6 +73,10 @@ export function BookshelfPage() {
         description={`${projects.length} 部作品`}
         actions={
           <>
+            <Button variant="primary" onClick={handleCreateProject}>
+              <Plus size={15} />
+              新建作品
+            </Button>
             <span className="text-sm text-ink-2">
               {currentUser?.display_name || currentUser?.username}
             </span>
@@ -88,7 +92,7 @@ export function BookshelfPage() {
           <EmptyState
             icon={BookOpen}
             title="还没有作品"
-            description="点击上方按钮创建你的第一部小说"
+            description="创建你的第一部小说"
             action={
               <Button variant="primary" onClick={handleCreateProject}>
                 <Plus size={15} />
