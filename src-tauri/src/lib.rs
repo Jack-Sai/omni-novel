@@ -424,11 +424,14 @@ async fn chat_stream_inner(
                         let content = data["message"]["content"].as_str().unwrap_or("");
                         let thinking = data["message"]["thinking"].as_str().unwrap_or("");
                         let done = data["done"].as_bool().unwrap_or(false);
+                        // content 与 thinking 可能在同一条消息中同时出现，两路都搬运，不互斥
+                        if !thinking.is_empty() {
+                            channel.send(ChatChunk { content: thinking.to_string(), done: false, reasoning: true }).ok();
+                        }
                         if !content.is_empty() {
                             channel.send(ChatChunk { content: content.to_string(), done: false, reasoning: false }).ok();
-                        } else if !thinking.is_empty() {
-                            channel.send(ChatChunk { content: thinking.to_string(), done: false, reasoning: true }).ok();
-                        } else if done {
+                        }
+                        if done && content.is_empty() && thinking.is_empty() {
                             channel.send(ChatChunk { content: String::new(), done: true, reasoning: false }).ok();
                         }
                         if done { break 'outer; }
@@ -482,11 +485,13 @@ async fn chat_stream_inner(
                             let delta = &data["choices"][0]["delta"];
                             let content = delta["content"].as_str().unwrap_or("");
                             let reasoning = delta["reasoning_content"].as_str().unwrap_or("");
-                            if !content.is_empty() {
-                                channel.send(ChatChunk { content: content.to_string(), done: false, reasoning: false }).ok();
-                            } else if !reasoning.is_empty() {
+                            // content 与 reasoning_content 可能在同一 delta 中同时出现，两路都搬运，不互斥
+                            if !reasoning.is_empty() {
                                 // 思考内容单独标记，前端以灰色块展示（Qwen3 等思考模型）
                                 channel.send(ChatChunk { content: reasoning.to_string(), done: false, reasoning: true }).ok();
+                            }
+                            if !content.is_empty() {
+                                channel.send(ChatChunk { content: content.to_string(), done: false, reasoning: false }).ok();
                             }
                         }
                     }

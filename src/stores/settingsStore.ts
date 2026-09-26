@@ -82,7 +82,7 @@ const defaultAISettings: AISettings = {
   topP: 0.9,
   topK: 40,
   repeatPenalty: 1.1,
-  maxTokens: 2048,
+  maxTokens: 4096,
   think: true,
   contextMessageCount: 20,
   memoryInject: true,

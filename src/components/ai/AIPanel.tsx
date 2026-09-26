@@ -449,6 +449,10 @@ export function AIPanel({ editor, selectedText, chapterContent, prefill, onPrefi
 
         // 组装 system prompt：基础提示词 + 启用的文风 + 相关记忆
         const systemParts = [params.systemPrompt];
+        // 思考模式下引导模型用中文推理（Qwen3 等默认倾向英文思考）
+        if (ai.think) {
+          systemParts.push("思考过程（reasoning）请一律使用中文。");
+        }
         if (styleProfile) {
           systemParts.push(`[文风要求]\n${styleProfile.content}`);
         }

@@ -886,7 +886,7 @@ export function SettingsPage() {
             {/* 最大 Token 数 */}
             <Field
               label="最大 Token 数"
-              hint="单次生成的最大长度。1 中文字 ≈ 1.5~2 token，2048 ≈ 1000~1300 字"
+              hint="单次生成的最大长度。1 中文字 ≈ 1.5~2 token，2048 ≈ 1000~1300 字。开启思考模式时思考与正文共用此预算，建议 ≥ 4096，否则正文可能被思考挤掉"
             >
               <Input
                 type="number"
@@ -920,29 +920,27 @@ export function SettingsPage() {
               />
             </Field>
 
-            {/* 关闭思考（仅 Ollama） */}
-            {isOllama && (
-              <SettingRow
-                title="关闭思考"
-                description="关闭模型内部推理过程，节省上下文窗口并加快响应速度。推荐开启"
+            {/* 思考模式（所有后端可用） */}
+            <SettingRow
+              title="思考模式"
+              description="开启后模型先内部推理（灰色思考块）再回答，质量更佳但消耗更多 token；思考与正文共用最大 Token 数预算，建议 ≥ 4096"
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={ai.think}
+                onClick={() => updateAISettings({ think: !ai.think })}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                  ai.think ? "bg-primary" : "bg-line-strong"
+                }`}
               >
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={ai.think}
-                  onClick={() => updateAISettings({ think: !ai.think })}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-                    ai.think ? "bg-primary" : "bg-line-strong"
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
-                      ai.think ? "translate-x-5.5" : "translate-x-0.5"
-                    } mt-0.5`}
-                  />
-                </button>
-              </SettingRow>
-            )}
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                    ai.think ? "translate-x-5.5" : "translate-x-0.5"
+                  } mt-0.5`}
+                />
+              </button>
+            </SettingRow>
 
             {/* 后端说明 */}
             {!isOllama && (
