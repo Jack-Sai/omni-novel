@@ -8,6 +8,7 @@ import {
   getSystemPrompt,
   memoryDb,
   toLlamaConfig,
+  versionDb,
 } from "../../services";
 import { Button, EmptyState, Input } from "../ui";
 import { cn } from "../../lib/cn";
@@ -207,6 +208,14 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
                     onClick={(e) => {
                       e.stopPropagation();
                       deleteChapter(chapter.id);
+                      // 顺带清理该章的版本快照与摘要记忆
+                      versionDb.deleteByChapter(projectId, chapter.id).catch(() => {});
+                      memoryDb
+                        .list(projectId, { type: "summary", scope: "chapter", refId: chapter.id })
+                        .then((rows) =>
+                          Promise.all(rows.map((r) => memoryDb.delete(r.id))),
+                        )
+                        .catch(() => {});
                     }}
                   >
                     <Trash2 size={12} />

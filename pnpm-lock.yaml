@@ -44,9 +44,15 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.31.3
         version: 3.31.3
+      '@types/diff':
+        specifier: ^8.0.0
+        version: 8.0.0
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      diff:
+        specifier: ^9.0.0
+        version: 9.0.0
       docx:
         specifier: ^9.7.1
         version: 9.7.1
@@ -1638,6 +1644,10 @@ packages:
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
+  '@types/diff@8.0.0':
+    resolution: {integrity: sha512-o7jqJM04gfaYrdCecCVMbZhNdG6T1MHg/oQoRFdERLV+4d+V7FijhiEAbFu0Usww84Yijk9yH58U4Jk4HbtzZw==}
+    deprecated: This is a stub types definition. diff provides its own type definitions, so you do not need this installed.
+
   '@types/dom-mediacapture-transform@0.1.12':
     resolution: {integrity: sha512-d7/QsLRwF864A5mgIM/YrfiglHoYn7zgCcAoJgW404r+2DwnNr7EBbLnCWpmOMgH8y0te73L1AV6H1bmauaWFw==}
 
@@ -1892,6 +1902,10 @@ packages:
 
   detect-node-es@1.1.0:
     resolution: {integrity: sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ==}
+
+  diff@9.0.0:
+    resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
+    engines: {node: '>=0.3.1'}
 
   docx@9.7.1:
     resolution: {integrity: sha512-ilXFf9Moz47ABjFpDiA5s1w9lpb4EFSp7+5iiJSbfyYDM+bpZdAgLlSr7fW4aXhVe/E+F6QCv0EvRVFEd5CsWg==}
@@ -4428,6 +4442,10 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  '@types/diff@8.0.0':
+    dependencies:
+      diff: 9.0.0
+
   '@types/dom-mediacapture-transform@0.1.12':
     dependencies:
       '@types/dom-webcodecs': 0.1.19
@@ -4676,6 +4694,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   detect-node-es@1.1.0: {}
+
+  diff@9.0.0: {}
 
   docx@9.7.1:
     dependencies:

@@ -5,6 +5,7 @@ import {
   Check,
   Download,
   FileText,
+  History,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -12,13 +13,13 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { NewProjectDialog, NewProject } from "../components/dialog";
+import { NewProjectDialog, NewProject, VersionHistoryDialog } from "../components/dialog";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
 import { Editor, type EditorRef } from "../components/editor";
 import { AIPanel } from "../components/ai";
 import { ChapterList } from "../components/chapter";
-import { ExportService, saveChapter, titleToFilename } from "../services";
+import { ExportService, saveChapter, titleToFilename, versionDb } from "../services";
 import { useAutoSave } from "../hooks";
 import { useSettingsStore } from "../stores/settingsStore";
 import {
@@ -55,6 +56,7 @@ export function EditorPage() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [selectedText, setSelectedText] = useState("");
+  const [versionDialogOpen, setVersionDialogOpen] = useState(false);
   const editorRef = useRef<EditorRef>(null);
   const { projects, currentProject, addProject, setCurrentProject, deleteProject } =
     useProjectStore();
@@ -81,7 +83,37 @@ export function EditorPage() {
         console.error("Failed to save chapter to disk:", err);
       }
     }
+
+    // 自动版本快照（内容无变化时 versionDb 内部跳过）
+    try {
+      await versionDb.create(currentProject.id, currentChapter.id, {
+        content: currentChapter.content,
+        source: "auto",
+      });
+    } catch (err) {
+      console.warn("创建版本快照失败:", err);
+    }
   }, [currentChapter, currentProject]);
+
+  /** 恢复历史版本：先把当前内容快照（source=restore），再写回编辑器 */
+  const handleRestoreVersion = useCallback(
+    async (content: string) => {
+      if (!currentChapter || !currentProject) return;
+      try {
+        await versionDb.create(currentProject.id, currentChapter.id, {
+          title: "恢复前备份",
+          content: currentChapter.content,
+          source: "restore",
+        });
+      } catch (err) {
+        console.warn("恢复前快照失败:", err);
+      }
+      updateChapterContent(currentChapter.id, content);
+      editorRef.current?.getEditor()?.commands.setContent(content);
+      setVersionDialogOpen(false);
+    },
+    [currentChapter, currentProject, updateChapterContent],
+  );
 
   const { saveNow } = useAutoSave({
     data: currentChapter,
@@ -267,6 +299,16 @@ export function EditorPage() {
               AI
             </Button>
 
+            <Button
+              variant="secondary"
+              disabled={!currentChapter}
+              onClick={() => setVersionDialogOpen(true)}
+              title="版本历史与对比"
+            >
+              <History size={15} />
+              历史
+            </Button>
+
             <Menu>
               <MenuTrigger asChild>
                 <Button variant="primary">
@@ -330,6 +372,7 @@ export function EditorPage() {
           {currentChapter ? (
             <>
               <Editor
+                key={currentChapter.id}
                 ref={editorRef}
                 content={currentChapter.content}
                 placeholder={`开始写作 ${currentChapter.title}…`}
@@ -385,6 +428,18 @@ export function EditorPage() {
           />
         )}
       </div>
+
+      {currentProject && currentChapter && (
+        <VersionHistoryDialog
+          open={versionDialogOpen}
+          onOpenChange={setVersionDialogOpen}
+          projectId={currentProject.id}
+          chapterId={currentChapter.id}
+          chapterTitle={currentChapter.title}
+          currentContent={currentChapter.content}
+          onRestore={(content) => void handleRestoreVersion(content)}
+        />
+      )}
     </Page>
   );
 }
