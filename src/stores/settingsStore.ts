@@ -25,6 +25,8 @@ export interface AISettings {
   llamaExtraArgs: string;
   /** 空闲多少分钟后自动卸载，0 = 不卸载 */
   idleUnloadMinutes: number;
+  /** 续写字数（0 = 不指定，仅写入提示词约定篇幅，不强制截断） */
+  continuationLength: number;
 }
 
 export interface EditorSettings {
@@ -94,6 +96,7 @@ const defaultAISettings: AISettings = {
   llamaModelPath: "E:\\Models\\Qwen3.8-9B-Q8_0.gguf",
   llamaExtraArgs: "-ngl 99 -c 16384 -fa on --jinja -t 8",
   idleUnloadMinutes: 10,
+  continuationLength: 0,
 };
 
 const defaultEditorSettings: EditorSettings = {

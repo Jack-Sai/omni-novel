@@ -18,6 +18,7 @@ import {
   Send,
   Sparkles,
   Square,
+  Trash2,
   User,
 } from "lucide-react";
 import {
@@ -355,11 +356,21 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
     [sessionId],
   );
 
-  /** 消息落库（失败仅告警，不打断对话） */
+  /** 消息落库（失败仅告警，不打断对话）；clientId 提供时用 DB 行 ID 回写 state，保证单条删除可定位 */
   const saveMessage = useCallback(
-    (sid: string, msg: { role: "user" | "assistant"; content: string; action?: string }) => {
+    (
+      sid: string,
+      msg: { role: "user" | "assistant"; content: string; action?: string },
+      clientId?: string,
+    ) => {
       if (!sid || !msg.content) return;
-      aiDb.addMessage(sid, msg).catch((e) => console.warn("保存 AI 消息失败:", e));
+      aiDb
+        .addMessage(sid, msg)
+        .then((row) => {
+          if (!clientId || row.id === clientId) return;
+          setMessages((prev) => prev.map((m) => (m.id === clientId ? { ...m, id: row.id } : m)));
+        })
+        .catch((e) => console.warn("保存 AI 消息失败:", e));
     },
     [],
   );
@@ -456,6 +467,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
         }
       }
 
+      let userMsgId: string | undefined;
       if (!params.skipUserMessage) {
         const userMsg: Message = {
           id: crypto.randomUUID(),
@@ -464,13 +476,14 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
           action: params.action,
           memories: memories.length > 0 ? memories : undefined,
         };
+        userMsgId = userMsg.id;
         setMessages((prev) => [...prev, userMsg]);
       }
       setIsLoading(true);
 
       const sid = await ensureSession(display);
       if (!params.skipUserMessage) {
-        saveMessage(sid, { role: "user", content: display, action: params.action });
+        saveMessage(sid, { role: "user", content: display, action: params.action }, userMsgId);
       }
 
       const requestId = crypto.randomUUID();
@@ -579,22 +592,31 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
           },
           requestId,
         );
-        saveMessage(sid, { role: "assistant", content: fullResponse, action: params.action });
+        saveMessage(
+          sid,
+          { role: "assistant", content: fullResponse, action: params.action },
+          assistantId,
+        );
       } catch {
         const errorContent = "抱歉，无法连接到 AI 模型。请确保服务已启动。";
+        const errId = crypto.randomUUID();
         const hideHint = hintId;
         setMessages((prev) => {
           const base = hideHint ? prev.filter((m) => m.id !== hideHint) : prev;
           return [
             ...base,
             {
-              id: crypto.randomUUID(),
+              id: errId,
               role: "assistant",
               content: errorContent,
             },
           ];
         });
-        saveMessage(sid, { role: "assistant", content: errorContent, action: params.action });
+        saveMessage(
+          sid,
+          { role: "assistant", content: errorContent, action: params.action },
+          errId,
+        );
       } finally {
         requestIdRef.current = null;
         setIsLoading(false);
@@ -644,11 +666,17 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
           ? "请续写下面的内容，保持风格一致：\n\n" + (context || "（从这里开始续写）")
           : `请对以下内容进行${action.label}：\n\n${context}`;
 
+      const isContinuation = action.key === "continuation";
+      // 续写字数仅以提示词约定篇幅，不强制截断
+      const lengthHint =
+        isContinuation && ai.continuationLength > 0
+          ? `\n\n续写长度要求：约 ${ai.continuationLength} 字，以此为篇幅参考并在情节自然处收束（不需要严格截断）。`
+          : "";
+
       await runChat({
-        systemPrompt: getSystemPrompt(action.key),
+        systemPrompt: getSystemPrompt(action.key) + lengthHint,
         userContent,
-        displayContent:
-          action.key === "continuation" ? "续写以下内容" : `${action.label}选中内容`,
+        displayContent: isContinuation ? "续写以下内容" : `${action.label}选中内容`,
         retrievalQuery: context || undefined,
         action: action.key,
         applyMode: action.applyMode,
@@ -657,7 +685,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
         thinkOverride: false,
       });
     },
-    [isLoading, selectedText, chapterContent, runChat],
+    [isLoading, selectedText, chapterContent, ai.continuationLength, runChat],
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -709,6 +737,31 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
     }
     onQuickActionConsumed?.();
   }, [quickActionRequest, handleQuickAction, handleUsePrompt, onQuickActionConsumed]);
+
+  /** 删除单条消息（state + DB） */
+  const handleDeleteMessage = useCallback(async (id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    try {
+      await aiDb.deleteMessage(id);
+    } catch (e) {
+      console.warn("删除 AI 消息失败:", e);
+    }
+  }, []);
+
+  /** 清空当前会话全部消息（state + DB） */
+  const handleClearMessages = useCallback(async () => {
+    if (!confirm("确定清空当前会话的全部消息吗？")) return;
+    const sid = sessionId;
+    setMessages([]);
+    setExpandedMemoriesId(null);
+    if (sid) {
+      try {
+        await aiDb.deleteMessagesBySession(sid);
+      } catch (e) {
+        console.warn("清空 AI 消息失败:", e);
+      }
+    }
+  }, [sessionId]);
 
   const handleStop = async () => {
     const requestId = requestIdRef.current;
@@ -866,6 +919,9 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
               {sessionId && (
                 <>
                   <MenuSeparator />
+                  <MenuItem destructive onSelect={() => void handleClearMessages()}>
+                    清空当前消息
+                  </MenuItem>
                   <MenuItem destructive onSelect={() => handleDeleteSession(sessionId)}>
                     删除当前会话
                   </MenuItem>
@@ -1065,6 +1121,21 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
                     )}
                   </div>
 
+                  {/* user 消息操作：删除 */}
+                  {isUser && !isStreaming && (
+                    <div className="mt-0.5 flex justify-start pl-7">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleDeleteMessage(msg.id)}
+                        className="h-6 gap-1 px-1.5 text-[11px] text-ink-3 hover:text-danger"
+                      >
+                        <Trash2 size={11} />
+                        删除
+                      </Button>
+                    </div>
+                  )}
+
                   {/* 记忆注入明细（仅当前会话展示） */}
                   {isUser && msg.memories && msg.memories.length > 0 && (
                     <div className="mt-1 flex justify-end">
@@ -1145,6 +1216,15 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
                           重新生成
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleDeleteMessage(msg.id)}
+                        className="h-6 gap-1 px-1.5 text-[11px] text-ink-3 hover:text-danger"
+                      >
+                        <Trash2 size={11} />
+                        删除
+                      </Button>
                     </div>
                   )}
                 </div>

@@ -900,6 +900,18 @@ export const aiDb = {
     );
     return row[0];
   },
+
+  /** 删除单条消息（按行 id） */
+  async deleteMessage(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute("DELETE FROM ai_messages WHERE id = ?", [id]);
+  },
+
+  /** 清空会话的全部消息 */
+  async deleteMessagesBySession(sessionId: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute("DELETE FROM ai_messages WHERE session_id = ?", [sessionId]);
+  },
 };
 
 // 自定义提示词相关操作

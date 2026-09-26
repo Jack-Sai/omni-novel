@@ -1125,6 +1125,28 @@ export function SettingsPage() {
               />
             </Field>
 
+            {/* 续写字数 */}
+            <Field
+              label="续写字数"
+              hint="续写任务的建议篇幅，仅写入提示词让模型参考，不强制截断；0 = 不指定（按情节自然收束）。范围 0~4000"
+            >
+              <Input
+                type="number"
+                value={ai.continuationLength}
+                onChange={(e) =>
+                  updateAISettings({
+                    continuationLength: Math.min(
+                      4000,
+                      Math.max(0, parseInt(e.target.value) || 0),
+                    ),
+                  })
+                }
+                min="0"
+                max="4000"
+                step="50"
+              />
+            </Field>
+
             {/* 思考模式（所有后端可用） */}
             <SettingRow
               title="思考模式"
