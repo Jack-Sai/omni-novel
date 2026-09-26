@@ -144,6 +144,7 @@ export function EditorPage() {
     onSave: handleSave,
     interval: editor.autoSaveInterval,
     enabled: !!currentChapter && editor.autoSaveEnabled,
+    key: currentChapter?.id ?? null,
   });
 
   // 打字机滚动：输入后把光标行滚到编辑器视口中部（rAF 节流）
@@ -603,9 +604,10 @@ export function EditorPage() {
 
         {aiPanelOpen && !focusMode && currentChapter && (
           <AIPanel
-            editor={editorRef.current?.getEditor() ?? null}
+            getEditor={() => editorRef.current?.getEditor() ?? null}
             selectedText={selectedText}
             chapterContent={currentChapter.content}
+            onContentApplied={(html) => updateChapterContent(currentChapter.id, html)}
             prefill={askAiPrefill}
             onPrefillConsumed={() => setAskAiPrefill("")}
           />

@@ -51,9 +51,12 @@ import {
 import { cn } from "../../lib/cn";
 
 interface AIPanelProps {
-  editor: Editor | null;
+  /** 延迟获取编辑器实例：render 阶段直接读 ref 会拿到 null 或已销毁的旧实例 */
+  getEditor: () => Editor | null;
   selectedText: string;
   chapterContent: string;
+  /** 应用内容到正文后的同步回调（把最新 HTML 显式写回 store，保证文件同步） */
+  onContentApplied?: (html: string) => void;
   /** 外部触发的预填输入（点「问 AI」时传入，消费后由调用方清空） */
   prefill?: string;
   onPrefillConsumed?: () => void;
@@ -211,7 +214,7 @@ function MarkdownText({ content }: { content: string }) {
   );
 }
 
-export function AIPanel({ editor, selectedText, chapterContent, prefill, onPrefillConsumed }: AIPanelProps) {
+export function AIPanel({ getEditor, selectedText, chapterContent, onContentApplied, prefill, onPrefillConsumed }: AIPanelProps) {
   const { ai, aiPanelWidth, updateAiPanelWidth, updateAISettings } = useSettingsStore();
   const { currentProject } = useProjectStore();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -659,7 +662,10 @@ export function AIPanel({ editor, selectedText, chapterContent, prefill, onPrefi
   };
 
   const handleApply = (msg: Message) => {
-    if (!editor || !msg.content) return;
+    if (!msg.content) return;
+    const editor = getEditor();
+    // 实例为空或已销毁（切章重挂载）时直接返回，避免静默失效造成不同步
+    if (!editor || editor.isDestroyed) return;
 
     if (msg.applyMode === "append") {
       editor.chain().focus().setContent(editor.getHTML() + msg.content).run();
@@ -671,6 +677,8 @@ export function AIPanel({ editor, selectedText, chapterContent, prefill, onPrefi
         editor.chain().focus().insertContent(msg.content).run();
       }
     }
+    // 显式同步回 store（onUpdate 之外的兜底，保证自动保存写入最新内容）
+    onContentApplied?.(editor.getHTML());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
