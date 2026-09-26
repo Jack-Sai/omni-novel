@@ -15,6 +15,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { useUserStore } from "../stores/userStore";
+import { Input, Label } from "../components/ui/Input";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -126,33 +127,29 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                用户名
-              </label>
+              <Label className="mb-2">用户名</Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
+                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" />
+                <Input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="输入用户名"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  className="pl-10"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                密码
-              </label>
+              <Label className="mb-2">密码</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
+                <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" />
+                <Input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="输入密码"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  className="pl-10"
                 />
               </div>
             </div>
@@ -208,65 +205,57 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                用户名
-              </label>
+              <Label className="mb-2">用户名</Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
+                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" />
+                <Input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="输入用户名"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  className="pl-10"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                密码
-              </label>
+              <Label className="mb-2">密码</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
+                <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" />
+                <Input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="输入密码（至少6位）"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  className="pl-10"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                手机号（可选）
-              </label>
+              <Label className="mb-2">手机号（可选）</Label>
               <div className="relative">
-                <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
+                <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" />
+                <Input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="输入手机号"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  className="pl-10"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">
-                显示名称（可选）
-              </label>
+              <Label className="mb-2">显示名称（可选）</Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-                <input
+                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" />
+                <Input
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="输入显示名称"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-[var(--color-text)] placeholder-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)]"
+                  className="pl-10"
                 />
               </div>
             </div>

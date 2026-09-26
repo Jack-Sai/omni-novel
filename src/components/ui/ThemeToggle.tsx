@@ -40,7 +40,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   const { mode, accent, tone, border, setMode, setAccent, setTone, setBorder } = useThemeStore();
 
   return (
-    <div className={cn("space-y-5", className)}>
+    <div className={cn("grid gap-5 sm:grid-cols-2", className)}>
       {/* 亮/暗/跟随系统 */}
       <div>
         <label className="mb-2 block text-[13px] font-medium text-ink-3">模式</label>
