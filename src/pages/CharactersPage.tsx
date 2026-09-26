@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { ArrowLeft, Link2, Plus, Sparkles, Trash2, User, Users } from "lucide-react";
+import { ArrowLeft, Link2, Network, Plus, Sparkles, Trash2, User, Users } from "lucide-react";
 import { useCharacterStore, Character } from "../stores/characterStore";
 import { useProjectStore } from "../stores/projectStore";
 import {
