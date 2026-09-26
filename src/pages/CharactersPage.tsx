@@ -1,8 +1,14 @@
 import { useState, useMemo, useCallback } from "react";
-import { ArrowLeft, Plus, Sparkles, Trash2, User, Users } from "lucide-react";
+import { ArrowLeft, Link2, Network, Plus, Sparkles, Trash2, User, Users } from "lucide-react";
 import { useCharacterStore, Character } from "../stores/characterStore";
 import { useProjectStore } from "../stores/projectStore";
+import {
+  relationTypes,
+  useRelationStore,
+  type CharacterRelation,
+} from "../stores/relationStore";
 import { AICreateDialog } from "../components/ai/AICreateDialog";
+import { RelationDialog } from "../components/characters/RelationDialog";
 import {
   Badge,
   Button,
@@ -13,6 +19,7 @@ import {
   Page,
   PageBody,
   PageHeader,
+  SegmentedControl,
   Select,
   Textarea,
 } from "../components/ui";
@@ -57,12 +64,36 @@ export function CharactersPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
+  const [view, setView] = useState<"list" | "graph">("list");
+  const { relations } = useRelationStore();
+  const [relationOpen, setRelationOpen] = useState(false);
+  const [relationTarget, setRelationTarget] = useState<CharacterRelation | null>(null);
+  const [relationPreset, setRelationPreset] = useState<
+    { sourceId?: string; targetId?: string } | undefined
+  >(undefined);
 
   const projectCharacters = useMemo(
     () =>
       currentProject ? characters.filter((c) => c.projectId === currentProject.id) : [],
     [characters, currentProject],
   );
+
+  const projectRelations = useMemo(
+    () => (currentProject ? relations.filter((r) => r.projectId === currentProject.id) : []),
+    [relations, currentProject],
+  );
+
+  const openNewRelation = (preset?: { sourceId?: string; targetId?: string }) => {
+    setRelationTarget(null);
+    setRelationPreset(preset);
+    setRelationOpen(true);
+  };
+
+  const openEditRelation = (r: CharacterRelation) => {
+    setRelationTarget(r);
+    setRelationPreset(undefined);
+    setRelationOpen(true);
+  };
 
   const handleAdd = useCallback(() => {
     if (!newName.trim() || !currentProject) return;
@@ -225,12 +256,105 @@ export function CharactersPage() {
               />
             </Field>
 
-            <Field label="人际关系">
+            {/* 结构化关系 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-ink">关系</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => openNewRelation({ sourceId: currentCharacter.id })}
+                >
+                  <Plus size={14} />
+                  添加关系
+                </Button>
+              </div>
+              {projectRelations.filter(
+                (r) =>
+                  r.sourceId === currentCharacter.id || r.targetId === currentCharacter.id,
+              ).length === 0 ? (
+                <p className="rounded-xl border border-dashed border-line px-4 py-3 text-[13px] text-ink-3">
+                  暂无结构化关系。可点上方按钮添加，或到「关系图谱」中拖线创建。
+                </p>
+              ) : (
+                <div className="group/rel divide-y divide-line rounded-xl border border-line">
+                  {projectRelations
+                    .filter(
+                      (r) =>
+                        r.sourceId === currentCharacter.id ||
+                        r.targetId === currentCharacter.id,
+                    )
+                    .map((r) => {
+                      const isSource = r.sourceId === currentCharacter.id;
+                      const otherId = isSource ? r.targetId : r.sourceId;
+                      const other = characters.find((c) => c.id === otherId);
+                      const tMeta = relationTypes.find((t) => t.value === r.type);
+                      const color =
+                        (
+                          {
+                            family: "#22a06b",
+                            friend: "#3b82f6",
+                            enemy: "#ef4444",
+                            lover: "#ec4899",
+                            master: "#8b5cf6",
+                            rival: "#f59e0b",
+                            ally: "#14b8a6",
+                            colleague: "#64748b",
+                            other: "#94a3b8",
+                          } as Record<string, string>
+                        )[r.type] ?? "#94a3b8";
+                      return (
+                        <div key={r.id} className="flex items-center gap-2 px-3 py-2 text-[13px]">
+                          <span
+                            className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium"
+                            style={{ background: `${color}1f`, color }}
+                          >
+                            {tMeta?.label ?? "关系"}
+                          </span>
+                          <span className="text-ink-3">{isSource ? "→" : "←"}</span>
+                          <button
+                            type="button"
+                            disabled={!other}
+                            onClick={() => other && setCurrentCharacter(other)}
+                            className="max-w-32 truncate font-medium text-ink hover:text-primary hover:underline disabled:no-underline"
+                          >
+                            {other?.name || "已删除人物"}
+                          </button>
+                          {r.label && <span className="shrink-0 text-ink-2">（{r.label}）</span>}
+                          <span className="min-w-0 flex-1 truncate text-ink-3">
+                            {r.description}
+                          </span>
+                          <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover/rel:opacity-100 focus-within:opacity-100">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[12px]"
+                              onClick={() => openEditRelation(r)}
+                            >
+                              编辑
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[12px] text-danger hover:bg-danger-soft hover:text-danger"
+                              onClick={() => useRelationStore.getState().deleteRelation(r.id)}
+                            >
+                              <Trash2 size={13} />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            <Field label="人际关系（文本备注）">
               <Textarea
                 value={currentCharacter.relationships}
                 onChange={(e) => handleUpdate({ relationships: e.target.value })}
                 rows={3}
-                placeholder="与其他人物之间的羁绊与对立"
+                placeholder="自由文本形式的关系备注，与上方结构化关系并存"
               />
             </Field>
 
@@ -277,6 +401,15 @@ export function CharactersPage() {
             </Field>
           </div>
         </PageBody>
+
+        <RelationDialog
+          open={relationOpen}
+          onOpenChange={setRelationOpen}
+          projectId={currentProject.id}
+          characters={projectCharacters}
+          relation={relationTarget}
+          preset={relationPreset}
+        />
       </Page>
     );
   }
@@ -289,6 +422,10 @@ export function CharactersPage() {
         description={`共 ${projectCharacters.length} 位人物`}
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => openNewRelation()}>
+              <Link2 size={15} />
+              新建关系
+            </Button>
             <Button variant="secondary" onClick={() => setAiOpen(true)}>
               <Sparkles size={15} />
               AI 创建
@@ -303,6 +440,25 @@ export function CharactersPage() {
 
       <PageBody>
         <div className="space-y-4">
+          <SegmentedControl
+            variant="segment"
+            value={view}
+            onChange={setView}
+            items={[
+              { value: "list", label: "人物列表", icon: Users },
+              { value: "graph", label: "关系图谱", icon: Network },
+            ]}
+          />
+
+          {view === "graph" ? (
+            <EmptyState
+              icon={Network}
+              title="关系图谱建设中"
+              description="下个迭代将支持画布查看与拖线编辑人物关系。"
+              className="py-16"
+            />
+          ) : (
+            <>
           {showAdd && (
             <Card className="omni-pop flex flex-wrap items-center gap-2">
               <Input
@@ -404,8 +560,19 @@ export function CharactersPage() {
               ))}
             </div>
           )}
+            </>
+          )}
         </div>
       </PageBody>
+
+      <RelationDialog
+        open={relationOpen}
+        onOpenChange={setRelationOpen}
+        projectId={currentProject.id}
+        characters={projectCharacters}
+        relation={relationTarget}
+        preset={relationPreset}
+      />
 
       <AICreateDialog
         kind="character"
