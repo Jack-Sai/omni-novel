@@ -107,6 +107,11 @@ export function BookshelfPage() {
     if (confirm("确定要删除这个项目吗？")) {
       deleteProject(projectId);
       setShowMenu(null);
+      try {
+        await projectDb.delete(projectId);
+      } catch (e) {
+        console.warn("删除项目数据库记录失败:", e);
+      }
     }
   };
 
@@ -160,7 +165,7 @@ export function BookshelfPage() {
             }
           />
         ) : (
-          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid w-full max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
               <div
                 key={project.id}

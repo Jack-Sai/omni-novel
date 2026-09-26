@@ -11,6 +11,7 @@ export const getDatabase = async (): Promise<Database> => {
 
   dbInitializing = (async () => {
     const db = await Database.load(`sqlite:${DB_NAME}`);
+    await db.execute("PRAGMA foreign_keys = ON");
     await initializeTables(db);
     dbInstance = db;
     dbInitializing = null;

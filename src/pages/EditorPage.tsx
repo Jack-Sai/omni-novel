@@ -33,6 +33,7 @@ import {
   createProjectDir,
   builtinPromptList,
   getSystemPrompt,
+  projectDb,
 } from "../services";
 import { cn } from "../lib/cn";
 import { useAutoSave } from "../hooks";
@@ -390,6 +391,9 @@ export function EditorPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       deleteProject(project.id);
+                      void projectDb
+                        .delete(project.id)
+                        .catch((err) => console.warn("删除项目数据库记录失败:", err));
                     }}
                   >
                     <Trash2 size={14} />
