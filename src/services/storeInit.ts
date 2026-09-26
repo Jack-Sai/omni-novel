@@ -85,7 +85,7 @@ async function migrateOutlineIfNeeded(projectDir: string): Promise<void> {
       "data",
       "outline.json",
     );
-    if (!outline?.volumes?.length) return;
+    if (!outline) return;
 
     const { chapters } = useChapterStore.getState();
     const usedIds = new Set<string>();
@@ -93,7 +93,7 @@ async function migrateOutlineIfNeeded(projectDir: string): Promise<void> {
     const newChapters = [...chapters];
     let nextOrder = newChapters.reduce((max, c) => Math.max(max, c.order), -1) + 1;
 
-    for (const ov of outline.volumes) {
+    for (const ov of outline.volumes ?? []) {
       newVolumes.push({
         id: ov.id,
         projectId: ov.projectId,
