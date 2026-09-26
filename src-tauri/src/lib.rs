@@ -659,6 +659,56 @@ fn find_llama_server_in_path() -> Option<String> {
     None
 }
 
+/// 枚举系统已安装字体（读 HKLM/HKCU 的 Fonts 注册表键），返回字体名列表
+#[tauri::command]
+fn list_system_fonts() -> Result<Vec<String>, String> {
+    let script = r#"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$keys = @(
+  'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts',
+  'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
+)
+$names = foreach ($k in $keys) {
+  try {
+    (Get-ItemProperty -Path $k -ErrorAction Stop).PSObject.Properties |
+      Where-Object { $_.Name -notlike 'PS*' } |
+      ForEach-Object { $_.Name }
+  } catch {}
+}
+$names
+"#;
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-Command", script])
+        .output()
+        .map_err(|e| format!("启动 PowerShell 失败: {e}"))?;
+    if !output.status.success() {
+        return Err("读取系统字体失败".into());
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut fonts: Vec<String> = text
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .map(|l| {
+            let name = l
+                .rsplit_once(" (")
+                .filter(|(_, suffix)| {
+                    matches!(
+                        suffix.trim_end_matches(')'),
+                        "TrueType" | "OpenType" | "PostScript"
+                    )
+                })
+                .map(|(n, _)| n.to_string())
+                .unwrap_or(l);
+            name.trim().to_string()
+        })
+        .filter(|l| !l.is_empty())
+        .collect();
+    fonts.sort();
+    fonts.dedup();
+    Ok(fonts)
+}
+
 // ── App Entry ────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -696,6 +746,7 @@ pub fn run() {
             create_project_dir,
             default_projects_dir,
             find_llama_server_in_path,
+            list_system_fonts,
             save_chapter,
             load_chapter,
             save_novel_json,

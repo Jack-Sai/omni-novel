@@ -103,6 +103,8 @@ export function SettingsPage() {
   const [importSuccess, setImportSuccess] = useState<boolean | null>(null);
   /** 是否处于"自定义字体"编辑态（值为预设外的 font stack 时也视为自定义） */
   const [fontCustom, setFontCustom] = useState(false);
+  /** 系统已安装字体列表（供正文字体下拉选择，防止手输错名） */
+  const [systemFonts, setSystemFonts] = useState<string[]>([]);
   /** llama-server PATH 自动检测状态 */
   const [serverDetect, setServerDetect] = useState<"loading" | "found" | "missing">("loading");
   const [detectedServerPath, setDetectedServerPath] = useState("");
@@ -163,6 +165,19 @@ export function SettingsPage() {
     } catch {
       setLlamaStatus(null);
     }
+  }, []);
+
+  // 加载系统字体列表（注册表 Fonts 键）
+  useEffect(() => {
+    let cancelled = false;
+    invoke<string[]>("list_system_fonts")
+      .then((fonts) => {
+        if (!cancelled) setSystemFonts(fonts);
+      })
+      .catch((e) => console.warn("获取系统字体失败:", e));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -614,8 +629,8 @@ export function SettingsPage() {
       />
 
       <PageBody padded>
-        <div className="mx-auto flex w-full max-w-5xl items-start gap-6">
-          <aside className="sticky top-8 w-44 shrink-0 rounded-xl border border-line bg-surface p-2">
+        <div className="mx-auto flex w-full max-w-7xl items-start gap-8">
+          <aside className="sticky top-8 w-56 shrink-0 rounded-xl border border-line bg-surface p-2">
             <nav className="flex flex-col gap-0.5">
               {settingsTabs.map((tab) => (
                 <button
@@ -656,13 +671,21 @@ export function SettingsPage() {
                     }}
                     className="flex-1"
                   >
-                    {fontPresets.map((p) => (
+                    {[
+                      ...fontPresets.filter((p) => p.value !== "__custom__"),
+                      ...systemFonts
+                        .filter((f) => f && !fontPresets.some((p) => p.value === f))
+                        .map((f) => ({ value: f, label: f })),
+                      ...fontPresets.filter((p) => p.value === "__custom__"),
+                    ].map((p) => (
                       <option key={p.value || "__default__"} value={p.value}>
                         {p.label}
                       </option>
                     ))}
                   </Select>
-                  {(fontCustom || !presetFontValues.includes(editor.fontFamily)) && (
+                  {(fontCustom ||
+                    (!presetFontValues.includes(editor.fontFamily) &&
+                      !systemFonts.includes(editor.fontFamily))) && (
                     <Input
                       value={editor.fontFamily}
                       onChange={(e) => updateEditorSettings({ fontFamily: e.target.value })}
@@ -1485,6 +1508,28 @@ export function SettingsPage() {
                   className="inline-flex items-center gap-1.5 text-primary hover:underline"
                 >
                   github.com/Jack-Sai/omni-novel
+                  <ExternalLink size={12} />
+                </button>
+              </dd>
+              <dt className="text-ink-3">官网</dt>
+              <dd>
+                <button
+                  type="button"
+                  onClick={() => openUrl("https://omni-novel.vercel.app")}
+                  className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                >
+                  omni-novel.vercel.app
+                  <ExternalLink size={12} />
+                </button>
+              </dd>
+              <dt className="text-ink-3">掘金主页</dt>
+              <dd>
+                <button
+                  type="button"
+                  onClick={() => openUrl("https://juejin.cn/user/3946585868220169")}
+                  className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                >
+                  juejin.cn/user/3946585868220169
                   <ExternalLink size={12} />
                 </button>
               </dd>
