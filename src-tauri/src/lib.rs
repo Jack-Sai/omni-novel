@@ -588,6 +588,18 @@ async fn ai_list_models(
     Ok(names)
 }
 
+// ── 密码哈希（bcrypt 加盐，防明文存储）───────────────────────────────────────
+
+#[tauri::command]
+fn hash_password(password: String) -> Result<String, String> {
+    bcrypt::hash(password, bcrypt::DEFAULT_COST).map_err(|e| format!("密码哈希失败: {e}"))
+}
+
+#[tauri::command]
+fn verify_password(password: String, hash: String) -> Result<bool, String> {
+    bcrypt::verify(password, &hash).map_err(|e| format!("密码校验失败: {e}"))
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 fn uuid_v4() -> String {
@@ -769,6 +781,8 @@ pub fn run() {
             ai_cancel_stream,
             ai_check_connection,
             ai_list_models,
+            hash_password,
+            verify_password,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

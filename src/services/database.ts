@@ -1,4 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
+import { invoke } from "@tauri-apps/api/core";
 
 const DB_NAME = "omni-novel.db";
 
@@ -199,14 +200,18 @@ async function initializeTables(db: Database) {
   }
 }
 
+// bcrypt 哈希格式（$2a$/$2b$/$2y$ 开头）；非此格式视为历史明文
+const BCRYPT_RE = /^\$2[aby]\$/;
+
 // 用户相关操作
 export const userDb = {
   async create(username: string, password: string, phone?: string, displayName?: string) {
     const db = await getDatabase();
     const id = crypto.randomUUID();
+    const passwordHash = await invoke<string>("hash_password", { password });
     await db.execute(
       "INSERT INTO users (id, username, phone, password, display_name) VALUES (?, ?, ?, ?, ?)",
-      [id, username, phone || null, password, displayName || username]
+      [id, username, phone || null, passwordHash, displayName || username]
     );
     return { id, username, phone: phone || null, display_name: displayName || username };
   },
@@ -231,11 +236,26 @@ export const userDb = {
 
   async verifyPassword(username: string, password: string) {
     const db = await getDatabase();
-    const results = await db.select<any[]>(
-      "SELECT * FROM users WHERE username = ? AND password = ?",
-      [username, password]
-    );
-    return results[0] || null;
+    const results = await db.select<any[]>("SELECT * FROM users WHERE username = ?", [username]);
+    const user = results[0];
+    if (!user) return null;
+    const stored: string = user.password ?? "";
+    if (BCRYPT_RE.test(stored)) {
+      const ok = await invoke<boolean>("verify_password", { password, hash: stored });
+      return ok ? user : null;
+    }
+    // 历史明文：比对成功后原地升级为 bcrypt（一次性迁移），失败不匹配返回 null
+    if (stored === password) {
+      try {
+        const hash = await invoke<string>("hash_password", { password });
+        await db.execute("UPDATE users SET password = ? WHERE id = ?", [hash, user.id]);
+        user.password = hash;
+      } catch (e) {
+        console.warn("旧密码升级为哈希失败（下次登录重试）:", e);
+      }
+      return user;
+    }
+    return null;
   },
 
   async update(id: string, updates: { display_name?: string; avatar?: string; phone?: string; password?: string }) {
@@ -257,7 +277,7 @@ export const userDb = {
     }
     if (updates.password !== undefined) {
       fields.push("password = ?");
-      values.push(updates.password);
+      values.push(await invoke<string>("hash_password", { password: updates.password }));
     }
     
     fields.push("updated_at = datetime('now')");

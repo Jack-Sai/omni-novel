@@ -44,7 +44,7 @@ export const useUserStore = create<UserStore>()((set, get) => ({
       if (savedUserId) {
         const user = await userDb.getById(savedUserId);
         if (user) {
-          set({ currentUser: user as User });
+          set({ currentUser: { ...(user as User), password: "" } });
           return;
         }
       }
@@ -63,7 +63,7 @@ export const useUserStore = create<UserStore>()((set, get) => ({
       }
       
       localStorage.setItem("currentUserId", user.id);
-      set({ currentUser: user as User, isLoading: false });
+      set({ currentUser: { ...user, password: "" }, isLoading: false });
       return true;
     } catch (error) {
       console.error("Login failed:", error);
@@ -94,12 +94,12 @@ export const useUserStore = create<UserStore>()((set, get) => ({
       const newUser = await userDb.create(username, password, phone, displayName);
       localStorage.setItem("currentUserId", newUser.id);
       
-      // 构造完整的 User 对象
+      // 构造完整的 User 对象（password 不落内存明文）
       const fullUser: User = {
         id: newUser.id,
         username: newUser.username,
         phone: newUser.phone,
-        password: password,
+        password: "",
         display_name: newUser.display_name || newUser.username,
         avatar: null,
         created_at: new Date().toISOString(),
