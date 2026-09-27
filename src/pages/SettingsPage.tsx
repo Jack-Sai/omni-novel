@@ -164,7 +164,7 @@ export function SettingsPage() {
   const [serverPathManual, setServerPathManual] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── i18n / 更新 / 日志（v1.3.3） ──
+  // ── i18n / 更新 / 日志 ──
   const t = useT();
   const i18nLang = useI18nStore((s) => s.lang);
   const setLang = useI18nStore((s) => s.setLang);
@@ -2551,7 +2551,7 @@ export function SettingsPage() {
           <Section title={t("about.section")} icon={Info}>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
               <dt className="text-ink-3">{t("common.version")}</dt>
-              <dd className="text-ink">Omni Novel v1.3.2</dd>
+              <dd className="text-ink">Omni Novel v1.3.3</dd>
               <dt className="text-ink-3">{t("about.intro")}</dt>
               <dd className="text-ink">{t("about.introValue")}</dd>
               <dt className="text-ink-3">{t("about.developer")}</dt>

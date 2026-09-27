@@ -1,7 +1,7 @@
 {
   "name": "omni-novel",
   "private": true,
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "AI-powered novel writing desktop application",
   "type": "module",
   "scripts": {
