@@ -1,8 +1,9 @@
 import { useChapterStore } from "../stores/chapterStore";
+import { useSceneStore } from "../stores/sceneStore";
 import { memoryDb, versionDb } from "../services";
 
 /**
- * 删除章节并清理关联数据（版本快照 + 章摘要记忆）。
+ * 删除章节并清理关联数据（场景 + 版本快照 + 章摘要记忆）。
  * chapters.json 由 storeInit 的订阅自动落盘。
  */
 export async function deleteChapterCascade(
@@ -10,6 +11,7 @@ export async function deleteChapterCascade(
   chapterId: string,
 ): Promise<void> {
   useChapterStore.getState().deleteChapter(chapterId);
+  useSceneStore.getState().deleteByChapter(chapterId);
   try {
     await versionDb.deleteByChapter(projectId, chapterId);
     const rows = await memoryDb.list(projectId, {

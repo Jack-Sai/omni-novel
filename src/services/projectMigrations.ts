@@ -1,4 +1,5 @@
 import { loadMetadata, saveMetadata, type ProjectMetadata } from "./fileStorage";
+import { loadProjectJson, saveProjectJson } from "./storage";
 
 /**
  * 项目数据格式版本（.novel/project.json 的 projectVersion）。
@@ -8,7 +9,7 @@ import { loadMetadata, saveMetadata, type ProjectMetadata } from "./fileStorage"
  *   并在 `projectMigrations` 注册一条到该版本的迁移；
  * - 打开旧版本项目时按 `to` 升序依次执行迁移，每步完成后立即写回版本号（可断点续迁）。
  */
-export const CURRENT_PROJECT_VERSION = "1.0";
+export const CURRENT_PROJECT_VERSION = "1.1";
 
 export interface ProjectMigration {
   /** 迁移到的目标版本（如 "1.1"），须大于其前一条注册记录 */
@@ -81,3 +82,18 @@ async function writeVersion(
     updatedAt: new Date().toISOString(),
   });
 }
+
+// ── 已注册迁移 ──
+
+// v1.1：卷 → 章 → 场景三级大纲回归；就绪 scenes.json（无场景数据的旧项目
+// 后续由 sceneStore 惰性读写，此处显式建文件让结构变更登记在案）
+registerProjectMigration({
+  to: "1.1",
+  description: "场景三级大纲：初始化 scenes.json",
+  migrate: async (projectDir) => {
+    const existing = await loadProjectJson(projectDir, "data", "scenes.json");
+    if (!existing) {
+      await saveProjectJson(projectDir, "data", "scenes.json", { scenes: [] });
+    }
+  },
+});

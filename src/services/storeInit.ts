@@ -4,6 +4,7 @@ import { useChapterStore } from "../stores/chapterStore";
 import { useCharacterStore } from "../stores/characterStore";
 import { useWorldviewStore } from "../stores/worldviewStore";
 import { useVolumeStore, Volume } from "../stores/volumeStore";
+import { useSceneStore } from "../stores/sceneStore";
 import { useForeshadowingStore } from "../stores/foreshadowingStore";
 import { useRelationStore } from "../stores/relationStore";
 import { loadProjectJson, saveProjectJson } from "./storage";
@@ -35,6 +36,7 @@ function installProjectPersistence(): void {
     const dir = activeProjectDir;
     if (!dir) return;
     useChapterStore.getState().saveToDisk(dir);
+    useSceneStore.getState().saveToDisk(dir);
     useCharacterStore.getState().saveToDisk(dir);
     useWorldviewStore.getState().saveToDisk(dir);
     useVolumeStore.getState().saveToDisk(dir);
@@ -43,6 +45,7 @@ function installProjectPersistence(): void {
   };
 
   useChapterStore.subscribe(persist);
+  useSceneStore.subscribe(persist);
   useCharacterStore.subscribe(persist);
   useWorldviewStore.subscribe(persist);
   useVolumeStore.subscribe(persist);
@@ -170,6 +173,7 @@ export async function loadProjectStores(projectDir: string): Promise<void> {
   await migrateProjectIfNeeded(projectDir);
   await Promise.all([
     useChapterStore.getState().loadFromDisk(projectDir),
+    useSceneStore.getState().loadFromDisk(projectDir),
     useCharacterStore.getState().loadFromDisk(projectDir),
     useWorldviewStore.getState().loadFromDisk(projectDir),
     useVolumeStore.getState().loadFromDisk(projectDir),

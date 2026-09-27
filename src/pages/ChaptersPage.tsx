@@ -4,14 +4,17 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   FileText,
   GitCompare,
+  Layers,
   Pencil,
   Plus,
   Trash2,
 } from "lucide-react";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter, ChapterStatus } from "../stores/chapterStore";
+import { useSceneStore, Scene } from "../stores/sceneStore";
 import { useVolumeStore, Volume } from "../stores/volumeStore";
 import { deleteChapterCascade } from "../lib/chapterActions";
 import { ProjectCompareDialog } from "../components/dialog";
@@ -49,6 +52,7 @@ export function ChaptersPage() {
   const navigate = useNavigate();
   const { currentProject } = useProjectStore();
   const { chapters, addChapter, updateChapter, reorderChapters } = useChapterStore();
+  const { scenes, addScene, updateScene, deleteScene, moveScene } = useSceneStore();
   const { volumes, addVolume, updateVolume, deleteVolume } = useVolumeStore();
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -63,6 +67,11 @@ export function ChaptersPage() {
   const [dragChapterId, setDragChapterId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
+  /** 展开了场景列表的章 id */
+  const [expandedScenes, setExpandedScenes] = useState<Set<string>>(new Set());
+  /** 正在添加场景的章 id */
+  const [addingSceneIn, setAddingSceneIn] = useState<string | null>(null);
+  const [newSceneTitle, setNewSceneTitle] = useState("");
 
   const projectVolumes = useMemo(
     () =>
@@ -200,9 +209,57 @@ export function ChaptersPage() {
       const [kind, id] = editingId.split(":");
       if (kind === "v") updateVolume(id, { title: text });
       else if (kind === "c") updateChapter(id, { title: text });
+      else if (kind === "s") updateScene(id, { title: text });
     }
     setEditingId(null);
-  }, [editingId, editText, updateVolume, updateChapter]);
+  }, [editingId, editText, updateVolume, updateChapter, updateScene]);
+
+  // ── 场景（章内三级大纲最底层） ──
+
+  const toggleScenes = useCallback((chapterId: string) => {
+    setExpandedScenes((prev) => {
+      const next = new Set(prev);
+      if (next.has(chapterId)) next.delete(chapterId);
+      else next.add(chapterId);
+      return next;
+    });
+    setAddingSceneIn(null);
+    setNewSceneTitle("");
+  }, []);
+
+  const scenesOf = useCallback(
+    (chapterId: string) =>
+      scenes.filter((s) => s.chapterId === chapterId).sort((a, b) => a.order - b.order),
+    [scenes],
+  );
+
+  const handleAddScene = useCallback(
+    (chapterId: string) => {
+      const title = newSceneTitle.trim();
+      if (!title || !currentProject) return;
+      const siblings = scenesOf(chapterId);
+      addScene({
+        projectId: currentProject.id,
+        chapterId,
+        title,
+        summary: "",
+        status: "draft",
+        order: siblings.length ? Math.max(...siblings.map((s) => s.order)) + 1 : 0,
+      });
+      setNewSceneTitle("");
+      setAddingSceneIn(null);
+    },
+    [newSceneTitle, currentProject, addScene, scenesOf],
+  );
+
+  const handleCycleSceneStatus = useCallback(
+    (scene: Scene) => {
+      const idx = statusOrder.indexOf(scene.status);
+      const next = statusOrder[(idx + 1) % statusOrder.length];
+      updateScene(scene.id, { status: next });
+    },
+    [updateScene],
+  );
 
   /** 把章移动到目标位置并重排全局顺序 */
   const moveChapter = useCallback(
@@ -280,6 +337,9 @@ export function ChaptersPage() {
     const editing = editingId === `c:${chapter.id}`;
     const isDragging = dragChapterId === chapter.id;
     const beforeTarget = dropTarget?.kind === "row" && dropTarget.beforeChapterId === chapter.id;
+    const sceneExpanded = expandedScenes.has(chapter.id);
+    const chapterScenes = scenesOf(chapter.id);
+    const sceneCount = chapterScenes.length;
 
     return (
       <div key={chapter.id}>
@@ -371,6 +431,23 @@ export function ChaptersPage() {
             </Badge>
           </button>
 
+          <button
+            type="button"
+            title={sceneExpanded ? "收起场景" : "场景规划（章内三级大纲）"}
+            aria-expanded={sceneExpanded}
+            onClick={() => toggleScenes(chapter.id)}
+            className={cn(
+              "flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 transition-colors",
+              sceneExpanded
+                ? "bg-primary-soft text-primary"
+                : "text-ink-3 hover:bg-hover hover:text-ink-2",
+            )}
+          >
+            <Layers size={12} />
+            {sceneCount > 0 && <span className="text-[11px] tabular-nums">{sceneCount}</span>}
+            {sceneExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+          </button>
+
           <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/chapter:opacity-100 focus-within:opacity-100">
             <Button
               variant="ghost"
@@ -431,6 +508,142 @@ export function ChaptersPage() {
             </Button>
           </div>
         </div>
+
+        {/* 场景展开区（章 → 场景 三级大纲） */}
+        {sceneExpanded && (
+          <div
+            className={cn(
+              "mb-1.5 ml-6 space-y-0.5 rounded-lg border-l-2 border-line bg-subtle/50 py-1 pl-3 pr-2",
+              indent && "ml-12",
+            )}
+          >
+            {chapterScenes.length === 0 && addingSceneIn !== chapter.id && (
+              <p className="px-1 py-1 text-[11px] text-ink-3">
+                本章暂无场景 · 按节拍拆分规划，正文仍写在章里
+              </p>
+            )}
+
+            {chapterScenes.map((s, si) => {
+              const sceneEditing = editingId === `s:${s.id}`;
+              return (
+                <div
+                  key={s.id}
+                  className="group/scene flex items-center gap-2 rounded px-1 py-0.5 transition-colors hover:bg-hover"
+                >
+                  <span className="w-4 shrink-0 text-right text-[11px] tabular-nums text-ink-3">
+                    {si + 1}
+                  </span>
+
+                  {sceneEditing ? (
+                    <Input
+                      autoFocus
+                      inputSize="sm"
+                      className="flex-1"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitEdit();
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      onBlur={commitEdit}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      title={s.summary || s.title}
+                      onClick={() => beginEdit(`s:${s.id}`, s.title)}
+                      className="min-w-0 flex-1 truncate text-left text-[12px] text-ink-2 hover:text-ink"
+                    >
+                      {s.title}
+                      {s.summary && (
+                        <span className="ml-2 text-ink-3">— {s.summary}</span>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    title="点击切换状态"
+                    onClick={() => handleCycleSceneStatus(s)}
+                    className="shrink-0"
+                  >
+                    <Badge variant={statusMeta[s.status].tone} size="sm">
+                      {statusMeta[s.status].label}
+                    </Badge>
+                  </button>
+
+                  <div className="flex shrink-0 items-center gap-0 opacity-0 transition-opacity group-hover/scene:opacity-100 focus-within:opacity-100">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`上移场景 ${s.title}`}
+                      className="h-5 w-5"
+                      disabled={si === 0}
+                      onClick={() => moveScene(s.id, -1)}
+                    >
+                      <ChevronUp size={11} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`下移场景 ${s.title}`}
+                      className="h-5 w-5"
+                      disabled={si === chapterScenes.length - 1}
+                      onClick={() => moveScene(s.id, 1)}
+                    >
+                      <ChevronDown size={11} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`删除场景 ${s.title}`}
+                      className="h-5 w-5 hover:bg-danger-soft hover:text-danger"
+                      onClick={() => {
+                        if (window.confirm(`删除场景《${s.title}》？`)) deleteScene(s.id);
+                      }}
+                    >
+                      <Trash2 size={11} />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {addingSceneIn === chapter.id ? (
+              <Input
+                autoFocus
+                inputSize="sm"
+                className="ml-6"
+                value={newSceneTitle}
+                placeholder="输入场景标题，回车创建"
+                onChange={(e) => setNewSceneTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddScene(chapter.id);
+                  if (e.key === "Escape") {
+                    setNewSceneTitle("");
+                    setAddingSceneIn(null);
+                  }
+                }}
+                onBlur={() => {
+                  if (newSceneTitle.trim()) handleAddScene(chapter.id);
+                  else setAddingSceneIn(null);
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                className="ml-6 flex items-center gap-1 rounded px-1 py-0.5 text-[11px] text-ink-3 transition-colors hover:bg-hover hover:text-ink-2"
+                onClick={() => {
+                  setAddingSceneIn(chapter.id);
+                  setNewSceneTitle("");
+                }}
+              >
+                <Plus size={11} />
+                添加场景
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   };
