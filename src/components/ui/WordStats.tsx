@@ -1,6 +1,7 @@
 import { BookOpen, FileText, TrendingUp, Target } from "lucide-react";
 import { StatCard } from "./StatCard";
 import { Progress } from "./Progress";
+import { formatNumber } from "../../i18n/format";
 
 interface WordStatsProps {
   totalWords: number;
@@ -21,19 +22,19 @@ export function WordStats({
     <div className="space-y-2.5">
       <StatCard
         label="总字数"
-        value={totalWords.toLocaleString()}
+        value={formatNumber(totalWords)}
         icon={BookOpen}
         align="left"
       />
       <StatCard
         label="本章字数"
-        value={chapterWords.toLocaleString()}
+        value={formatNumber(chapterWords)}
         icon={FileText}
         align="left"
       />
       <StatCard
         label="平均每章"
-        value={averageWordsPerChapter.toLocaleString()}
+        value={formatNumber(averageWordsPerChapter)}
         icon={TrendingUp}
         align="left"
       />
@@ -50,7 +51,7 @@ export function WordStats({
         </div>
         <Progress value={totalWords} max={targetWords} className="mt-2" />
         <p className="mt-1.5 text-[11px] tabular-nums text-ink-3">
-          {totalWords.toLocaleString()} / {targetWords.toLocaleString()} 字
+          {formatNumber(totalWords)} / {formatNumber(targetWords)} 字
         </p>
       </div>
     </div>

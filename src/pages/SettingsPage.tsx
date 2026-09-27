@@ -9,13 +9,18 @@ import {
   ExternalLink,
   Feather,
   FileText,
+  History,
   Info,
+  Languages,
   Loader2,
   MessageSquare,
   Palette,
   Play,
   Plus,
+  RefreshCw,
   Save,
+  ScrollText,
+  Search,
   Sparkles,
   Square,
   Trash2,
@@ -77,6 +82,27 @@ import {
   Textarea,
   ThemeToggle,
 } from "../components/ui";
+import { useT, useI18nStore, LANG_OPTIONS, allKeys, packValue, type Lang } from "../i18n";
+import { formatDateTime, formatNumber, currentLocale } from "../i18n/format";
+import {
+  checkForUpdate,
+  getAppVersion,
+  isVersionNewer,
+  openReleasePage,
+  selectInstallerFile,
+  launchInstaller,
+  listInstallHistory,
+  rollbackTo,
+  type LatestRelease,
+  type InstallRecord,
+} from "../services/updateService";
+import {
+  useLogStore,
+  log,
+  logCategoryLabels,
+  exportLogs,
+  type LogCategory,
+} from "../services/logger";
 
 interface LlamaServerStatus {
   running: boolean;
@@ -137,6 +163,137 @@ export function SettingsPage() {
   /** 点过「手动指定」后强制显示输入框 */
   const [serverPathManual, setServerPathManual] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── i18n / 更新 / 日志（v1.3.3） ──
+  const t = useT();
+  const i18nLang = useI18nStore((s) => s.lang);
+  const setLang = useI18nStore((s) => s.setLang);
+  const updateOverrides = useI18nStore((s) => s.overrides);
+  const resetOverrides = useI18nStore((s) => s.resetOverrides);
+  const logEntries = useLogStore((s) => s.entries);
+  const [transQuery, setTransQuery] = useState("");
+  const [logFilter, setLogFilter] = useState<LogCategory | "all">("all");
+  const [appVersion, setAppVersion] = useState("");
+  const [latest, setLatest] = useState<LatestRelease | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState("");
+  const [installHistory, setInstallHistory] = useState<InstallRecord[]>([]);
+  const [diagReport, setDiagReport] = useState<string | null>(null);
+  const [diagRunning, setDiagRunning] = useState(false);
+
+  useEffect(() => {
+    void getAppVersion().then(setAppVersion);
+    void listInstallHistory().then(setInstallHistory);
+  }, []);
+
+  const handleCheckUpdate = useCallback(async () => {
+    setChecking(true);
+    setCheckError("");
+    try {
+      setLatest(await checkForUpdate());
+    } catch (e) {
+      setCheckError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+
+  const handleOfflineUpdate = async () => {
+    try {
+      const path = await selectInstallerFile();
+      if (!path) return;
+      const name = path.split(/[\\/]/).pop() ?? path;
+      if (!window.confirm(t("update.confirmInstall", { name }))) return;
+      await launchInstaller(path, "offline");
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleRollback = async (rec: InstallRecord) => {
+    if (!window.confirm(t("update.rollbackConfirm", { version: rec.version }))) return;
+    try {
+      await rollbackTo(rec);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  /** 一键诊断：版本 / 语言 / 平台 / 数据目录 / AI 连通 / llama 状态 / 最近错误 */
+  const handleDiagnose = async () => {
+    setDiagRunning(true);
+    try {
+      const lines: string[] = [];
+      const ok = t("logs.diagOk");
+      const bad = t("logs.diagWarn");
+      const version = appVersion || (await getAppVersion());
+      lines.push(`# ${t("logs.diagTitle")}`);
+      lines.push(`- ${t("logs.diagItem.version")}: Omni Novel v${version}`);
+      lines.push(`- ${t("logs.diagItem.language")}: ${i18nLang} (${currentLocale()})`);
+      lines.push(`- ${t("logs.diagItem.platform")}: ${navigator.userAgent}`);
+      try {
+        const dir = await invoke<string>("default_projects_dir");
+        lines.push(`- ${t("logs.diagItem.data")}: ${dir}`);
+      } catch {
+        lines.push(`- ${t("logs.diagItem.data")}: ${bad}`);
+      }
+      lines.push(`- ${t("logs.diagItem.aiBackend")}: ${ai.backend} · ${ai.baseUrl}`);
+      try {
+        const reachable = await invoke<boolean>("ai_check_connection", {
+          backend: ai.backend,
+          baseUrl: ai.baseUrl,
+        });
+        lines.push(`- ${t("logs.diagItem.aiConnection")}: ${reachable ? ok : bad}`);
+      } catch (e) {
+        lines.push(`- ${t("logs.diagItem.aiConnection")}: ${bad} (${String(e)})`);
+      }
+      try {
+        const status = await invoke<LlamaServerStatus>("get_llama_server_status", {
+          baseUrl: ai.baseUrl,
+        });
+        lines.push(`- llama-server: ${status.running ? ok : bad} (pid=${status.pid ?? "-"})`);
+      } catch {
+        lines.push(`- llama-server: ${t("logs.diagSkipped")}`);
+      }
+      const recentErrors = logEntries.filter((l) => l.level === "error").slice(-10);
+      lines.push(`- ${t("logs.diagItem.recentErrors")}: ${recentErrors.length}`);
+      for (const e of recentErrors) {
+        lines.push(`  - [${new Date(e.ts).toLocaleString(currentLocale())}] ${e.message}`);
+      }
+      setDiagReport(lines.join("\n"));
+      log("operation", "info", "运行一键诊断", { errors: recentErrors.length });
+    } finally {
+      setDiagRunning(false);
+    }
+  };
+
+  /** 提交英文翻译覆盖（与语言包默认值相同则清除覆盖） */
+  const updateOverrideSafe = (key: string, value: string) => {
+    const trimmed = value;
+    useI18nStore
+      .getState()
+      .updateOverride("en", key, trimmed === packValue("en", key) ? "" : trimmed);
+  };
+
+  const handleCopyReport = async () => {
+    if (!diagReport) return;
+    try {
+      await navigator.clipboard.writeText(diagReport);
+    } catch {
+      // 剪贴板不可用时忽略
+    }
+  };
+
+  const handleExportReport = () => {
+    if (!diagReport) return;
+    const blob = new Blob([diagReport], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "omni-novel-diagnosis.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleSave = () => {
     setSaved(true);
@@ -805,25 +962,28 @@ export function SettingsPage() {
   );
 
   const settingsTabs = [
-    { key: "appearance", label: "外观", icon: Palette },
-    { key: "editor", label: "编辑器", icon: FileText },
-    { key: "ai", label: "AI 模型", icon: Sparkles },
-    { key: "style", label: "文风", icon: Feather },
-    { key: "prompts", label: "提示词", icon: MessageSquare },
-    { key: "export", label: "导出模板", icon: Download },
-    { key: "backup", label: "数据备份与恢复", icon: Database },
-    { key: "about", label: "关于", icon: Info },
+    { key: "appearance", label: t("settings.tab.appearance"), icon: Palette },
+    { key: "editor", label: t("settings.tab.editor"), icon: FileText },
+    { key: "ai", label: t("settings.tab.ai"), icon: Sparkles },
+    { key: "style", label: t("settings.tab.style"), icon: Feather },
+    { key: "prompts", label: t("settings.tab.prompts"), icon: MessageSquare },
+    { key: "export", label: t("settings.tab.export"), icon: Download },
+    { key: "backup", label: t("settings.tab.backup"), icon: Database },
+    { key: "language", label: t("settings.tab.language"), icon: Languages },
+    { key: "update", label: t("settings.tab.update"), icon: RefreshCw },
+    { key: "logs", label: t("settings.tab.logs"), icon: ScrollText },
+    { key: "about", label: t("settings.tab.about"), icon: Info },
   ];
 
   return (
     <Page>
       <PageHeader
-        title="设置"
-        description="模型、外观与数据备份"
+        title={t("settings.title")}
+        description={t("settings.description")}
         actions={
           <Button variant="primary" onClick={handleSave}>
             {saved ? <Check size={15} /> : <Save size={15} />}
-            {saved ? "已保存" : "保存设置"}
+            {saved ? t("settings.saved") : t("settings.save")}
           </Button>
         }
       />
@@ -1533,7 +1693,7 @@ export function SettingsPage() {
                         <button
                           key={`${h.model}-${i}`}
                           type="button"
-                          title={new Date(h.at).toLocaleString()}
+                          title={formatDateTime(h.at)}
                           className={
                             "rounded-full border px-2 py-0.5 text-[11px] transition-colors " +
                             (ai.model === h.model
@@ -2075,15 +2235,326 @@ export function SettingsPage() {
           </Section>
           </div>
 
+          {/* 语言与翻译 */}
+          <div className={settingsTab !== "language" ? "hidden" : undefined}>
+          <Section title={t("i18n.section.language")} icon={Languages} contentClassName="space-y-5">
+            <Field label={t("i18n.languageLabel")} hint={t("i18n.languageHint")}>
+              <SegmentedControl
+                items={LANG_OPTIONS.map((o) => ({ value: o.value, label: o.nativeLabel }))}
+                value={i18nLang}
+                onChange={(v) => setLang(v as Lang)}
+                variant="segment"
+                size="sm"
+              />
+            </Field>
+          </Section>
+          <Section
+            title={t("i18n.section.translation")}
+            icon={Search}
+            description={t("i18n.translationHint")}
+            actions={
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] text-ink-3">
+                  {t("i18n.totalKeys", { n: allKeys().length })}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (window.confirm(t("i18n.resetConfirm"))) resetOverrides();
+                  }}
+                >
+                  {t("i18n.resetAll")}
+                </Button>
+              </div>
+            }
+            contentClassName="space-y-3"
+          >
+            <Input
+              value={transQuery}
+              onChange={(e) => setTransQuery(e.target.value)}
+              placeholder={t("i18n.searchKey")}
+            />
+            <div className="max-h-[480px] overflow-auto rounded-lg border border-line">
+              <table className="w-full text-left text-[12px]">
+                <thead className="sticky top-0 bg-subtle text-ink-3">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">{t("i18n.colKey")}</th>
+                    <th className="px-3 py-2 font-medium">{t("i18n.colZh")}</th>
+                    <th className="px-3 py-2 font-medium">{t("i18n.colEn")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allKeys()
+                    .filter((k) => {
+                      if (!transQuery.trim()) return true;
+                      const q = transQuery.trim().toLowerCase();
+                      return (
+                        k.toLowerCase().includes(q) ||
+                        packValue("zh", k).toLowerCase().includes(q) ||
+                        packValue("en", k).toLowerCase().includes(q)
+                      );
+                    })
+                    .slice(0, 200)
+                    .map((k) => (
+                      <tr key={k} className="border-t border-line align-top">
+                        <td className="px-3 py-1.5 font-mono text-ink-2">{k}</td>
+                        <td className="px-3 py-1.5 text-ink-3">{packValue("zh", k)}</td>
+                        <td className="px-3 py-1.5">
+                          <div className="flex items-center gap-2">
+                            <input
+                              key={`${k}-ov`}
+                              defaultValue={updateOverrides.en?.[k] ?? packValue("en", k)}
+                              onBlur={(e) => updateOverrideSafe(k, e.target.value)}
+                              className="w-full rounded border border-line bg-surface px-2 py-1 text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-ring)]"
+                            />
+                            {updateOverrides.en?.[k] != null && (
+                              <Badge variant="primary">{t("i18n.overridden")}</Badge>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+          </div>
+
+          {/* 更新 */}
+          <div className={settingsTab !== "update" ? "hidden" : undefined}>
+          <Section title={t("update.section.current")} icon={RefreshCw}>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
+              <dt className="text-ink-3">{t("update.currentVersion")}</dt>
+              <dd className="text-ink">v{appVersion || "…"}</dd>
+              <dt className="text-ink-3">{t("update.latestVersion")}</dt>
+              <dd className="text-ink">
+                {latest ? `v${latest.version}` : "—"}
+                {latest &&
+                  (isVersionNewer(latest.version, appVersion || "0.0.0") ? (
+                    <Badge variant="primary" className="ml-2">
+                      {t("update.available", { version: latest.version })}
+                    </Badge>
+                  ) : (
+                    <Badge variant="success" className="ml-2">
+                      {t("update.upToDate")}
+                    </Badge>
+                  ))}
+              </dd>
+              {latest?.publishedAt && (
+                <>
+                  <dt className="text-ink-3">{t("common.time")}</dt>
+                  <dd className="text-ink">
+                    {t("update.publishedAt", {
+                      date: formatDateTime(latest.publishedAt),
+                    })}
+                  </dd>
+                </>
+              )}
+            </dl>
+          </Section>
+          <Section title={t("update.section.check")} icon={RefreshCw} contentClassName="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" disabled={checking} onClick={handleCheckUpdate}>
+                {checking ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                {checking ? t("update.checking") : t("update.checkBtn")}
+              </Button>
+              <Button variant="ghost" onClick={() => void openReleasePage(latest?.htmlUrl)}>
+                <ExternalLink size={15} />
+                {t("update.openReleasePage")}
+              </Button>
+              <Button variant="ghost" onClick={() => void openReleasePage()}>
+                <Download size={15} />
+                {t("update.openDownload")}
+              </Button>
+            </div>
+            {checkError && (
+              <p className="text-[12px] text-danger">
+                {t("update.checkFailed")}：{checkError}
+              </p>
+            )}
+            {latest && (
+              <div className="space-y-1.5">
+                <p className="text-[12px] font-medium text-ink-2">{t("update.releaseNotes")}</p>
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-subtle p-3 text-[12px] leading-relaxed text-ink-2">
+                  {latest.body || "—"}
+                </pre>
+              </div>
+            )}
+          </Section>
+          <Section title={t("update.section.offline")} icon={Upload} description={t("update.offlineHint")}>
+            <div>
+              <Button variant="secondary" onClick={() => void handleOfflineUpdate()}>
+                <Upload size={15} />
+                {t("update.selectInstaller")}
+              </Button>
+            </div>
+          </Section>
+          <Section title={t("update.section.history")} icon={History}>
+            {installHistory.length === 0 ? (
+              <p className="text-[13px] text-ink-3">{t("update.historyEmpty")}</p>
+            ) : (
+              <ul className="divide-y divide-line text-[13px]">
+                {[...installHistory].reverse().map((rec, idx) => (
+                  <li key={`${rec.installedAt}-${idx}`} className="flex items-center justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <span className="text-ink">v{rec.version}</span>
+                      <Badge
+                        variant={
+                          rec.source === "rollback"
+                            ? "warning"
+                            : rec.source === "offline"
+                              ? "primary"
+                              : "success"
+                        }
+                        className="ml-2"
+                      >
+                        {t(`update.source.${rec.source}`)}
+                      </Badge>
+                      <span className="ml-2 text-[12px] text-ink-3">
+                        {formatDateTime(rec.installedAt)}
+                      </span>
+                      <p className="truncate text-[12px] text-ink-3">{rec.installerPath}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => void handleRollback(rec)}>
+                      {t("update.rollback")}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+          </div>
+
+          {/* 日志与诊断 */}
+          <div className={settingsTab !== "logs" ? "hidden" : undefined}>
+          <Section
+            title={t("logs.section.viewer")}
+            icon={ScrollText}
+            actions={
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] text-ink-3">
+                  {t("logs.count", { n: formatNumber(logEntries.length) })}
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => exportLogs(logEntries)}>
+                  <Download size={13} />
+                  {t("logs.exportLogs")}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (window.confirm(t("logs.clearConfirm"))) {
+                      useLogStore.getState().clear();
+                    }
+                  }}
+                >
+                  <Trash2 size={13} />
+                  {t("logs.clearLogs")}
+                </Button>
+              </div>
+            }
+            contentClassName="space-y-3"
+          >
+            <SegmentedControl
+              items={[
+                { value: "all", label: t("logs.filter.all") },
+                ...(Object.keys(logCategoryLabels) as LogCategory[]).map((c) => ({
+                  value: c,
+                  label: logCategoryLabels[c],
+                })),
+              ]}
+              value={logFilter}
+              onChange={(v) => setLogFilter(v as LogCategory | "all")}
+              variant="chip"
+              size="sm"
+            />
+            <div className="max-h-[420px] overflow-auto rounded-lg border border-line bg-subtle p-2 font-mono text-[12px]">
+              {logEntries.length === 0 ? (
+                <p className="px-2 py-6 text-center text-ink-3">{t("logs.empty")}</p>
+              ) : (
+                <ul className="space-y-1">
+                  {logEntries
+                    .filter((l) => logFilter === "all" || l.category === logFilter)
+                    .slice(-300)
+                    .reverse()
+                    .map((l) => (
+                      <li key={l.id} className="flex items-start gap-2 px-2 py-1">
+                        <span className="shrink-0 text-ink-3">{formatDateTime(l.ts, true)}</span>
+                        <Badge
+                          variant={
+                            l.level === "error"
+                              ? "danger"
+                              : l.level === "warn"
+                                ? "warning"
+                                : "neutral"
+                          }
+                        >
+                          {logCategoryLabels[l.category]}
+                        </Badge>
+                        <span
+                          className={
+                            l.level === "error"
+                              ? "text-danger"
+                              : l.level === "warn"
+                                ? "text-warning"
+                                : "text-ink-2"
+                          }
+                        >
+                          {l.message}
+                          {l.detail ? ` · ${l.detail}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          </Section>
+          <Section
+            title={t("logs.section.diagnosis")}
+            icon={AlertTriangle}
+            description={t("logs.diagnosisHint")}
+            contentClassName="space-y-3"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" disabled={diagRunning} onClick={() => void handleDiagnose()}>
+                {diagRunning ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <AlertTriangle size={15} />
+                )}
+                {diagRunning ? t("logs.diagnosing") : t("logs.runDiagnosis")}
+              </Button>
+              {diagReport && (
+                <>
+                  <Button variant="ghost" onClick={() => void handleCopyReport()}>
+                    <FileText size={15} />
+                    {t("logs.diagCopy")}
+                  </Button>
+                  <Button variant="ghost" onClick={handleExportReport}>
+                    <Download size={15} />
+                    {t("logs.diagExport")}
+                  </Button>
+                </>
+              )}
+            </div>
+            {diagReport && (
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-subtle p-3 text-[12px] leading-relaxed text-ink-2">
+                {diagReport}
+              </pre>
+            )}
+          </Section>
+          </div>
+
           {/* 关于 */}
           <div className={settingsTab !== "about" ? "hidden" : undefined}>
-          <Section title="关于" icon={Info}>
+          <Section title={t("about.section")} icon={Info}>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
-              <dt className="text-ink-3">版本</dt>
+              <dt className="text-ink-3">{t("common.version")}</dt>
               <dd className="text-ink">Omni Novel v1.3.2</dd>
-              <dt className="text-ink-3">简介</dt>
-              <dd className="text-ink">AI 驱动的小说创作桌面应用</dd>
-              <dt className="text-ink-3">开发者</dt>
+              <dt className="text-ink-3">{t("about.intro")}</dt>
+              <dd className="text-ink">{t("about.introValue")}</dd>
+              <dt className="text-ink-3">{t("about.developer")}</dt>
               <dd>
                 <button
                   type="button"
@@ -2094,7 +2565,7 @@ export function SettingsPage() {
                   <ExternalLink size={12} />
                 </button>
               </dd>
-              <dt className="text-ink-3">项目地址</dt>
+              <dt className="text-ink-3">{t("about.repo")}</dt>
               <dd>
                 <button
                   type="button"

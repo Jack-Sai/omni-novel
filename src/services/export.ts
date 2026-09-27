@@ -1,5 +1,7 @@
 import { getActiveTemplate, type ExportTemplate } from "../lib/exportTemplates";
 import { htmlWordCount } from "../lib/text";
+import { log } from "./logger";
+import { currentLocale } from "../i18n/format";
 
 export interface ExportOptions {
   format: "txt" | "markdown" | "html" | "docx" | "epub";
@@ -34,6 +36,10 @@ function htmlToXhtml(html: string): string {
 export class ExportService {
   static async exportToFile(options: ExportOptions): Promise<void> {
     const { format, filename, content, title, author } = options;
+    log("io", "info", `导出文件：${filename}.${format === "markdown" ? "md" : format}`, {
+      format,
+      chars: content.length,
+    });
 
     if (format === "epub") {
       await this.toEPUB(filename, title || filename, author, [
@@ -461,6 +467,10 @@ ${htmlToXhtml(ch.html)}
       .filter((c) => c.projectId === projectId)
       .sort((a, b) => a.order - b.order);
 
+    log("io", "info", `批量导出《${project.title}》为 ${format}`, {
+      chapters: projectChapters.length,
+    });
+
     const tpl = await getActiveTemplate();
     const wcOf = (content: string) => htmlWordCount(content);
 
@@ -523,7 +533,7 @@ ${htmlToXhtml(ch.html)}
     author: string | undefined,
     format: "txt" | "markdown" | "html" | "docx"
   ): string {
-    const date = new Date().toLocaleDateString("zh-CN");
+    const date = new Date().toLocaleDateString(currentLocale());
     if (format === "markdown") {
       return `# ${title}\n\n${author ? `**作者：${author}**\n\n` : ""}> 导出日期：${date}\n\n---\n`;
     }

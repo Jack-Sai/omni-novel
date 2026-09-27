@@ -1,6 +1,7 @@
 import type { ChatMessage, GenerateOptions } from "./ollama";
 import { OllamaService } from "./ollama";
 import { OpenAICompatService } from "./openaiCompat";
+import { log } from "./logger";
 
 export type BackendType = "ollama" | "llamacpp" | "vllm" | "lmstudio" | "openai-compat";
 
@@ -63,14 +64,75 @@ const backendServiceMap: Record<BackendType, "ollama" | "openai-compat"> = {
 };
 
 /**
- * 根据配置创建 AI 服务实例
+ * 根据配置创建 AI 服务实例。
+ * 返回实例经日志包装：chat / chatStream 记 AI、模型与性能日志，失败记 error。
  */
 export function createAIService(config: AIServiceConfig): AIService {
   const serviceType = backendServiceMap[config.backend] ?? "openai-compat";
-  if (serviceType === "ollama") {
-    return new OllamaService(config);
-  }
-  return new OpenAICompatService(config);
+  const base: AIService =
+    serviceType === "ollama" ? new OllamaService(config) : new OpenAICompatService(config);
+  return wrapWithLogging(base, config);
+}
+
+function wrapWithLogging(service: AIService, config: AIServiceConfig): AIService {
+  const label = `${config.backend}:${config.model}`;
+
+  const timed = async <T>(kind: string, fn: () => Promise<T>): Promise<T> => {
+    const started = performance.now();
+    try {
+      const result = await fn();
+      const ms = Math.round(performance.now() - started);
+      if (kind === "chat") {
+        log("ai", "info", `AI 请求完成（${label}）`, { ms, backend: config.backend });
+        if (ms > 3000) {
+          log("performance", "info", `AI 响应耗时 ${ms}ms（${label}）`, { kind });
+        }
+      }
+      return result;
+    } catch (e) {
+      const ms = Math.round(performance.now() - started);
+      const msg = e instanceof Error ? e.message : String(e);
+      log("ai", "error", `AI 请求失败（${label}）：${msg}`, { ms, kind });
+      log("error", "error", `AI 请求失败：${msg}`, { backend: config.backend, kind });
+      throw e;
+    }
+  };
+
+  return {
+    checkConnection: async () => {
+      try {
+        const ok = await service.checkConnection();
+        log("model", ok ? "info" : "warn", `连接检测 ${label}：${ok ? "正常" : "无法连接"}`);
+        return ok;
+      } catch (e) {
+        log("model", "error", `连接检测异常 ${label}：${String(e)}`);
+        throw e;
+      }
+    },
+    listModels: () => service.listModels(),
+    chat: (messages, options) =>
+      timed("chat", () => service.chat(messages, options)),
+    chatStream: async (messages, options, onChunk, requestId) => {
+      const started = performance.now();
+      try {
+        const result = await service.chatStream(messages, options, onChunk, requestId);
+        const ms = Math.round(performance.now() - started);
+        log("ai", "info", `AI 流式请求完成（${label}）`, { ms, requestId });
+        if (ms > 3000) log("performance", "info", `AI 流式响应耗时 ${ms}ms（${label}）`);
+        return result;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log("ai", "error", `AI 流式请求失败（${label}）：${msg}`);
+        log("error", "error", `AI 流式请求失败：${msg}`);
+        throw e;
+      }
+    },
+    updateConfig: (partial) => {
+      service.updateConfig(partial);
+      log("model", "info", "AI 配置已更新", partial);
+    },
+    getConfig: () => service.getConfig(),
+  };
 }
 
 /**

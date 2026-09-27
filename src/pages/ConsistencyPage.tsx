@@ -22,6 +22,7 @@ import {
 } from "../components/ui";
 import type { BadgeVariant } from "../components/ui";
 import { cn } from "../lib/cn";
+import { currentLocale } from "../i18n/format";
 
 const severityLabels = { high: "严重", medium: "中等", low: "轻微" } as const;
 const severityVariants: Record<ConsistencyIssue["severity"], BadgeVariant> = {
@@ -41,7 +42,7 @@ const typeLabels: Record<ConsistencyIssue["type"], string> = {
 function formatTime(iso: string): string {
   const d = new Date(iso.includes("T") ? iso : iso.replace(" ", "T") + "Z");
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("zh-CN", { hour12: false });
+  return d.toLocaleString(currentLocale(), { hour12: false });
 }
 
 export function ConsistencyPage() {

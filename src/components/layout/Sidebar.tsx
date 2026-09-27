@@ -3,6 +3,7 @@ import type { ElementType } from "react";
 import { ThemeSwitcher } from "../ui";
 import { cn } from "../../lib/cn";
 import { useUIStore } from "../../stores/uiStore";
+import { useT } from "../../i18n";
 
 interface SidebarProps {
   activeTab: string;
@@ -12,43 +13,40 @@ interface SidebarProps {
 interface NavItem {
   id: string;
   icon: ElementType;
-  label: string;
+  labelKey: string;
 }
 
-const groups: { label: string; items: NavItem[] }[] = [
+const groups: { labelKey: string; items: NavItem[] }[] = [
   {
-    label: "",
+    labelKey: "",
+    items: [{ id: "bookshelf", icon: LayoutGrid, labelKey: "nav.bookshelf" }],
+  },
+  {
+    labelKey: "nav.group.create",
     items: [
-      { id: "bookshelf", icon: LayoutGrid, label: "书架" },
+      { id: "editor", icon: FileText, labelKey: "nav.editor" },
+      { id: "chapters", icon: BookOpen, labelKey: "nav.chapters" },
+      { id: "consistency", icon: ShieldCheck, labelKey: "nav.consistency" },
     ],
   },
   {
-    label: "创作",
+    labelKey: "nav.group.setup",
     items: [
-      { id: "editor", icon: FileText, label: "编辑器" },
-      { id: "chapters", icon: BookOpen, label: "章节" },
-      { id: "consistency", icon: ShieldCheck, label: "一致性" },
+      { id: "characters", icon: Users, labelKey: "nav.characters" },
+      { id: "worldview", icon: Map, labelKey: "nav.worldview" },
+      { id: "foreshadowing", icon: Eye, labelKey: "nav.foreshadowing" },
+      { id: "memory", icon: Brain, labelKey: "nav.memory" },
     ],
   },
   {
-    label: "设定",
-    items: [
-      { id: "characters", icon: Users, label: "人物" },
-      { id: "worldview", icon: Map, label: "世界观" },
-      { id: "foreshadowing", icon: Eye, label: "伏笔" },
-      { id: "memory", icon: Brain, label: "记忆" },
-    ],
-  },
-  {
-    label: "工作台",
-    items: [
-      { id: "settings", icon: Settings, label: "设置" },
-    ],
+    labelKey: "nav.group.workbench",
+    items: [{ id: "settings", icon: Settings, labelKey: "nav.settings" }],
   },
 ];
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
+  const t = useT();
 
   return (
     <aside
@@ -72,28 +70,29 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           <p className="truncate text-sm font-semibold tracking-tight text-ink">
             Omni Novel
           </p>
-          <p className="truncate text-[12px] text-ink-3">AI 写作工作台</p>
+          <p className="truncate text-[12px] text-ink-3">{t("nav.tagline")}</p>
         </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2.5 pb-3">
         {groups.map((group) => (
-          <div key={group.label}>
-            {group.label && !collapsed && (
+          <div key={group.labelKey || "root"}>
+            {group.labelKey && !collapsed && (
               <p className="px-3 pb-2 pt-4 text-[12px] font-medium text-ink-3">
-                {group.label}
+                {t(group.labelKey)}
               </p>
             )}
-            <div className={cn("space-y-1", group.label && collapsed && "mt-3")}>
+            <div className={cn("space-y-1", group.labelKey && collapsed && "mt-3")}>
               {group.items.map((item) => {
                 const active = activeTab === item.id;
+                const label = t(item.labelKey);
                 return (
                   <button
                     key={item.id}
                     type="button"
                     aria-current={active ? "page" : undefined}
-                    aria-label={item.label}
-                    title={collapsed ? item.label : undefined}
+                    aria-label={label}
+                    title={collapsed ? label : undefined}
                     onClick={() => onTabChange(item.id)}
                     className={cn(
                       "relative flex h-10 w-full items-center gap-3 rounded-lg text-sm",
@@ -109,7 +108,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                     )}
                     <item.icon size={18} className="shrink-0" aria-hidden />
                     <span className={cn("truncate", collapsed && "hidden")}>
-                      {item.label}
+                      {label}
                     </span>
                   </button>
                 );

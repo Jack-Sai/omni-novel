@@ -11,6 +11,7 @@ import { useAnnotationStore } from "../stores/annotationStore";
 import { useRevisionStore } from "../stores/revisionStore";
 import { loadProjectJson, saveProjectJson } from "./storage";
 import { migrateProjectIfNeeded } from "./projectMigrations";
+import { log } from "./logger";
 
 /**
  * 应用启动时调用，从磁盘加载全局数据
@@ -189,4 +190,5 @@ export async function loadProjectStores(projectDir: string): Promise<void> {
     useRevisionStore.getState().loadFromDisk(projectDir),
   ]);
   await migrateOutlineIfNeeded(projectDir);
+  if (projectDir) log("operation", "info", "打开项目数据", { projectDir });
 }

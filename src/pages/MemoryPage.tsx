@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ArrowLeft, Brain, Plus, Search, Trash2 } from "lucide-react";
 import { memoryDb, backfillMemoryEmbedding, type MemoryItemRow, type MemoryType, type MemoryScope } from "../services";
+import { currentLocale } from "../i18n/format";
 import { useProjectStore } from "../stores/projectStore";
 import {
   Badge,
@@ -449,7 +450,7 @@ function formatTime(iso: string): string {
   if (!iso) return "—";
   const d = new Date(iso.includes("T") ? iso : iso.replace(" ", "T") + "Z");
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("zh-CN", {
+  return d.toLocaleString(currentLocale(), {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

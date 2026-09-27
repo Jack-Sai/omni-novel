@@ -895,6 +895,32 @@ fn default_projects_dir() -> Result<String, String> {
         .to_string())
 }
 
+/// 启动离线更新安装包：拉起 setup 后延迟退出应用，避免安装时文件被占用
+#[tauri::command]
+fn launch_installer(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("安装包不存在：{}", path));
+    }
+    #[cfg(windows)]
+    {
+        std::process::Command::new(&path)
+            .spawn()
+            .map_err(|e| format!("启动安装程序失败：{}", e))?;
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = &app;
+        return Err("当前平台暂不支持安装包启动".to_string());
+    }
+    // 给安装器时间初始化，随后退出应用释放文件占用
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+        app.exit(0);
+    });
+    Ok(())
+}
+
 /// 从环境变量 PATH 中自动查找 llama-server 可执行文件，找到返回绝对路径
 #[tauri::command]
 fn find_llama_server_in_path() -> Option<String> {
@@ -1011,6 +1037,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             create_project_dir,
             default_projects_dir,
+            launch_installer,
             find_llama_server_in_path,
             list_system_fonts,
             save_chapter,

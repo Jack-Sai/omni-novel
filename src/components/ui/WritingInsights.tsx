@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Flame, Timer, CalendarDays, Zap } from "lucide-react";
 import { writingStatsDb, type WritingStatRow } from "../../services/database";
+import { formatNumber } from "../../i18n/format";
 
 /**
  * 写作洞察面板（统计系统 #14）：今日/累计时长、连续写作天数、13 周字数热力图。
@@ -146,7 +147,7 @@ export function WritingInsights({ projectId }: Props) {
           <Timer size={13} aria-hidden className="opacity-70" />,
           "今日时长",
           fmtDuration(todaySec),
-          todayWords > 0 ? `今日 +${todayWords.toLocaleString()} 字` : "尚无产出"
+          todayWords > 0 ? `今日 +${formatNumber(todayWords)} 字` : "尚无产出"
         )}
         {stat(
           <Flame size={13} aria-hidden className="opacity-70" />,
@@ -163,7 +164,7 @@ export function WritingInsights({ projectId }: Props) {
         {stat(
           <Zap size={13} aria-hidden className="opacity-70" />,
           "累计产出",
-          totals.words_written.toLocaleString(),
+          formatNumber(totals.words_written),
           "追踪以来新增字数"
         )}
       </div>
@@ -190,7 +191,7 @@ export function WritingInsights({ projectId }: Props) {
                 return (
                   <span
                     key={cell.date}
-                    title={`${cell.date} · ${w.toLocaleString()} 字 · ${fmtDurationLong(sec)}`}
+                    title={`${cell.date} · ${formatNumber(w)} 字 · ${fmtDurationLong(sec)}`}
                     className={`h-2.5 w-2.5 rounded-[3px] transition-colors ${heatClass(w)}`}
                   />
                 );

@@ -1,4 +1,5 @@
 import { diffLines } from "diff";
+import { currentLocale } from "../i18n/format";
 
 /** HTML → 纯文本（按块换行），仅用于对比展示 */
 export function htmlToText(html: string): string {
@@ -18,7 +19,7 @@ export function htmlToText(html: string): string {
 export function formatVersionTime(iso: string): string {
   const d = new Date(iso.includes("T") ? iso : iso.replace(" ", "T") + "Z");
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("zh-CN", {
+  return d.toLocaleString(currentLocale(), {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

@@ -21,6 +21,7 @@ import { useChapterStore, Chapter, ChapterStatus } from "../stores/chapterStore"
 import { useSceneStore, Scene } from "../stores/sceneStore";
 import { useVolumeStore, Volume } from "../stores/volumeStore";
 import { deleteChapterCascade } from "../lib/chapterActions";
+import { formatNumber } from "../i18n/format";
 import { splitImportedText } from "../lib/importText";
 import { ProjectCompareDialog } from "../components/dialog";
 import { OutlineAIDialog } from "../components/ai/OutlineAIDialog";
@@ -718,7 +719,7 @@ export function ChaptersPage() {
     <Page>
       <PageHeader
         title="章节"
-        description={`${projectVolumes.length} 卷 · ${projectChapters.length} 章 · ${totalWords.toLocaleString()} 字`}
+        description={`${projectVolumes.length} 卷 · ${projectChapters.length} 章 · ${formatNumber(totalWords)} 字`}
         actions={
           <>
             <Button
@@ -860,7 +861,7 @@ export function ChaptersPage() {
                     )}
 
                     <span className="shrink-0 text-[12px] tabular-nums text-ink-3">
-                      {volChapters.length} 章 · {volWords.toLocaleString()} 字
+                      {volChapters.length} 章 · {formatNumber(volWords)} 字
                     </span>
 
                     <div className="ml-auto flex shrink-0 items-center gap-0.5">

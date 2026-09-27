@@ -7,6 +7,7 @@ import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { projectDb, loadProjectStores, loadProjectJson } from "../services";
+import { currentLocale } from "../i18n/format";
 import type { Chapter } from "../stores/chapterStore";
 
 function getWordCount(content: string): number {
@@ -121,7 +122,7 @@ export function BookshelfPage() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("zh-CN", {
+    return new Date(dateString).toLocaleDateString(currentLocale(), {
       year: "numeric",
       month: "short",
       day: "numeric",

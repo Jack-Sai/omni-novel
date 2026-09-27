@@ -12,6 +12,7 @@ import { useChapterStore } from "../../stores/chapterStore";
 import { computeDiffParts, formatVersionTime, textWordCount } from "../../lib/textDiff";
 import { Badge, Button, Dialog, EmptyState, Select, Skeleton } from "../ui";
 import { cn } from "../../lib/cn";
+import { formatNumber } from "../../i18n/format";
 
 interface ProjectCompareDialogProps {
   open: boolean;
@@ -296,12 +297,12 @@ export function ProjectCompareDialog({
                 {summary.wordsDelta >= 0 ? (
                   <span className="flex items-center gap-0.5 text-success">
                     <Plus size={11} />
-                    {summary.wordsDelta.toLocaleString()} 字
+                    {formatNumber(summary.wordsDelta)} 字
                   </span>
                 ) : (
                   <span className="flex items-center gap-0.5 text-danger">
                     <Minus size={11} />
-                    {Math.abs(summary.wordsDelta).toLocaleString()} 字
+                    {formatNumber(Math.abs(summary.wordsDelta))} 字
                   </span>
                 )}
               </Badge>
@@ -366,7 +367,7 @@ export function ProjectCompareDialog({
                         {d.title}
                       </span>
                       <span className="shrink-0 text-[12px] tabular-nums text-ink-3">
-                        {d.wordsA.toLocaleString()} → {d.wordsB.toLocaleString()} 字
+                        {formatNumber(d.wordsA)} → {formatNumber(d.wordsB)} 字
                       </span>
                       <span
                         className={cn(

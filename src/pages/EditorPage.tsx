@@ -48,6 +48,9 @@ import {
   revisionSnapshot,
 } from "../services/revisionService";
 import { computeChapterTextStats } from "../lib/textStats";
+import { log } from "../services/logger";
+import { useT } from "../i18n";
+import { formatTime, formatNumber } from "../i18n/format";
 import { ChapterList } from "../components/chapter";
 import {
   ExportService,
@@ -96,6 +99,7 @@ function pmToFlat(segs: TextSeg[], pos: number): number {
 }
 
 export function EditorPage() {
+  const t = useT();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [annotationPanelOpen, setAnnotationPanelOpen] = useState(false);
@@ -158,12 +162,15 @@ export function EditorPage() {
     const next = !store.trackMode;
     if (next) {
       store.setBaseline(currentChapter.id, buildIndex(ed.state.doc).full);
+      log("operation", "info", `进入修订模式（${currentChapter.title}）`);
       void revisionSnapshot(
         currentProject.id,
         currentChapter.id,
         currentChapter.content,
         "进入修订模式",
       );
+    } else {
+      log("operation", "info", `退出修订模式（${currentChapter.title}）`);
     }
     store.setTrackMode(next);
   }, [currentChapter, currentProject]);
@@ -233,6 +240,12 @@ export function EditorPage() {
       .getByChapter(currentChapter.id, "pending");
     if (list.length === 0) return;
     const { ok, failed } = resolveAll(ed, list, action);
+    log(
+      "operation",
+      "info",
+      `${action === "accept" ? "接受" : "拒绝"}全部修订（${currentChapter.title}）`,
+      { ok, failed },
+    );
     void revisionSnapshot(
       currentProject.id,
       currentChapter.id,
@@ -421,6 +434,7 @@ export function EditorPage() {
       updateChapterContent(currentChapter.id, content);
       editorRef.current?.getEditor()?.commands.setContent(content);
       setVersionDialogOpen(false);
+      log("operation", "info", `恢复历史版本（${currentChapter.title}）`);
     },
     [currentChapter, currentProject, updateChapterContent],
   );
@@ -679,7 +693,7 @@ export function EditorPage() {
             {lastSaved && (
               <span className="hidden items-center gap-1 text-[12px] text-ink-3 xl:flex">
                 <Check size={12} className="text-success" aria-hidden />
-                已保存 {lastSaved.toLocaleTimeString()}
+                {t("editor.saved")} {formatTime(lastSaved)}
               </span>
             )}
             <Button
@@ -689,7 +703,7 @@ export function EditorPage() {
               title="专注模式（Esc 退出）"
             >
               <Minimize2 size={15} />
-              专注
+              {t("editor.focus")}
             </Button>
             <Button
               variant={showStats ? "primary" : "secondary"}
@@ -697,7 +711,7 @@ export function EditorPage() {
               aria-pressed={showStats}
             >
               <BarChart3 size={15} />
-              统计
+              {t("editor.stats")}
             </Button>
             <Button
               variant={aiPanelOpen ? "primary" : "secondary"}
@@ -713,7 +727,7 @@ export function EditorPage() {
               aria-pressed={annotationPanelOpen}
             >
               <MessageSquareText size={15} />
-              批注
+              {t("editor.annotation")}
             </Button>
             <Button
               variant={revisionPanelOpen ? "primary" : "secondary"}
@@ -723,7 +737,7 @@ export function EditorPage() {
               className="relative"
             >
               <PenLine size={15} />
-              修订
+              {t("editor.revision")}
               {pendingForChapter > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-none text-white">
                   {pendingForChapter > 99 ? "99+" : pendingForChapter}
@@ -738,14 +752,14 @@ export function EditorPage() {
               title="版本历史与对比"
             >
               <History size={15} />
-              历史
+              {t("editor.history")}
             </Button>
 
             <Menu>
               <MenuTrigger asChild>
                 <Button variant="primary">
                   <Download size={15} />
-                  导出
+                  {t("editor.exportMenu")}
                 </Button>
               </MenuTrigger>
               <MenuContent>
@@ -774,13 +788,12 @@ export function EditorPage() {
                 void loadProjectStores("");
               }}
             >
-              返回列表
+              {t("editor.backToList")}
             </Button>
           </>
         }
         >
-      </PageHeader>
-      )}
+      </PageHeader>      )}
 
       {/* 专注模式浮动退出按钮 */}
       {focusMode && (
@@ -826,7 +839,7 @@ export function EditorPage() {
                 chapterId={currentChapter.id}
                 ref={editorRef}
                 content={currentChapter.content}
-                placeholder={`开始写作 ${currentChapter.title}…`}
+                placeholder={t("editor.startWriting", { title: currentChapter.title })}
                 onUpdate={handleEditorUpdate}
                 onSelectionUpdate={handleSelectionUpdate}
               />
@@ -834,25 +847,25 @@ export function EditorPage() {
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas px-5 py-2 text-[12px] text-ink-3">
                 <div className="flex items-center gap-5">
                   <span>
-                    本章 <span className="tabular-nums text-ink-2">{stats.chapterWords}</span> 字
+                    {t("editor.chapterWords", { n: formatNumber(stats.chapterWords) })}
                   </span>
                   {textStats && (
                     <>
                       <span>
-                        段落 <span className="tabular-nums text-ink-2">{textStats.paragraphs}</span>
-                        <span className="text-ink-3">（均 {textStats.avgParagraph} 字）</span>
+                        {t("editor.paragraphs", { n: textStats.paragraphs })}
+                        <span className="text-ink-3">
+                          {t("editor.avgParagraph", { n: textStats.avgParagraph })}
+                        </span>
                       </span>
                       <span>
-                        阅读约{" "}
-                        <span className="tabular-nums text-ink-2">{textStats.readingMinutes}</span>{" "}
-                        分钟
+                        {t("editor.readingTime", { n: textStats.readingMinutes })}
                       </span>
                     </>
                   )}
                   {targetProgress && (
                     <span className="flex items-center gap-2">
                       <span>
-                        目标{" "}
+                        {t("editor.target")}{" "}
                         <span className="tabular-nums text-ink-2">
                           {editor.chapterWordTarget}
                         </span>
@@ -870,7 +883,7 @@ export function EditorPage() {
                     </span>
                   )}
                   <span>
-                    全书 <span className="tabular-nums text-ink-2">{stats.totalWords}</span> 字
+                    {t("editor.totalWords", { n: formatNumber(stats.totalWords) })}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -882,7 +895,7 @@ export function EditorPage() {
                     className="h-6 gap-1 text-xs"
                   >
                     <ScanText size={12} />
-                    文风
+                    {t("editor.styleCheck")}
                   </Button>
                   <div className="h-3 w-px bg-line" />
                   <Button
@@ -892,16 +905,18 @@ export function EditorPage() {
                     className="h-6 gap-1 text-xs"
                   >
                     <Save size={12} />
-                    保存
+                    {t("common.save")}
                   </Button>
                   <div className="h-3 w-px bg-line" />
                   {lastSaved ? (
                     <>
                       <Check size={12} className="text-success" aria-hidden />
-                      <span>已保存 {lastSaved.toLocaleTimeString()}</span>
+                      <span>
+                        {t("editor.saved")} {formatTime(lastSaved)}
+                      </span>
                     </>
                   ) : (
-                    <span>自动保存已开启</span>
+                    <span>{t("editor.autoSaveOn")}</span>
                   )}
                 </div>
               </div>
