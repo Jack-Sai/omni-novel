@@ -1,17 +1,60 @@
 import { useState, useEffect, useRef } from "react";
-import { Eye, FileText, Map, Search, User, X } from "lucide-react";
+import {
+  BookOpen,
+  Brain,
+  Eye,
+  FileText,
+  FolderKanban,
+  Layers,
+  Map,
+  MessageSquare,
+  Palette,
+  Search,
+  Share2,
+  ShieldAlert,
+  Terminal,
+  User,
+  X,
+} from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useChapterStore } from "../../stores/chapterStore";
+import { useSceneStore } from "../../stores/sceneStore";
+import { useVolumeStore } from "../../stores/volumeStore";
 import { useCharacterStore } from "../../stores/characterStore";
 import { useWorldviewStore } from "../../stores/worldviewStore";
 import { useForeshadowingStore } from "../../stores/foreshadowingStore";
+import { useRelationStore } from "../../stores/relationStore";
+import { useUIStore } from "../../stores/uiStore";
+import {
+  aiDb,
+  consistencyReportDb,
+  memoryDb,
+  promptDb,
+  styleDb,
+} from "../../services";
 import { useNavigate } from "react-router-dom";
 import { Badge, Button, Dialog, Kbd, type BadgeVariant } from "../ui";
 import { cn } from "../../lib/cn";
 
+/** 全局搜索覆盖的 13 类内容 */
+type SearchType =
+  | "chapter"
+  | "character"
+  | "worldview"
+  | "foreshadowing"
+  | "scene"
+  | "volume"
+  | "relation"
+  | "memory"
+  | "aiSession"
+  | "prompt"
+  | "styleProfile"
+  | "consistencyReport"
+  | "project";
+
 interface SearchResult {
   id: string;
-  type: "chapter" | "character" | "worldview" | "foreshadowing";
+  type: SearchType;
   title: string;
   content: string;
   matchIndex: number;
@@ -23,14 +66,37 @@ interface SearchDialogProps {
 }
 
 const typeMeta: Record<
-  SearchResult["type"],
+  SearchType,
   { label: string; icon: typeof FileText; tone: BadgeVariant; path: string }
 > = {
   chapter: { label: "章节", icon: FileText, tone: "primary", path: "/editor" },
   character: { label: "人物", icon: User, tone: "success", path: "/characters" },
   worldview: { label: "设定", icon: Map, tone: "warning", path: "/worldview" },
   foreshadowing: { label: "伏笔", icon: Eye, tone: "neutral", path: "/foreshadowing" },
+  scene: { label: "场景", icon: Layers, tone: "primary", path: "/chapters" },
+  volume: { label: "卷", icon: BookOpen, tone: "outline", path: "/chapters" },
+  relation: { label: "关系", icon: Share2, tone: "success", path: "/characters" },
+  memory: { label: "记忆", icon: Brain, tone: "warning", path: "/memory" },
+  aiSession: { label: "AI 会话", icon: MessageSquare, tone: "neutral", path: "/editor" },
+  prompt: { label: "提示词", icon: Terminal, tone: "outline", path: "/settings" },
+  styleProfile: { label: "文风", icon: Palette, tone: "primary", path: "/settings" },
+  consistencyReport: {
+    label: "一致性报告",
+    icon: ShieldAlert,
+    tone: "danger",
+    path: "/consistency",
+  },
+  project: { label: "项目", icon: FolderKanban, tone: "outline", path: "/bookshelf" },
 };
+
+/** 统一截取命中上下文片段 */
+function snippet(text: string, index: number, len: number): string {
+  const start = Math.max(0, index - 20);
+  const end = Math.min(text.length, index + len + 20);
+  return (start > 0 ? "…" : "") + text.slice(start, end) + (end < text.length ? "…" : "");
+}
+
+const MAX_RESULTS = 30;
 
 export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const [query, setQuery] = useState("");
@@ -38,100 +104,252 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const { currentProject } = useProjectStore();
+  const { currentProject, projects } = useProjectStore();
   const { chapters } = useChapterStore();
+  const { scenes } = useSceneStore();
+  const { volumes } = useVolumeStore();
   const { characters } = useCharacterStore();
   const { items: worldviewItems } = useWorldviewStore();
   const { items: foreshadowingItems } = useForeshadowingStore();
+  const { relations } = useRelationStore();
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
   }, [open]);
 
   useEffect(() => {
-    if (!query.trim() || !currentProject) {
+    if (!query.trim()) {
       setResults([]);
       return;
     }
-
-    const found: SearchResult[] = [];
-    const lowerQuery = query.toLowerCase();
-
+    let cancelled = false;
+    const lowerQuery = query.trim().toLowerCase();
     const matches = (haystack: string) => haystack.toLowerCase().indexOf(lowerQuery);
 
-    chapters
-      .filter((c) => c.projectId === currentProject.id)
-      .forEach((chapter) => {
-        const text = chapter.content.replace(/<[^>]*>/g, "");
-        const index = matches(text);
-        if (index === -1) return;
+    const run = async () => {
+      const found: SearchResult[] = [];
+      const pid = currentProject?.id;
 
-        const start = Math.max(0, index - 20);
-        const end = Math.min(text.length, index + query.length + 20);
+      // ── 同步 store 源 ──
+
+      if (pid) {
+        chapters
+          .filter((c) => c.projectId === pid)
+          .forEach((chapter) => {
+            const text = chapter.content.replace(/<[^>]*>/g, "");
+            const index = matches(`${chapter.title} ${chapter.summary} ${text}`);
+            if (index === -1) return;
+            const hit = matches(text) >= 0 ? matches(text) : matches(chapter.title);
+            found.push({
+              id: chapter.id,
+              type: "chapter",
+              title: chapter.title,
+              content: snippet(text || chapter.summary, Math.max(hit, 0), query.length),
+              matchIndex: index,
+            });
+          });
+
+        scenes
+          .filter((s) => s.projectId === pid)
+          .forEach((s) => {
+            const index = matches(`${s.title} ${s.summary}`);
+            if (index === -1) return;
+            found.push({
+              id: s.id,
+              type: "scene",
+              title: s.title,
+              content: s.summary || snippet(s.title, 0, query.length),
+              matchIndex: index,
+            });
+          });
+
+        volumes
+          .filter((v) => v.projectId === pid)
+          .forEach((v) => {
+            const index = matches(`${v.title} ${v.description}`);
+            if (index === -1) return;
+            found.push({
+              id: v.id,
+              type: "volume",
+              title: v.title,
+              content: v.description || "",
+              matchIndex: index,
+            });
+          });
+
+        characters
+          .filter((c) => c.projectId === pid)
+          .forEach((character) => {
+            const index = matches(
+              `${character.name} ${character.personality} ${character.background}`,
+            );
+            if (index === -1) return;
+            found.push({
+              id: character.id,
+              type: "character",
+              title: character.name,
+              content: character.personality || character.background || "",
+              matchIndex: index,
+            });
+          });
+
+        worldviewItems
+          .filter((w) => w.projectId === pid)
+          .forEach((item) => {
+            const index = matches(`${item.name} ${item.description} ${item.details}`);
+            if (index === -1) return;
+            found.push({
+              id: item.id,
+              type: "worldview",
+              title: item.name,
+              content: item.description || item.details || "",
+              matchIndex: index,
+            });
+          });
+
+        foreshadowingItems
+          .filter((f) => f.projectId === pid)
+          .forEach((item) => {
+            const index = matches(
+              `${item.name} ${item.description} ${item.plantedContent} ${item.notes}`,
+            );
+            if (index === -1) return;
+            found.push({
+              id: item.id,
+              type: "foreshadowing",
+              title: item.name,
+              content: item.description || item.plantedContent || "",
+              matchIndex: index,
+            });
+          });
+
+        relations
+          .filter((r) => r.projectId === pid)
+          .forEach((r) => {
+            const nameOf = (id: string) =>
+              characters.find((c) => c.id === id)?.name ?? "";
+            const index = matches(
+              `${r.label} ${r.description} ${nameOf(r.sourceId)} ${nameOf(r.targetId)}`,
+            );
+            if (index === -1) return;
+            found.push({
+              id: r.id,
+              type: "relation",
+              title: `${nameOf(r.sourceId)} — ${nameOf(r.targetId)}`,
+              content: r.label || r.description || "",
+              matchIndex: index,
+            });
+          });
+      }
+
+      // 项目（跨项目名，始终可搜）
+      projects.forEach((p) => {
+        const index = matches(`${p.title} ${p.content ?? ""}`);
+        if (index === -1) return;
         found.push({
-          id: chapter.id,
-          type: "chapter",
-          title: chapter.title,
-          content:
-            (start > 0 ? "…" : "") +
-            text.slice(start, end) +
-            (end < text.length ? "…" : ""),
+          id: p.id,
+          type: "project",
+          title: p.title,
+          content: p.content || "项目",
           matchIndex: index,
         });
       });
 
-    characters
-      .filter((c) => c.projectId === currentProject.id)
-      .forEach((character) => {
-        const index = matches(
-          `${character.name} ${character.personality} ${character.background}`,
-        );
-        if (index === -1) return;
-        found.push({
-          id: character.id,
-          type: "character",
-          title: character.name,
-          content: character.personality || character.background || "",
-          matchIndex: index,
-        });
-      });
+      // ── 异步 DB 源 ──
 
-    worldviewItems
-      .filter((w) => w.projectId === currentProject.id)
-      .forEach((item) => {
-        const index = matches(`${item.name} ${item.description} ${item.details}`);
-        if (index === -1) return;
-        found.push({
-          id: item.id,
-          type: "worldview",
-          title: item.name,
-          content: item.description || item.details || "",
-          matchIndex: index,
-        });
-      });
+      if (pid) {
+        try {
+          const [memories, sessions, prompts, styles, reports] = await Promise.all([
+            memoryDb.list(pid),
+            aiDb.listSessions(pid),
+            promptDb.list(),
+            styleDb.list(pid),
+            consistencyReportDb.list(pid, 50),
+          ]);
 
-    foreshadowingItems
-      .filter((f) => f.projectId === currentProject.id)
-      .forEach((item) => {
-        const index = matches(
-          `${item.name} ${item.description} ${item.plantedContent} ${item.notes}`,
-        );
-        if (index === -1) return;
-        found.push({
-          id: item.id,
-          type: "foreshadowing",
-          title: item.name,
-          content: item.description || item.plantedContent || "",
-          matchIndex: index,
-        });
-      });
+          if (cancelled) return;
 
-    setResults(found.slice(0, 20));
-  }, [query, currentProject, chapters, characters, worldviewItems, foreshadowingItems]);
+          memories.forEach((m) => {
+            const index = matches(`${m.title} ${m.content} ${m.tags}`);
+            if (index === -1) return;
+            found.push({
+              id: m.id,
+              type: "memory",
+              title: m.title || "记忆",
+              content: snippet(m.content, Math.max(index, 0), query.length),
+              matchIndex: index,
+            });
+          });
+
+          sessions.forEach((s) => {
+            const index = matches(s.title);
+            if (index === -1) return;
+            found.push({
+              id: s.id,
+              type: "aiSession",
+              title: s.title || "AI 会话",
+              content: `更新于 ${s.updated_at}`,
+              matchIndex: index,
+            });
+          });
+
+          prompts.forEach((p) => {
+            const index = matches(`${p.name} ${p.description} ${p.content}`);
+            if (index === -1) return;
+            found.push({
+              id: p.id,
+              type: "prompt",
+              title: p.name,
+              content: p.description || snippet(p.content, Math.max(index, 0), query.length),
+              matchIndex: index,
+            });
+          });
+
+          styles.forEach((s) => {
+            const index = matches(`${s.name} ${s.description} ${s.content}`);
+            if (index === -1) return;
+            found.push({
+              id: s.id,
+              type: "styleProfile",
+              title: s.name,
+              content: s.description || snippet(s.content, Math.max(index, 0), query.length),
+              matchIndex: index,
+            });
+          });
+
+          reports.forEach((r) => {
+            const titles = r.chapter_titles.replace(/[[\]"]/g, "");
+            const index = matches(`${titles} ${r.issues}`);
+            if (index === -1) return;
+            found.push({
+              id: r.id,
+              type: "consistencyReport",
+              title: `${r.issue_count} 个问题 · ${titles || "全书"}`,
+              content: `检查时间 ${r.created_at}${r.model ? ` · ${r.model}` : ""}`,
+              matchIndex: index,
+            });
+          });
+        } catch (e) {
+          console.warn("搜索数据库源失败:", e);
+        }
+      }
+
+      if (!cancelled) setResults(found.slice(0, MAX_RESULTS));
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [query, currentProject, projects, chapters, scenes, volumes, characters, worldviewItems, foreshadowingItems, relations]);
 
   const handleSelect = (result: SearchResult) => {
     onOpenChange(false);
     setQuery("");
+    // 章节：跨页定位到具体章（EditorPage 消费 pendingOpenChapterId）
+    if (result.type === "chapter") {
+      useUIStore.getState().setPendingOpenChapterId(result.id);
+    }
     navigate(typeMeta[result.type].path);
   };
 
@@ -152,7 +370,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜索章节、人物、设定、伏笔…"
+          placeholder="搜索章节、场景、人物、记忆、提示词…（13 类）"
           className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-3"
         />
         {query && (
@@ -168,13 +386,11 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       </div>
 
       <div className="max-h-[52vh] overflow-auto p-1.5">
-        {!currentProject ? (
+        {!query.trim() ? (
           <p className="px-3 py-8 text-center text-[13px] text-ink-3">
-            请先选择一个项目后再搜索
-          </p>
-        ) : !query.trim() ? (
-          <p className="px-3 py-8 text-center text-[13px] text-ink-3">
-            输入关键词开始搜索当前项目内的所有内容
+            {currentProject
+              ? "输入关键词搜索章节、场景、卷、人物、设定、伏笔、关系、记忆、AI 会话、提示词、文风、报告与项目"
+              : "输入项目名开始搜索（打开项目后可搜索全部 13 类内容）"}
           </p>
         ) : results.length === 0 ? (
           <p className="px-3 py-8 text-center text-[13px] text-ink-3">

@@ -52,6 +52,7 @@ export {
   memoryDb,
   versionDb,
   styleDb,
+  consistencyReportDb,
 } from "./database";
 export type {
   AiSessionRow,
