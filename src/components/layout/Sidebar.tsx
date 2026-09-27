@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Eye, FileText, Map, Settings, Users, LayoutGrid } from "lucide-react";
+import { BookOpen, Brain, Eye, FileText, Map, Settings, ShieldCheck, Users, LayoutGrid } from "lucide-react";
 import type { ElementType } from "react";
 import { ThemeSwitcher } from "../ui";
 import { cn } from "../../lib/cn";
@@ -27,6 +27,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     items: [
       { id: "editor", icon: FileText, label: "编辑器" },
       { id: "chapters", icon: BookOpen, label: "章节" },
+      { id: "consistency", icon: ShieldCheck, label: "一致性" },
     ],
   },
   {

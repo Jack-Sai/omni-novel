@@ -22,6 +22,21 @@ export type { RetrievedMemory, RetrievedKind } from "./memoryService";
 
 export { getActiveStylePrompt, formatStylePrompt } from "./styleService";
 
+export {
+  checkConsistency,
+  listReports,
+  reportDetail,
+  deleteReport,
+  buildEntityDigest,
+} from "./consistencyService";
+export type { ParsedReport } from "./consistencyService";
+export type {
+  ConsistencyIssue,
+  ConsistencyIssueType,
+  ConsistencySeverity,
+  ConsistencyReportRow,
+} from "./database";
+
 export { generateCharacter, generateWorldviewItem, generateForeshadowing } from "./aiGenerate";
 export type { GenerateKind, GenerateStructuredInput } from "./aiGenerate";
 export type { NewCharacter, NewWorldviewItem, NewForeshadowing } from "./aiGenerate";

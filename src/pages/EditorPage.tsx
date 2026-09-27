@@ -42,6 +42,7 @@ import {
 import { cn } from "../lib/cn";
 import { useAutoSave } from "../hooks";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useUIStore } from "../stores/uiStore";
 import {
   Badge,
   Button,
@@ -127,6 +128,17 @@ export function EditorPage() {
     setSelectedText("");
     setSelectionPos(null);
   }, [currentChapter?.id]);
+
+  // 跨页定位章节（一致性报告「定位章节」等）：检测到 pending id 时打开对应章节并清空
+  useEffect(() => {
+    const pending = useUIStore.getState().pendingOpenChapterId;
+    if (!pending) return;
+    const target = chapters.find((c) => c.id === pending);
+    if (target) {
+      setCurrentChapter(target);
+      useUIStore.getState().setPendingOpenChapterId(null);
+    }
+  }, [chapters, setCurrentChapter]);
 
   const handleSave = useCallback(async () => {
     if (!currentChapter || !currentProject) return;

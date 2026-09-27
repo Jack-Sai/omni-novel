@@ -22,12 +22,13 @@ const shortcutGroups = [
     category: "导航",
     items: [
       { keys: ["Ctrl", "1"], description: "编辑器" },
-      { keys: ["Ctrl", "2"], description: "大纲" },
+      { keys: ["Ctrl", "2"], description: "章节" },
       { keys: ["Ctrl", "3"], description: "人物" },
       { keys: ["Ctrl", "4"], description: "世界观" },
       { keys: ["Ctrl", "5"], description: "伏笔" },
-      { keys: ["Ctrl", "6"], description: "AI 助手" },
-      { keys: ["Ctrl", "7"], description: "设置" },
+      { keys: ["Ctrl", "6"], description: "设置" },
+      { keys: ["Ctrl", "7"], description: "记忆" },
+      { keys: ["Ctrl", "8"], description: "一致性检查" },
     ],
   },
   {

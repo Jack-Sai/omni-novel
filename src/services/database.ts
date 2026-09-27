@@ -175,6 +175,21 @@ async function initializeTables(db: Database) {
     )
   `);
 
+  // 一致性检查报告表（一致性检查引擎：结构化矛盾报告，issues 为 JSON 数组）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS consistency_reports (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      chapter_ids TEXT NOT NULL DEFAULT '[]',
+      chapter_titles TEXT NOT NULL DEFAULT '[]',
+      issues TEXT NOT NULL DEFAULT '[]',
+      issue_count INTEGER DEFAULT 0,
+      model TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log("Database tables initialized successfully");
 
   // Schema migration: 确保 users 表有 phone 和 password 列
@@ -785,6 +800,121 @@ export const memoryDb = {
     return scored.slice(0, limit).map((s) => s.row);
   },
 };
+
+// ── 一致性检查报告（一致性检查引擎） ──
+
+export type ConsistencySeverity = "high" | "medium" | "low";
+export type ConsistencyIssueType =
+  | "character"
+  | "timeline"
+  | "worldview"
+  | "plot"
+  | "foreshadow"
+  | "other";
+
+export interface ConsistencyIssue {
+  severity: ConsistencySeverity;
+  type: ConsistencyIssueType;
+  title: string;
+  description: string;
+  chapters: string[];
+  evidence: string;
+  suggestion: string;
+}
+
+export interface ConsistencyReportRow {
+  id: string;
+  project_id: string;
+  /** JSON string[] 章节 id */
+  chapter_ids: string;
+  /** JSON string[] 章节标题（生成时快照，章节改名不影响历史报告） */
+  chapter_titles: string;
+  /** JSON ConsistencyIssue[] */
+  issues: string;
+  issue_count: number;
+  model: string;
+  created_at: string;
+}
+
+export interface ConsistencyReportInput {
+  chapterIds: string[];
+  chapterTitles: string[];
+  issues: ConsistencyIssue[];
+  model?: string;
+}
+
+export const consistencyReportDb = {
+  async create(
+    projectId: string,
+    input: ConsistencyReportInput
+  ): Promise<ConsistencyReportRow> {
+    const db = await getDatabase();
+    const id = crypto.randomUUID();
+    await db.execute(
+      `INSERT INTO consistency_reports
+         (id, project_id, chapter_ids, chapter_titles, issues, issue_count, model)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        projectId,
+        JSON.stringify(input.chapterIds),
+        JSON.stringify(input.chapterTitles),
+        JSON.stringify(input.issues),
+        input.issues.length,
+        input.model || "",
+      ]
+    );
+    const rows = await db.select<ConsistencyReportRow[]>(
+      "SELECT * FROM consistency_reports WHERE id = ?",
+      [id]
+    );
+    return rows[0];
+  },
+
+  async list(projectId: string, limit = 50): Promise<ConsistencyReportRow[]> {
+    const db = await getDatabase();
+    return db.select<ConsistencyReportRow[]>(
+      `SELECT * FROM consistency_reports WHERE project_id = ?
+       ORDER BY created_at DESC LIMIT ?`,
+      [projectId, limit]
+    );
+  },
+
+  async getById(id: string): Promise<ConsistencyReportRow | null> {
+    const db = await getDatabase();
+    const rows = await db.select<ConsistencyReportRow[]>(
+      "SELECT * FROM consistency_reports WHERE id = ?",
+      [id]
+    );
+    return rows[0] || null;
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute("DELETE FROM consistency_reports WHERE id = ?", [id]);
+  },
+};
+
+/** 解析报告行：issues/chapter_ids/chapter_titles JSON → 对象（坏数据容错为空数组） */
+export function parseReportRow(row: ConsistencyReportRow): {
+  chapterIds: string[];
+  chapterTitles: string[];
+  issues: ConsistencyIssue[];
+} {
+  const parseArr = <T>(s: string | null | undefined): T[] => {
+    try {
+      const v = JSON.parse(s || "[]");
+      return Array.isArray(v) ? (v as T[]) : [];
+    } catch {
+      return [];
+    }
+  };
+  return {
+    chapterIds: parseArr<string>(row.chapter_ids),
+    chapterTitles: parseArr<string>(row.chapter_titles),
+    issues: parseArr<ConsistencyIssue>(row.issues),
+  };
+}
 
 // ── 章节版本快照（版本对比） ──
 
