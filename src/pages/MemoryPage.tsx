@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ArrowLeft, Brain, Plus, Search, Trash2 } from "lucide-react";
-import { memoryDb, type MemoryItemRow, type MemoryType, type MemoryScope } from "../services";
+import { memoryDb, backfillMemoryEmbedding, type MemoryItemRow, type MemoryType, type MemoryScope } from "../services";
 import { useProjectStore } from "../stores/projectStore";
 import {
   Badge,
@@ -93,6 +93,7 @@ export function MemoryPage() {
         source: "manual",
         importance: 5,
       });
+      void backfillMemoryEmbedding(row, { force: true });
       setItems((prev) => [row, ...prev]);
       setNewTitle("");
       setNewContent("");
@@ -116,6 +117,7 @@ export function MemoryPage() {
         importance: merged.importance,
         tags: safeParseTags(merged.tags),
       });
+      void backfillMemoryEmbedding(merged, { force: true });
     } catch (e) {
       console.warn("更新记忆失败:", e);
     }

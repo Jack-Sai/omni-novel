@@ -507,7 +507,53 @@ async fn chat_stream_inner(
     Ok(())
 }
 
-// ── AI 连接检测 / 模型列表（Rust 代理，避免 WebView CORS） ──────────────────
+// ── AI 连接检测 / 模型列表 / 向量生成（Rust 代理，避免 WebView CORS） ─────────
+
+/// 生成文本向量（记忆向量检索）。
+/// ollama: POST /api/embeddings {model, prompt} → {"embedding": [...]}
+/// openai 兼容 / llamacpp: POST /v1/embeddings {model, input} → {"data": [{"embedding": [...]}]}
+#[tauri::command]
+async fn ai_embed(
+    state: tauri::State<'_, AppState>,
+    backend: String,
+    base_url: String,
+    model: String,
+    api_key: Option<String>,
+    text: String,
+) -> Result<Vec<f32>, String> {
+    if text.trim().is_empty() {
+        return Err("文本为空".into());
+    }
+    let base = base_url.trim_end_matches('/').to_string();
+    let is_ollama = backend == "ollama";
+    let url = if is_ollama {
+        format!("{base}/api/embeddings")
+    } else {
+        format!("{base}/v1/embeddings")
+    };
+    let body = if is_ollama {
+        serde_json::json!({ "model": model, "prompt": text })
+    } else {
+        serde_json::json!({ "model": model, "input": text })
+    };
+    let resp = post_json_checked(&state.http, &url, &body, api_key.as_ref()).await?;
+    let data: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析响应失败: {}", e))?;
+    let arr = data["embedding"]
+        .as_array()
+        .or_else(|| data["data"][0]["embedding"].as_array())
+        .ok_or_else(|| "响应中无向量字段".to_string())?;
+    let vec: Vec<f32> = arr
+        .iter()
+        .filter_map(|v| v.as_f64().map(|f| f as f32))
+        .collect();
+    if vec.is_empty() {
+        return Err("向量为空".into());
+    }
+    Ok(vec)
+}
 
 #[tauri::command]
 async fn ai_check_connection(
@@ -914,6 +960,7 @@ pub fn run() {
             ai_cancel_stream,
             ai_check_connection,
             ai_list_models,
+            ai_embed,
             hash_password,
             verify_password,
             encrypt_secret,

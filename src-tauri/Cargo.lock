@@ -2875,10 +2875,13 @@ dependencies = [
  "base64 0.22.1",
  "bcrypt",
  "futures-util",
+ "libsqlite3-sys",
  "log",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sqlite-vec",
+ "sqlx",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -4150,6 +4153,15 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
+]
+
+[[package]]
+name = "sqlite-vec"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0ba424237a9a5db2f6071f193319e2b6a32f7f3961debb2fbbfe67067abce3f"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

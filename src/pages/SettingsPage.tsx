@@ -104,6 +104,8 @@ export function SettingsPage() {
   const [models, setModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "failure" | null>(null);
+  const [embeddingTesting, setEmbeddingTesting] = useState(false);
+  const [embedResult, setEmbedResult] = useState<"success" | "failure" | null>(null);
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState<boolean | null>(null);
   /** 系统已安装字体列表（供正文字体检索选择，含中英文名） */
@@ -149,6 +151,26 @@ export function SettingsPage() {
     }
     setTestResult(connected ? "success" : "failure");
     setTesting(false);
+  };
+
+  const handleTestEmbedding = async () => {
+    setEmbeddingTesting(true);
+    setEmbedResult(null);
+    try {
+      const vec = await invoke<number[]>("ai_embed", {
+        backend: ai.backend,
+        baseUrl: ai.baseUrl,
+        model: ai.embeddingModel.trim(),
+        apiKey: ai.apiKey || null,
+        text: "测试向量生成",
+      });
+      setEmbedResult(vec && vec.length > 0 ? "success" : "failure");
+    } catch (e) {
+      console.warn("embedding 测试失败:", e);
+      setEmbedResult("failure");
+    } finally {
+      setEmbeddingTesting(false);
+    }
   };
 
   // ── llama-server 进程管理 ──
@@ -1189,6 +1211,41 @@ export function SettingsPage() {
                 max="100"
                 step="1"
               />
+            </Field>
+
+            {/* 向量检索 embedding 模型 */}
+            <Field
+              label="Embedding 模型（向量检索）"
+              hint="配置后记忆检索升级为语义向量匹配（自动回填历史记忆向量）；留空 = 关闭向量，仅关键词检索。需后端支持 embeddings 接口（如 Ollama 的 nomic-embed-text、OpenAI text-embedding-3-small）"
+            >
+              <div className="flex gap-2">
+                <Input
+                  value={ai.embeddingModel}
+                  onChange={(e) => {
+                    updateAISettings({ embeddingModel: e.target.value });
+                    setEmbedResult(null);
+                  }}
+                  placeholder="留空 = 关闭向量检索，例如 nomic-embed-text"
+                  className="flex-1"
+                />
+                <Button
+                  variant="secondary"
+                  loading={embeddingTesting}
+                  disabled={!ai.embeddingModel.trim()}
+                  onClick={handleTestEmbedding}
+                  className="shrink-0"
+                >
+                  {embeddingTesting ? "测试中" : "测试向量"}
+                </Button>
+              </div>
+              {embedResult === "success" && (
+                <p className="mt-1.5 text-[13px] text-success">向量生成可用，语义检索已启用</p>
+              )}
+              {embedResult === "failure" && (
+                <p className="mt-1.5 text-[13px] text-danger">
+                  向量生成失败，该模型可能不支持 embeddings 接口（检索会自动退回关键词）
+                </p>
+              )}
             </Field>
 
             {/* 续写字数 */}

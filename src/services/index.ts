@@ -17,7 +17,7 @@ export type { BackupData } from "./backup";
 export { systemPrompts, getSystemPrompt, builtinPromptList } from "./prompts";
 export type { PromptKey, PromptMeta } from "./prompts";
 
-export { retrieveMemories } from "./memoryService";
+export { retrieveMemories, backfillMemoryEmbedding } from "./memoryService";
 export type { RetrievedMemory, RetrievedKind } from "./memoryService";
 
 export { getActiveStylePrompt, formatStylePrompt } from "./styleService";

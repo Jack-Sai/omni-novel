@@ -135,6 +135,8 @@ async function initializeTables(db: Database) {
       source TEXT DEFAULT 'manual',
       importance INTEGER DEFAULT 5,
       tags TEXT DEFAULT '[]',
+      embedding TEXT,
+      embedding_model TEXT DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -197,6 +199,19 @@ async function initializeTables(db: Database) {
     }
   } catch (e) {
     console.warn("Schema migration (chapters.summary) warning:", e);
+  }
+
+  // Schema migration: 记忆向量列（记忆向量检索）
+  try {
+    const memoryColumns = await db.select<{ name: string }[]>("PRAGMA table_info(memory_items)");
+    if (!memoryColumns.some((c) => c.name === "embedding")) {
+      await db.execute("ALTER TABLE memory_items ADD COLUMN embedding TEXT");
+    }
+    if (!memoryColumns.some((c) => c.name === "embedding_model")) {
+      await db.execute("ALTER TABLE memory_items ADD COLUMN embedding_model TEXT DEFAULT ''");
+    }
+  } catch (e) {
+    console.warn("Schema migration (memory_items.embedding) warning:", e);
   }
 }
 
@@ -606,6 +621,10 @@ export interface MemoryItemRow {
   source: string;
   importance: number;
   tags: string;
+  /** 向量 JSON 数组（float[]），NULL = 尚未生成 */
+  embedding: string | null;
+  /** 生成 embedding 的模型名（模型切换后旧向量不参与检索） */
+  embedding_model: string;
   created_at: string;
   updated_at: string;
 }
@@ -696,6 +715,19 @@ export const memoryDb = {
   async delete(id: string): Promise<void> {
     const db = await getDatabase();
     await db.execute("DELETE FROM memory_items WHERE id = ?", [id]);
+  },
+
+  /** 写入记忆向量（embedding 为 null 则清空，例如模型切换后失效） */
+  async setEmbedding(
+    id: string,
+    embedding: number[] | null,
+    model: string
+  ): Promise<void> {
+    const db = await getDatabase();
+    await db.execute(
+      "UPDATE memory_items SET embedding = ?, embedding_model = ? WHERE id = ?",
+      [embedding ? JSON.stringify(embedding) : null, embedding ? model : "", id]
+    );
   },
 
   async list(

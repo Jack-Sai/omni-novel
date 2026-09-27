@@ -9,6 +9,7 @@ import {
   createAIService,
   getSystemPrompt,
   memoryDb,
+  backfillMemoryEmbedding,
   toLlamaConfig,
 } from "../../services";
 import { Button, EmptyState, Input } from "../ui";
@@ -134,7 +135,7 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
         for (const item of old) {
           await memoryDb.delete(item.id);
         }
-        await memoryDb.create(project.id, {
+        const created = await memoryDb.create(project.id, {
           type: "summary",
           scope: "chapter",
           refId: chapter.id,
@@ -143,6 +144,7 @@ export function ChapterList({ projectId, onSelectChapter, currentChapterId }: Ch
           source: "ai",
           importance: 7,
         });
+        void backfillMemoryEmbedding(created, { force: true });
       }
     } catch (e) {
       console.warn("生成章节摘要失败:", e);

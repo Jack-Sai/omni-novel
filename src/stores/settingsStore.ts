@@ -42,6 +42,8 @@ export interface AISettings {
   contextMessageCount: number;
   /** 发送前检索相关记忆注入上下文（记忆系统） */
   memoryInject: boolean;
+  /** 向量检索用 embedding 模型名（"" = 禁用向量，退化为关键词检索） */
+  embeddingModel: string;
   /** llama-server.exe 路径（仅 llamacpp 后端） */
   llamaServerPath: string;
   /** GGUF 模型文件路径（仅 llamacpp 后端） */
@@ -119,6 +121,7 @@ const defaultAISettings: AISettings = {
   think: true,
   contextMessageCount: 20,
   memoryInject: true,
+  embeddingModel: "",
   llamaServerPath: "D:\\llama.cpp\\llama-server.exe",
   llamaModelPath: "E:\\Models\\Qwen3.8-9B-Q8_0.gguf",
   llamaExtraArgs: "-ngl 99 -c 16384 -fa on --jinja -t 8",
