@@ -10,6 +10,11 @@ import { Button } from "../ui";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useCharacterStore } from "../../stores/characterStore";
 import { CharacterHighlight, CHARACTER_HIGHLIGHT_KEY } from "./characterHighlight";
+import {
+  createAnnotationHighlight,
+  ANNOTATION_HIGHLIGHT_KEY,
+} from "./annotationHighlight";
+import { useAnnotationStore } from "../../stores/annotationStore";
 
 export interface EditorRef {
   getEditor: () => TiptapEditor | null;
@@ -20,14 +25,28 @@ interface EditorProps {
   onUpdate?: (content: string) => void;
   onSelectionUpdate?: (selectedText: string) => void;
   placeholder?: string;
+  /** 当前章 id：批注高亮按章过滤（key=chapterId 重建时闭包捕获） */
+  chapterId?: string;
 }
 
 export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
-  { content = "", onUpdate, onSelectionUpdate, placeholder = "开始写作…" },
+  {
+    content = "",
+    onUpdate,
+    onSelectionUpdate,
+    placeholder = "开始写作…",
+    chapterId = null,
+  },
   ref,
 ) {
   const editor = useEditor({
-    extensions: [StarterKit, CharacterCount, CharacterHighlight, SearchExtension],
+    extensions: [
+      StarterKit,
+      CharacterCount,
+      CharacterHighlight,
+      SearchExtension,
+      createAnnotationHighlight(chapterId),
+    ],
     content,
     editorProps: {
       attributes: {
@@ -98,6 +117,17 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
       unsubChars();
       unsubSettings();
     };
+  }, [editor]);
+
+  // 批注增删改 / 激活态变化时重建批注高亮 Decoration
+  useEffect(() => {
+    if (!editor) return;
+    const refresh = () => {
+      editor.view.dispatch(editor.state.tr.setMeta(ANNOTATION_HIGHLIGHT_KEY, true));
+    };
+    const unsub = useAnnotationStore.subscribe(refresh);
+    refresh();
+    return unsub;
   }, [editor]);
 
   if (!editor) {

@@ -19,14 +19,14 @@ export interface SearchState {
   decos: DecorationSet;
 }
 
-interface TextSeg {
+export interface TextSeg {
   docStart: number;
   textStart: number;
   length: number;
 }
 
 /** 全文 text node 索引：flat 偏移（所有 text node 拼接，无分隔符）↔ PM 位置 */
-function buildIndex(doc: PMNode): { full: string; segs: TextSeg[] } {
+export function buildIndex(doc: PMNode): { full: string; segs: TextSeg[] } {
   const segs: TextSeg[] = [];
   let text = "";
   doc.descendants((node, pos) => {
@@ -38,7 +38,7 @@ function buildIndex(doc: PMNode): { full: string; segs: TextSeg[] } {
   return { full: text, segs };
 }
 
-function flatToPm(segs: TextSeg[], offset: number): number {
+export function flatToPm(segs: TextSeg[], offset: number): number {
   let lo = 0;
   let hi = segs.length - 1;
   while (lo <= hi) {

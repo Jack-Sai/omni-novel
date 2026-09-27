@@ -11,6 +11,8 @@ import {
   Maximize2,
   Minimize2,
   PanelLeftClose,
+  MessageSquarePlus,
+  MessageSquareText,
   PanelLeftOpen,
   Save,
   Sparkles,
@@ -26,6 +28,10 @@ import {
 } from "../components/editor/characterHighlight";
 import { CharacterPopover } from "../components/editor/CharacterPopover";
 import { AIPanel, type AiQuickActionRequest } from "../components/ai";
+import { AnnotationPanel } from "../components/annotations/AnnotationPanel";
+import { AddAnnotationDialog } from "../components/annotations/AddAnnotationDialog";
+import { AnnotationAIDialog } from "../components/annotations/AnnotationAIDialog";
+import type { AnnotationAIAction } from "../services/annotationAIService";
 import { ChapterList } from "../components/chapter";
 import {
   ExportService,
@@ -35,6 +41,9 @@ import {
   getSystemPrompt,
 } from "../services";
 import { cn } from "../lib/cn";
+import { buildAnnotationMarkdown, downloadAnnotationMarkdown } from "../lib/annotationExport";
+import { buildIndex, flatToPm, type TextSeg } from "../components/editor/search";
+import { useAnnotationStore, type Annotation, type AnnotationScope } from "../stores/annotationStore";
 import { useAutoSave } from "../hooks";
 import {
   noteActivity,
@@ -59,9 +68,24 @@ import {
   WritingInsights,
 } from "../components/ui";
 
+/** PM doc 位置 → 纯文本 flat 偏移（批注选区落库用） */
+function pmToFlat(segs: TextSeg[], pos: number): number {
+  for (let i = segs.length - 1; i >= 0; i--) {
+    const s = segs[i];
+    if (pos >= s.docStart && pos <= s.docStart + s.length) {
+      return s.textStart + (pos - s.docStart);
+    }
+  }
+  return 0;
+}
+
 export function EditorPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
+  const [annotationPanelOpen, setAnnotationPanelOpen] = useState(false);
+  const [addDlg, setAddDlg] = useState<{ scope: AnnotationScope; prefill?: { quote: string; textFrom: number | null; textTo: number | null } } | null>(null);
+  const [aiDlg, setAiDlg] = useState<AnnotationAIAction | null>(null);
+  const [locateReq, setLocateReq] = useState<{ id: string; chapterId: string | null; quote: string; textFrom: number | null } | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [selectedText, setSelectedText] = useState("");
@@ -134,6 +158,44 @@ export function EditorPage() {
       useUIStore.getState().setPendingOpenChapterId(null);
     }
   }, [chapters, setCurrentChapter]);
+  // 批注跳转定位：切章 → 编辑器重建后选中 quote 并滚动
+  useEffect(() => {
+    if (!locateReq) return;
+    if (locateReq.chapterId !== currentChapter?.id) {
+      // 目标章不存在则放弃（已删除）
+      if (locateReq.chapterId && !chapters.some((c) => c.id === locateReq.chapterId)) {
+        setLocateReq(null);
+      }
+      return;
+    }
+    const ed = editorRef.current?.getEditor();
+    if (!ed) return;
+    const timer = requestAnimationFrame(() => {
+      try {
+        if (locateReq.quote) {
+          const index = buildIndex(ed.state.doc);
+          let pos = -1;
+          if (
+            locateReq.textFrom != null &&
+            index.full.slice(locateReq.textFrom, locateReq.textFrom + locateReq.quote.length) ===
+              locateReq.quote
+          ) {
+            pos = locateReq.textFrom;
+          }
+          if (pos < 0) pos = index.full.indexOf(locateReq.quote);
+          if (pos >= 0) {
+            const from = flatToPm(index.segs, pos);
+            const to = flatToPm(index.segs, pos + locateReq.quote.length);
+            ed.chain().setTextSelection({ from, to }).scrollIntoView().run();
+          }
+        }
+      } catch (e) {
+        console.warn("批注定位失败:", e);
+      }
+      setLocateReq(null);
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [locateReq, currentChapter?.id, chapters]);
 
   const handleSave = useCallback(async () => {
     if (!currentChapter || !currentProject) return;
@@ -298,6 +360,51 @@ export function EditorPage() {
     setSelectionPos(null);
   };
 
+  /** 选区浮层「批注」：按当前选区创建文本批注 */
+  const handleAnnotateSelection = () => {
+    const ed = editorRef.current?.getEditor();
+    if (!ed || !currentChapter || !currentProject) return;
+    const { from, to } = ed.state.selection;
+    const index = buildIndex(ed.state.doc);
+    setAddDlg({
+      scope: "text",
+      prefill: {
+        quote: selectedText,
+        textFrom: pmToFlat(index.segs, from),
+        textTo: pmToFlat(index.segs, to),
+      },
+    });
+    setSelectionPos(null);
+  };
+
+  /** 批注卡片点击：激活高亮 + 必要时切章 + 文本级选中定位 */
+  const handleLocateAnnotation = (a: Annotation) => {
+    useAnnotationStore.getState().setActiveId(a.id);
+    if (a.chapterId && a.chapterId !== currentChapter?.id) {
+      const target = chapters.find((c) => c.id === a.chapterId);
+      if (target) setCurrentChapter(target);
+    }
+    if (a.scope !== "text") return;
+    setLocateReq({
+      id: a.id,
+      chapterId: a.chapterId,
+      quote: a.quote,
+      textFrom: a.textFrom,
+    });
+  };
+
+  /** 导出全部批注为 Markdown */
+  const handleExportAnnotations = () => {
+    if (!currentProject) return;
+    const anns = useAnnotationStore.getState().getByProject(currentProject.id);
+    if (anns.length === 0) {
+      window.alert("暂无批注可导出");
+      return;
+    }
+    const md = buildAnnotationMarkdown(currentProject.title, anns, chapters);
+    downloadAnnotationMarkdown(`${currentProject.title}-批注`, md);
+  };
+
   const handleExport = async (format: "txt" | "markdown" | "html" | "docx" | "epub") => {
     const content = currentChapter?.content || currentProject?.content || "";
     if (!content) return;
@@ -398,6 +505,14 @@ export function EditorPage() {
               <Sparkles size={15} />
               AI
             </Button>
+            <Button
+              variant={annotationPanelOpen ? "primary" : "secondary"}
+              onClick={() => setAnnotationPanelOpen(!annotationPanelOpen)}
+              aria-pressed={annotationPanelOpen}
+            >
+              <MessageSquareText size={15} />
+              批注
+            </Button>
 
             <Button
               variant="secondary"
@@ -491,6 +606,7 @@ export function EditorPage() {
             <>
               <Editor
                 key={currentChapter.id}
+                chapterId={currentChapter.id}
                 ref={editorRef}
                 content={currentChapter.content}
                 placeholder={`开始写作 ${currentChapter.title}…`}
@@ -570,6 +686,18 @@ export function EditorPage() {
             onQuickActionConsumed={() => setAiQuickAction(null)}
           />
         )}
+
+        {annotationPanelOpen && !focusMode && currentProject && (
+          <AnnotationPanel
+            projectId={currentProject.id}
+            currentChapterId={currentChapter?.id ?? null}
+            onLocate={handleLocateAnnotation}
+            onAdd={(scope) => setAddDlg({ scope })}
+            onRunAI={(action) => setAiDlg(action)}
+            onExport={handleExportAnnotations}
+            onClose={() => setAnnotationPanelOpen(false)}
+          />
+        )}
       </div>
 
       {/* 选区快捷浮层：复制 / 润色 扩写 缩写 / AI 菜单 / 问 AI */}
@@ -581,6 +709,15 @@ export function EditorPage() {
         >
           <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-0.5 rounded-lg border border-line bg-elevated p-1 shadow-lg">
             <Button
+              variant="ghost"
+              size="sm"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleAnnotateSelection}
+              className="h-7 gap-1 px-2 text-xs"
+            >
+              <MessageSquarePlus size={12} />
+              批注
+            </Button>            <Button
               variant="ghost"
               size="sm"
               onMouseDown={(e) => e.preventDefault()}
@@ -694,6 +831,34 @@ export function EditorPage() {
             useCharacterStore.getState().setCurrentCharacter(c);
             void navigate("/characters");
           }}
+        />
+      )}
+      {currentProject && addDlg && (
+        <AddAnnotationDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setAddDlg(null);
+          }}
+          projectId={currentProject.id}
+          chapterId={addDlg.scope === "global" ? null : (currentChapter?.id ?? null)}
+          scope={addDlg.scope}
+          prefill={addDlg.prefill}
+          onCreated={(id) => {
+            useAnnotationStore.getState().setActiveId(id);
+            setAnnotationPanelOpen(true);
+          }}
+        />
+      )}
+
+      {currentProject && aiDlg && currentChapter && (
+        <AnnotationAIDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setAiDlg(null);
+          }}
+          action={aiDlg}
+          chapterId={currentChapter.id}
+          onCreated={() => setAnnotationPanelOpen(true)}
         />
       )}
     </Page>

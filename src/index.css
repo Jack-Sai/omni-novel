@@ -384,6 +384,22 @@
     box-shadow: 0 0 0 1px #f97316;
   }
 
+  /* 批注选区高亮：待解决金底 / 当前激活深色 / 已解决灰底虚线 */
+  .annotation-hl {
+    background: color-mix(in srgb, #eab308 18%, transparent);
+    border-bottom: 1.5px dashed color-mix(in srgb, #eab308 75%, transparent);
+  }
+
+  .annotation-hl-active {
+    background: color-mix(in srgb, #2563eb 22%, transparent);
+    border-bottom: 1.5px solid #2563eb;
+  }
+
+  .annotation-hl-resolved {
+    background: color-mix(in srgb, #9ca3af 14%, transparent);
+    border-bottom: 1.5px dotted #9ca3af;
+  }
+
   .tiptap p {
     margin-bottom: 0;
   }

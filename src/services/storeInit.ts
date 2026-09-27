@@ -7,6 +7,7 @@ import { useVolumeStore, Volume } from "../stores/volumeStore";
 import { useSceneStore } from "../stores/sceneStore";
 import { useForeshadowingStore } from "../stores/foreshadowingStore";
 import { useRelationStore } from "../stores/relationStore";
+import { useAnnotationStore } from "../stores/annotationStore";
 import { loadProjectJson, saveProjectJson } from "./storage";
 import { migrateProjectIfNeeded } from "./projectMigrations";
 
@@ -42,6 +43,7 @@ function installProjectPersistence(): void {
     useVolumeStore.getState().saveToDisk(dir);
     useForeshadowingStore.getState().saveToDisk(dir);
     useRelationStore.getState().saveToDisk(dir);
+    useAnnotationStore.getState().saveToDisk(dir);
   };
 
   useChapterStore.subscribe(persist);
@@ -51,6 +53,7 @@ function installProjectPersistence(): void {
   useVolumeStore.subscribe(persist);
   useForeshadowingStore.subscribe(persist);
   useRelationStore.subscribe(persist);
+  useAnnotationStore.subscribe(persist);
 }
 
 /** 旧大纲数据结构（outline.json，含大纲章与场景） */
@@ -179,6 +182,7 @@ export async function loadProjectStores(projectDir: string): Promise<void> {
     useVolumeStore.getState().loadFromDisk(projectDir),
     useForeshadowingStore.getState().loadFromDisk(projectDir),
     useRelationStore.getState().loadFromDisk(projectDir),
+    useAnnotationStore.getState().loadFromDisk(projectDir),
   ]);
   await migrateOutlineIfNeeded(projectDir);
 }

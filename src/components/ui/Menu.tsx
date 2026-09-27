@@ -47,13 +47,15 @@ export interface MenuItemProps {
   onSelect?: () => void;
   icon?: ReactNode;
   destructive?: boolean;
+  disabled?: boolean;
   className?: string;
 }
 
-export function MenuItem({ children, onSelect, icon, destructive, className }: MenuItemProps) {
+export function MenuItem({ children, onSelect, icon, destructive, disabled, className }: MenuItemProps) {
   return (
     <RadixDropdown.Item
       onSelect={onSelect}
+      disabled={disabled}
       className={cn(
         "flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-[13px] outline-none",
         "transition-colors duration-100",

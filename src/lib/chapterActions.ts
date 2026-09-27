@@ -1,5 +1,6 @@
 import { useChapterStore } from "../stores/chapterStore";
 import { useSceneStore } from "../stores/sceneStore";
+import { useAnnotationStore } from "../stores/annotationStore";
 import { memoryDb, versionDb } from "../services";
 
 /**
@@ -12,6 +13,7 @@ export async function deleteChapterCascade(
 ): Promise<void> {
   useChapterStore.getState().deleteChapter(chapterId);
   useSceneStore.getState().deleteByChapter(chapterId);
+  useAnnotationStore.getState().deleteByChapter(chapterId);
   try {
     await versionDb.deleteByChapter(projectId, chapterId);
     const rows = await memoryDb.list(projectId, {
