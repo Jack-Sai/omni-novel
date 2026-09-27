@@ -26,6 +26,15 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../stores/settingsStore";
 import { cn } from "../lib/cn";
+import {
+  getTemplateState,
+  saveTemplateState,
+  createTemplateFrom,
+  headingStyleLabels,
+  type ExportTemplate,
+  type TemplateState,
+} from "../lib/exportTemplates";
+import type { ChapterHeadingStyle } from "../lib/exportTemplates";
 import { useProjectStore } from "../stores/projectStore";
 import {
   createAIService,
@@ -101,6 +110,7 @@ export function SettingsPage() {
   const { currentProject } = useProjectStore();
   const [settingsTab, setSettingsTab] = useState("appearance");
   const [saved, setSaved] = useState(false);
+  const [tplState, setTplState] = useState<TemplateState | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "failure" | null>(null);
@@ -200,6 +210,19 @@ export function SettingsPage() {
         if (!cancelled) setSystemFonts(fonts);
       })
       .catch((e) => console.warn("获取系统字体失败:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 加载导出模板状态
+  useEffect(() => {
+    let cancelled = false;
+    void getTemplateState()
+      .then((s) => {
+        if (!cancelled) setTplState(s);
+      })
+      .catch((e) => console.warn("加载导出模板失败:", e));
     return () => {
       cancelled = true;
     };
@@ -630,12 +653,89 @@ export function SettingsPage() {
     },
   ];
 
+  // ── 导出模板（#12） ──
+
+  const activeTpl = tplState
+    ? tplState.templates.find((t) => t.id === tplState.activeId) ?? null
+    : null;
+
+  const persistTpl = useCallback(async (next: TemplateState) => {
+    setTplState(next);
+    try {
+      await saveTemplateState(next);
+    } catch (e) {
+      console.warn("保存导出模板失败:", e);
+    }
+  }, []);
+
+  const setActiveTpl = useCallback(
+    (id: string) => {
+      if (tplState) void persistTpl({ ...tplState, activeId: id });
+    },
+    [tplState, persistTpl],
+  );
+
+  /** 编辑模板；内置模板改动自动派生为自定义副本并激活 */
+  const updateActiveTpl = useCallback(
+    (updates: Partial<ExportTemplate>) => {
+      if (!tplState || !activeTpl) return;
+      if (activeTpl.isBuiltin) {
+        const copy: ExportTemplate = {
+          ...activeTpl,
+          ...updates,
+          id: crypto.randomUUID(),
+          name: `${activeTpl.name} · 自定义`,
+          isBuiltin: false,
+        };
+        void persistTpl({
+          templates: [...tplState.templates, copy],
+          activeId: copy.id,
+        });
+      } else {
+        void persistTpl({
+          ...tplState,
+          templates: tplState.templates.map((t) =>
+            t.id === activeTpl.id ? { ...t, ...updates } : t,
+          ),
+        });
+      }
+    },
+    [tplState, activeTpl, persistTpl],
+  );
+
+  const handleNewTpl = useCallback(() => {
+    if (!tplState) return;
+    const base = activeTpl ?? tplState.templates[0];
+    const count = tplState.templates.filter((t) => !t.isBuiltin).length + 1;
+    const copy = createTemplateFrom(base, `自定义模板 ${count}`);
+    void persistTpl({
+      templates: [...tplState.templates, copy],
+      activeId: copy.id,
+    });
+  }, [tplState, activeTpl, persistTpl]);
+
+  const handleDeleteTpl = useCallback(
+    (id: string) => {
+      if (!tplState) return;
+      const target = tplState.templates.find((t) => t.id === id);
+      if (!target || target.isBuiltin) return;
+      if (!window.confirm(`删除模板「${target.name}」？`)) return;
+      const templates = tplState.templates.filter((t) => t.id !== id);
+      void persistTpl({
+        templates,
+        activeId: tplState.activeId === id ? "builtin-standard" : tplState.activeId,
+      });
+    },
+    [tplState, persistTpl],
+  );
+
   const settingsTabs = [
     { key: "appearance", label: "外观", icon: Palette },
     { key: "editor", label: "编辑器", icon: FileText },
     { key: "ai", label: "AI 模型", icon: Sparkles },
     { key: "style", label: "文风", icon: Feather },
     { key: "prompts", label: "提示词", icon: MessageSquare },
+    { key: "export", label: "导出模板", icon: Download },
     { key: "backup", label: "数据备份与恢复", icon: Database },
     { key: "about", label: "关于", icon: Info },
   ];
@@ -1475,6 +1575,140 @@ export function SettingsPage() {
                 ))}
               </div>
             </div>
+          </Section>
+          </div>
+
+          {/* 导出模板 */}
+          <div className={settingsTab !== "export" ? "hidden" : undefined}>
+          <Section
+            title="导出模板"
+            icon={Download}
+            contentClassName="space-y-4"
+          >
+            <p className="text-[12px] leading-relaxed text-ink-3">
+              整书导出（TXT / Markdown / HTML / DOCX / EPUB）时自动套用当前模板；单章导出不受影响。
+            </p>
+
+            {!tplState ? (
+              <p className="py-6 text-center text-[13px] text-ink-3">加载模板中…</p>
+            ) : (
+              <div className="space-y-1.5">
+                {tplState.templates.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveTpl(t.id)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      t.id === tplState.activeId
+                        ? "border-primary bg-primary-soft"
+                        : "border-line hover:bg-hover",
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[13px] font-medium text-ink">{t.name}</span>
+                        <Badge variant={t.isBuiltin ? "neutral" : "primary"} size="sm">
+                          {t.isBuiltin ? "内置" : "自定义"}
+                        </Badge>
+                        {t.id === tplState.activeId && (
+                          <Badge variant="success" size="sm">当前</Badge>
+                        )}
+                      </div>
+                      <p className="mt-0.5 truncate text-[12px] text-ink-3">{t.description}</p>
+                    </div>
+                    {!t.isBuiltin && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`删除模板 ${t.name}`}
+                        className="hover:bg-danger-soft hover:text-danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTpl(t.id);
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </Button>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {activeTpl && (
+              <div className="space-y-1 rounded-lg border border-line p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[13px] font-medium text-ink">
+                    编辑「{activeTpl.name}」
+                  </span>
+                  <Button variant="secondary" size="sm" onClick={handleNewTpl}>
+                    <Plus size={14} />
+                    基于当前新建
+                  </Button>
+                </div>
+                {activeTpl.isBuiltin && (
+                  <p className="mb-2 text-[12px] text-ink-3">
+                    内置模板不可直接修改：调整任一选项将自动生成自定义副本并设为当前。
+                  </p>
+                )}
+
+                <SettingRow title="扉页" description="导出开头插入书名、作者与日期">
+                  <label className="flex cursor-pointer items-center gap-2 text-[13px] text-ink-2">
+                    <input
+                      type="checkbox"
+                      checked={activeTpl.titlePage}
+                      onChange={(e) => updateActiveTpl({ titlePage: e.target.checked })}
+                      className="h-4 w-4 accent-[var(--app-primary)]"
+                    />
+                    {activeTpl.titlePage ? "包含扉页" : "不含扉页"}
+                  </label>
+                </SettingRow>
+
+                <SettingRow title="章末字数" description="每章结尾附「本章 N 字」">
+                  <label className="flex cursor-pointer items-center gap-2 text-[13px] text-ink-2">
+                    <input
+                      type="checkbox"
+                      checked={activeTpl.showWordCount}
+                      onChange={(e) => updateActiveTpl({ showWordCount: e.target.checked })}
+                      className="h-4 w-4 accent-[var(--app-primary)]"
+                    />
+                    {activeTpl.showWordCount ? "显示" : "隐藏"}
+                  </label>
+                </SettingRow>
+
+                <SettingRow title="章标题格式" description="影响 TXT / Markdown 导出的章标题样式">
+                  <Select
+                    selectSize="sm"
+                    className="w-60"
+                    value={activeTpl.chapterHeadingStyle}
+                    onChange={(e) =>
+                      updateActiveTpl({
+                        chapterHeadingStyle: e.target.value as ChapterHeadingStyle,
+                      })
+                    }
+                  >
+                    {Object.entries(headingStyleLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </Select>
+                </SettingRow>
+
+                <Field
+                  label="HTML 自定义 CSS"
+                  hint="仅 HTML 导出追加，可覆盖字体、行距、章间分隔与扉页样式"
+                >
+                  <Textarea
+                    rows={6}
+                    value={activeTpl.css}
+                    onChange={(e) => updateActiveTpl({ css: e.target.value })}
+                    placeholder=".content { text-indent: 2em; }"
+                  />
+                </Field>
+              </div>
+            )}
           </Section>
           </div>
 

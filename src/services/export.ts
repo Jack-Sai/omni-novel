@@ -1,9 +1,14 @@
+import { getActiveTemplate, type ExportTemplate } from "../lib/exportTemplates";
+import { htmlWordCount } from "../lib/text";
+
 export interface ExportOptions {
   format: "txt" | "markdown" | "html" | "docx" | "epub";
   filename: string;
   content: string;
   title?: string;
   author?: string;
+  /** HTML 导出追加的自定义 CSS（导出模板提供） */
+  extraCss?: string;
 }
 
 function escapeXml(s: string): string {
@@ -53,7 +58,7 @@ export class ExportService {
         extension = "md";
         break;
       case "html":
-        fileContent = this.toHTML(content, title, author);
+        fileContent = this.toHTML(content, title, author, options.extraCss);
         mimeType = "text/html";
         extension = "html";
         break;
@@ -88,7 +93,7 @@ export class ExportService {
     return md;
   }
 
-  static toHTML(content: string, title?: string, author?: string): string {
+  static toHTML(content: string, title?: string, author?: string, extraCss?: string): string {
     let html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -119,6 +124,7 @@ export class ExportService {
     p {
       margin: 10px 0;
     }
+  ${extraCss ?? ""}
   </style>
 </head>
 <body>`;
@@ -455,35 +461,113 @@ ${htmlToXhtml(ch.html)}
       .filter((c) => c.projectId === projectId)
       .sort((a, b) => a.order - b.order);
 
+    const tpl = await getActiveTemplate();
+    const wcOf = (content: string) => htmlWordCount(content);
+
     // EPUB：整本书打包为单个文件（而非逐章下载）
     if (format === "epub") {
-      const epubChapters =
-        projectChapters.length > 0
-          ? projectChapters.map((c) => ({ title: c.title, html: c.content }))
-          : [{ title: project.title, html: project.content || "" }];
+      const epubChapters: { title: string; html: string }[] = [];
+      if (tpl.titlePage) {
+        epubChapters.push({
+          title: project.title,
+          html: `<div class="title-page"><div class="book-title">${project.title}</div>${
+            project.author ? `<div class="book-author">作者：${project.author}</div>` : ""
+          }</div>`,
+        });
+      }
+      if (projectChapters.length > 0) {
+        for (const c of projectChapters) {
+          epubChapters.push({
+            title: c.title,
+            html:
+              c.content +
+              (tpl.showWordCount
+                ? `<p class="word-count">本章 ${wcOf(c.content)} 字</p>`
+                : ""),
+          });
+        }
+      } else {
+        epubChapters.push({ title: project.title, html: project.content || "" });
+      }
       await this.toEPUB(project.title, project.title, project.author, epubChapters);
       return;
     }
 
-    if (projectChapters.length === 0) {
-      await this.exportToFile({
-        format,
-        filename: project.title,
-        content: project.content || "",
-        title: project.title,
-        author: project.author,
-      });
-      return;
+    // 其余格式：整书单文件（章标题/扉页/章末字数按模板拼装）
+    const blocks: string[] = [];
+    if (tpl.titlePage && projectChapters.length > 0) {
+      blocks.push(this.titlePageBlock(project.title, project.author, format));
+    }
+    for (const c of projectChapters) {
+      blocks.push(this.chapterBlock(c.title, c.content, format, tpl));
     }
 
-    const files = projectChapters.map((chapter) => ({
-      filename: `${project.title}-${chapter.title}`,
-      content: chapter.content,
-      title: chapter.title,
-      author: project.author,
-    }));
+    const combined =
+      blocks.length > 0
+        ? blocks.join(format === "html" || format === "docx" ? "\n" : "\n\n")
+        : project.content || "";
 
-    await this.exportMultipleFiles(files, format);
+    await this.exportToFile({
+      format,
+      filename: project.title,
+      content: combined,
+      title: project.title,
+      author: project.author,
+      extraCss: tpl.css,
+    });
+  }
+
+  /** 扉页块（书名/作者/日期） */
+  private static titlePageBlock(
+    title: string,
+    author: string | undefined,
+    format: "txt" | "markdown" | "html" | "docx"
+  ): string {
+    const date = new Date().toLocaleDateString("zh-CN");
+    if (format === "markdown") {
+      return `# ${title}\n\n${author ? `**作者：${author}**\n\n` : ""}> 导出日期：${date}\n\n---\n`;
+    }
+    if (format === "txt") {
+      return `${title}\n${"=".repeat(Math.min(title.length * 2, 60))}\n\n${
+        author ? `作者：${author}\n` : ""
+      }日期：${date}\n\n${"-".repeat(30)}\n`;
+    }
+    // html / docx（toDOCX 会把 h2/标签降为普通段落）
+    return `<div class="title-page"><div class="book-title">${title}</div>${
+      author ? `<div class="book-author">作者：${author}</div>` : ""
+    }<div class="book-date">${date}</div></div><hr class="chapter-break"/>`;
+  }
+
+  /** 单章块：章标题 + 正文 + 可选章末字数 */
+  private static chapterBlock(
+    chapterTitle: string,
+    content: string,
+    format: "txt" | "markdown" | "html" | "docx",
+    tpl: ExportTemplate
+  ): string {
+    const wc = tpl.showWordCount ? htmlWordCount(content) : 0;
+    const wcText = tpl.showWordCount ? `（本章 ${wc} 字）` : "";
+
+    if (format === "txt") {
+      const heading =
+        tpl.chapterHeadingStyle === "underline"
+          ? `${chapterTitle}\n${"=".repeat(Math.min(chapterTitle.length * 2, 60))}\n`
+          : tpl.chapterHeadingStyle === "markdown"
+            ? `# ${chapterTitle}\n`
+            : `${chapterTitle}\n`;
+      const text = this.toPlainText(content);
+      return `${heading}\n${text}${wcText ? `\n\n${wcText}` : ""}`;
+    }
+    if (format === "markdown") {
+      return `## ${chapterTitle}\n\n${content}${wcText ? `\n\n> ${wcText}` : ""}`;
+    }
+    // html / docx：HTML 拼接（docx 侧 toDOCX 统一降级为段落）
+    return (
+      `<h2 class="chapter-title">${chapterTitle}</h2>\n` +
+      content +
+      (wcText ? `\n<p class="word-count">本章 ${wc} 字</p>` : "") +
+      `\n<hr class="chapter-break"/>`
+    );
   }
 }
 
