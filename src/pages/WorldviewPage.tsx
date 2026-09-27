@@ -20,6 +20,7 @@ import {
 } from "../stores/worldviewStore";
 import { useProjectStore } from "../stores/projectStore";
 import { AICreateDialog } from "../components/ai/AICreateDialog";
+import { EntityAIDialog } from "../components/ai/EntityAIDialog";
 import {
   Badge,
   Button,
@@ -57,6 +58,7 @@ export function WorldviewPage() {
   const [newType, setNewType] = useState<WorldviewType>("location");
   const [filterType, setFilterType] = useState<WorldviewType | "all">("all");
   const [aiOpen, setAiOpen] = useState(false);
+  const [entityAiOpen, setEntityAiOpen] = useState(false);
 
   const projectItems = useMemo(
     () => (currentProject ? items.filter((item) => item.projectId === currentProject.id) : []),
@@ -219,6 +221,10 @@ export function WorldviewPage() {
               <Sparkles size={15} />
               AI 创建
             </Button>
+            <Button variant="secondary" size="md" onClick={() => setEntityAiOpen(true)}>
+              <Sparkles size={15} />
+              设定 AI
+            </Button>
             <Button variant="primary" size="md" onClick={() => setShowAdd(true)}>
               <Plus size={15} />
               添加设定
@@ -351,6 +357,8 @@ export function WorldviewPage() {
           setAiOpen(false);
         }}
       />
+
+      <EntityAIDialog open={entityAiOpen} onOpenChange={setEntityAiOpen} scope="worldview" />
     </Page>
   );
 }

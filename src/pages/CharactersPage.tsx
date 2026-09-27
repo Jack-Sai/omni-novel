@@ -17,6 +17,7 @@ import {
   type CharacterRelation,
 } from "../stores/relationStore";
 import { AICreateDialog } from "../components/ai/AICreateDialog";
+import { EntityAIDialog } from "../components/ai/EntityAIDialog";
 import { AIExtractDialog } from "../components/ai/AIExtractDialog";
 import { AIRelationsDialog } from "../components/ai/AIRelationsDialog";
 import { AIRefineDialog } from "../components/ai/AIRefineDialog";
@@ -81,6 +82,7 @@ export function CharactersPage() {
   const [refineOpen, setRefineOpen] = useState(false);
   const [aiRelOpen, setAiRelOpen] = useState(false);
   const [extractOpen, setExtractOpen] = useState(false);
+  const [bioAiOpen, setBioAiOpen] = useState(false);
   const { relations } = useRelationStore();
   const [relationOpen, setRelationOpen] = useState(false);
   const [relationTarget, setRelationTarget] = useState<CharacterRelation | null>(null);
@@ -159,6 +161,7 @@ export function CharactersPage() {
   }
 
   /* ---------------- 编辑详情 ---------------- */
+  const currentCharId = currentCharacter?.id;
   if (currentCharacter) {
     return (
       <Page>
@@ -183,10 +186,16 @@ export function CharactersPage() {
               .join(" · ") || "人物档案"
           }
           actions={
-            <Button variant="secondary" onClick={() => setRefineOpen(true)}>
-              <Sparkles size={15} />
-              AI 完善
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setRefineOpen(true)}>
+                <Sparkles size={15} />
+                AI 完善
+              </Button>
+              <Button variant="secondary" onClick={() => setBioAiOpen(true)}>
+                <Sparkles size={15} />
+                AI 小传
+              </Button>
+            </div>
           }
         />
         <PageBody width="reading">
@@ -643,6 +652,13 @@ export function CharactersPage() {
           addCharacter({ projectId: currentProject.id, ...data });
           setAiOpen(false);
         }}
+      />
+
+      <EntityAIDialog
+        open={bioAiOpen}
+        onOpenChange={setBioAiOpen}
+        scope="character"
+        initialEntityId={currentCharId}
       />
     </Page>
   );
