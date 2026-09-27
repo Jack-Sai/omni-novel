@@ -556,3 +556,82 @@ export const outlineAIPrompts = {
 - 保留核心事件、转折与因果，删除修饰与重复
 - 压缩到原篇幅的 1/2 左右，不丢关键信息`,
 } as const;
+
+/** 伏笔 AI 辅助（检测未回收 / 建议回收 / 建议埋设）：严格 JSON 输出 */
+export const foreshadowingAIPrompts = {
+  detectUnresolved: `你是小说伏笔审查员。输入：已标记伏笔清单 + 小说正文节选。只输出一个 JSON 对象。
+
+输出格式：
+{
+  "issues": [
+    {
+      "severity": "high | medium | low",
+      "type": "foreshadow",
+      "title": "问题标题，15字以内",
+      "description": "问题说明：哪条伏笔该回收了 / 为何失效",
+      "chapters": ["涉及的章标题"],
+      "evidence": "引用正文或伏笔清单片段",
+      "suggestion": "处理建议，50~120字"
+    }
+  ],
+  "candidates": [
+    {
+      "name": "疑似伏笔名，12字以内",
+      "description": "线索内容与可能走向，50~100字",
+      "importance": "low | medium | high",
+      "plantedChapter": "线索出现的章标题；未知给空串",
+      "reason": "为什么这像伏笔，30~60字"
+    }
+  ]
+}
+
+工作方式：
+- issues 针对清单中 status=已埋设 的伏笔：对照正文判断是否早已该回收、是否长期无推进、是否与正文冲突（写了但正文根本没出现）
+- candidates 扫描正文：找出反复出现、有明显指向性、承诺了后续回报但清单里没有的线索
+- 无问题时 issues 给 []；没有疑似伏笔时 candidates 给 []
+
+硬性要求：
+- 只输出 JSON 对象本身，禁止 markdown 代码围栏、注释、解释文字
+- 所有文字用中文
+- severity：high = 长期未回收且读者会追问的核心伏笔；medium = 需要安排；low = 可顺手处理`,
+
+  suggestReveal: `你是小说伏笔回收设计师。输入：一条伏笔的完整信息 + 当前大纲/后续剧情走向。给出 2~3 个回收方案，只输出一个 JSON 对象。
+
+输出格式：
+{
+  "options": [
+    {
+      "revealChapter": "建议回收的章标题；跟随大纲可空串",
+      "revealContent": "回收方式：在什么情境下如何揭晓/呼应，60~120字",
+      "note": "方案特点：预期读者反应与风险，30~60字"
+    }
+  ]
+}
+
+硬性要求：
+- 只输出 JSON 对象本身，禁止 markdown 代码围栏、注释、解释文字
+- 所有文字用中文
+- 方案要有差异（如提前小揭晓 / 大高潮揭晓 / 反转式揭晓）
+- 回收要呼应埋设细节，避免凭空出现新设定`,
+
+  suggestPlant: `你是小说伏笔埋设设计师。输入：伏笔想法或主题 + 当前大纲。给出 2~3 个埋设方案，只输出一个 JSON 对象。
+
+输出格式：
+{
+  "options": [
+    {
+      "name": "建议伏笔名，12字以内",
+      "description": "线索内容与预期走向，50~100字",
+      "plantedChapter": "建议埋设的章标题；跟随大纲可空串",
+      "plantedContent": "埋设方式：在什么场景以什么方式出现，50~100字",
+      "importance": "low | medium | high"
+    }
+  ]
+}
+
+硬性要求：
+- 只输出 JSON 对象本身，禁止 markdown 代码围栏、注释、解释文字
+- 所有文字用中文
+- 埋设要自然融入当前剧情，不要强行加戏
+- 与清单中已有伏笔互补，避免重复`,
+} as const;

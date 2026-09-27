@@ -16,6 +16,7 @@ import {
 } from "../stores/foreshadowingStore";
 import { useProjectStore } from "../stores/projectStore";
 import { AICreateDialog } from "../components/ai/AICreateDialog";
+import { ForeshadowingAIDialog } from "../components/ai/ForeshadowingAIDialog";
 import {
   Badge,
   Button,
@@ -53,6 +54,7 @@ export function ForeshadowingPage() {
   const [newName, setNewName] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterValue>("all");
   const [aiOpen, setAiOpen] = useState(false);
+  const [fsAiOpen, setFsAiOpen] = useState(false);
 
   const projectItems = useMemo(
     () => (currentProject ? items.filter((item) => item.projectId === currentProject.id) : []),
@@ -268,6 +270,10 @@ export function ForeshadowingPage() {
               <Sparkles size={15} />
               AI 创建
             </Button>
+            <Button variant="secondary" onClick={() => setFsAiOpen(true)}>
+              <Sparkles size={15} />
+              伏笔 AI
+            </Button>
             <Button variant="primary" onClick={() => setShowAdd(true)}>
               <Plus size={15} />
               添加伏笔
@@ -418,6 +424,8 @@ export function ForeshadowingPage() {
           setAiOpen(false);
         }}
       />
+
+      <ForeshadowingAIDialog open={fsAiOpen} onOpenChange={setFsAiOpen} />
     </Page>
   );
 }

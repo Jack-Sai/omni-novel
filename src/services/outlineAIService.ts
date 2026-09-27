@@ -123,7 +123,7 @@ export function buildOutlineDigest(projectId: string): string {
 }
 
 /** 章节正文组包（截断到上限，供检查类参考已有内容） */
-function buildChapterExcerpt(projectId: string): string {
+export function buildChapterExcerpt(projectId: string): string {
   const picked = useChapterStore
     .getState()
     .chapters.filter((c) => c.projectId === projectId)
@@ -157,7 +157,7 @@ function str(v: unknown): string {
 }
 
 /** 解析 issues（与一致性报告同构，容错同 consistencyService） */
-function parseIssues(raw: unknown): ConsistencyIssue[] | null {
+export function parseIssues(raw: unknown): ConsistencyIssue[] | null {
   if (!raw || typeof raw !== "object") return null;
   const arr = Array.isArray(raw)
     ? raw
