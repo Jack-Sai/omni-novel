@@ -600,6 +600,139 @@ fn verify_password(password: String, hash: String) -> Result<bool, String> {
     bcrypt::verify(password, &hash).map_err(|e| format!("密码校验失败: {e}"))
 }
 
+// ── 敏感配置加密（Windows DPAPI，CurrentUser 范围；落盘密文 + enc: 前缀）────
+
+const ENC_PREFIX: &str = "enc:";
+const CRYPTPROTECT_UI_FORBIDDEN: u32 = 0x1;
+
+#[cfg(windows)]
+#[repr(C)]
+struct WinDataBlob {
+    cb_data: u32,
+    pb_data: *mut u8,
+}
+
+#[cfg(windows)]
+#[link(name = "crypt32")]
+extern "system" {
+    fn CryptProtectData(
+        data_in: *const WinDataBlob,
+        data_descr: *const u16,
+        optional_entropy: *const WinDataBlob,
+        prompt_struct: *mut std::ffi::c_void,
+        reserved: *mut std::ffi::c_void,
+        flags: u32,
+        data_out: *mut WinDataBlob,
+    ) -> i32;
+    fn CryptUnprotectData(
+        data_in: *const WinDataBlob,
+        data_descr_out: *mut *mut u16,
+        optional_entropy: *const WinDataBlob,
+        prompt_struct: *mut std::ffi::c_void,
+        reserved: *mut std::ffi::c_void,
+        flags: u32,
+        data_out: *mut WinDataBlob,
+    ) -> i32;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn LocalFree(mem: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+}
+
+#[cfg(windows)]
+fn dpapi_transform(input: &[u8], protect: bool) -> Result<Vec<u8>, String> {
+    unsafe {
+        let in_blob = WinDataBlob {
+            cb_data: input.len() as u32,
+            pb_data: input.as_ptr() as *mut u8,
+        };
+        let mut out_blob = WinDataBlob {
+            cb_data: 0,
+            pb_data: std::ptr::null_mut(),
+        };
+        let ok = if protect {
+            CryptProtectData(
+                &in_blob,
+                std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                CRYPTPROTECT_UI_FORBIDDEN,
+                &mut out_blob,
+            )
+        } else {
+            CryptUnprotectData(
+                &in_blob,
+                std::ptr::null_mut(),
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                CRYPTPROTECT_UI_FORBIDDEN,
+                &mut out_blob,
+            )
+        };
+        if ok == 0 {
+            let err = std::io::Error::last_os_error();
+            return Err(format!(
+                "DPAPI {} 失败: {err}",
+                if protect { "加密" } else { "解密" }
+            ));
+        }
+        let result =
+            std::slice::from_raw_parts(out_blob.pb_data, out_blob.cb_data as usize).to_vec();
+        LocalFree(out_blob.pb_data as *mut std::ffi::c_void);
+        Ok(result)
+    }
+}
+
+#[tauri::command]
+fn encrypt_secret(plain: String) -> Result<String, String> {
+    if plain.is_empty() || plain.starts_with(ENC_PREFIX) {
+        return Ok(plain);
+    }
+    #[cfg(windows)]
+    {
+        use base64::Engine;
+        let encrypted = dpapi_transform(plain.as_bytes(), true)?;
+        Ok(format!(
+            "{ENC_PREFIX}{}",
+            base64::engine::general_purpose::STANDARD.encode(encrypted)
+        ))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = plain;
+        Err("当前平台不支持敏感信息加密".to_string())
+    }
+}
+
+#[tauri::command]
+fn decrypt_secret(encrypted: String) -> Result<String, String> {
+    if encrypted.is_empty() {
+        return Ok(String::new());
+    }
+    let Some(raw) = encrypted.strip_prefix(ENC_PREFIX) else {
+        // 历史明文：原样返回（下次保存时会自动加密）
+        return Ok(encrypted);
+    };
+    #[cfg(windows)]
+    {
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(raw)
+            .map_err(|e| format!("密文 base64 解码失败: {e}"))?;
+        let plain = dpapi_transform(&bytes, false)?;
+        String::from_utf8(plain).map_err(|e| format!("密文 UTF-8 解码失败: {e}"))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = raw;
+        Err("当前平台不支持敏感信息解密".to_string())
+    }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 fn uuid_v4() -> String {
@@ -783,6 +916,8 @@ pub fn run() {
             ai_list_models,
             hash_password,
             verify_password,
+            encrypt_secret,
+            decrypt_secret,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -792,4 +927,30 @@ pub fn run() {
                 tauri::async_runtime::block_on(state.llama.stop_owned());
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn bcrypt_roundtrip() {
+        let hash = super::hash_password("pw-测试-123456".to_string()).unwrap();
+        assert!(hash.starts_with("$2"));
+        assert!(super::verify_password("pw-测试-123456".to_string(), hash.clone()).unwrap());
+        assert!(!super::verify_password("wrong".to_string(), hash).unwrap());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn dpapi_roundtrip() {
+        let plain = "sk-test-0123456789abcdef";
+        let enc = super::encrypt_secret(plain.to_string()).unwrap();
+        assert!(enc.starts_with("enc:"));
+        assert!(!enc.contains(plain));
+        let dec = super::decrypt_secret(enc.clone()).unwrap();
+        assert_eq!(dec, plain);
+        // 历史明文直接返回
+        assert_eq!(super::decrypt_secret("plaintext".to_string()).unwrap(), "plaintext");
+        // 幂等：已加密输入不再加密
+        assert_eq!(super::encrypt_secret(enc.clone()).unwrap(), enc);
+    }
 }

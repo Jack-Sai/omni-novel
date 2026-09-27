@@ -1,6 +1,31 @@
 import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
 import { saveGlobalConfig, loadGlobalConfig } from "../services/storage";
 import type { BackendType } from "../services/aiService";
+
+const ENC_PREFIX = "enc:";
+
+/** 落盘前加密 API Key（DPAPI）；失败仅告警，保持本次保存可用 */
+async function encryptApiKey(apiKey: string): Promise<string> {
+  if (!apiKey || apiKey.startsWith(ENC_PREFIX)) return apiKey;
+  try {
+    return await invoke<string>("encrypt_secret", { plain: apiKey });
+  } catch (e) {
+    console.warn("API Key 加密失败，本次以明文保存:", e);
+    return apiKey;
+  }
+}
+
+/** 读盘后解密 API Key；历史明文原样返回（下次保存自动加密） */
+async function decryptApiKey(apiKey: string | undefined): Promise<string> {
+  if (!apiKey || !apiKey.startsWith(ENC_PREFIX)) return apiKey ?? "";
+  try {
+    return await invoke<string>("decrypt_secret", { encrypted: apiKey });
+  } catch (e) {
+    console.warn("API Key 解密失败（可能换机/重装导致 DPAPI 上下文失效）:", e);
+    return "";
+  }
+}
 
 export interface AISettings {
   backend: BackendType;
@@ -182,8 +207,10 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       modelPresets?: ModelPreset[];
     }>("data", "settings.json");
     if (data) {
+      const ai = { ...defaultAISettings, ...data.ai };
+      ai.apiKey = await decryptApiKey(data.ai?.apiKey);
       set({
-        ai: { ...defaultAISettings, ...data.ai },
+        ai,
         editor: { ...defaultEditorSettings, ...data.editor },
         aiPanelWidth: data.aiPanelWidth ?? defaultAiPanelWidth,
         modelPresets: data.modelPresets ?? [],
@@ -194,10 +221,17 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   saveToDisk: () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      const { ai, editor, aiPanelWidth, modelPresets } = get();
-      saveGlobalConfig("data", "settings.json", { ai, editor, aiPanelWidth, modelPresets }).catch((e) =>
-        console.error("保存设置失败:", e)
-      );
+      void (async () => {
+        const { ai, editor, aiPanelWidth, modelPresets } = get();
+        // 落盘加密：settings.json 不落 API Key 明文（state 内存中保持明文供请求使用）
+        const aiToSave = { ...ai, apiKey: await encryptApiKey(ai.apiKey) };
+        saveGlobalConfig("data", "settings.json", {
+          ai: aiToSave,
+          editor,
+          aiPanelWidth,
+          modelPresets,
+        }).catch((e) => console.error("保存设置失败:", e));
+      })();
     }, 500);
   },
 }));
