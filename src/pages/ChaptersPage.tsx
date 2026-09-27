@@ -11,12 +11,16 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Upload,
 } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter, ChapterStatus } from "../stores/chapterStore";
 import { useSceneStore, Scene } from "../stores/sceneStore";
 import { useVolumeStore, Volume } from "../stores/volumeStore";
 import { deleteChapterCascade } from "../lib/chapterActions";
+import { splitImportedText } from "../lib/importText";
 import { ProjectCompareDialog } from "../components/dialog";
 import { htmlWordCount } from "../lib/text";
 import { cn } from "../lib/cn";
@@ -260,6 +264,45 @@ export function ChaptersPage() {
     },
     [updateScene],
   );
+
+  /** 导入 TXT/MD：按标题行分章后追加到当前项目（可再导出 DOCX/EPUB） */
+  const handleImportText = useCallback(async () => {
+    if (!currentProject) return;
+    try {
+      const path = await open({
+        multiple: false,
+        filters: [{ name: "文本文件", extensions: ["txt", "md", "markdown"] }],
+      });
+      if (typeof path !== "string") return;
+      const text = await readTextFile(path);
+      const filename = path.split(/[\\/]/).pop() ?? "import.txt";
+      const imported = splitImportedText(text, filename);
+      if (imported.length === 0) {
+        window.alert("文件内容为空，未导入任何章节。");
+        return;
+      }
+      const ok = window.confirm(
+        `将从《${filename}》导入 ${imported.length} 章追加到当前项目，继续？`,
+      );
+      if (!ok) return;
+      let order = projectChapters.reduce((max, c) => Math.max(max, c.order), -1) + 1;
+      for (const ch of imported) {
+        addChapter({
+          projectId: currentProject.id,
+          volumeId: null,
+          title: ch.title,
+          content: ch.content,
+          summary: "",
+          status: "draft",
+          order: order++,
+        });
+      }
+      window.alert(`已导入 ${imported.length} 章（未分卷）。`);
+    } catch (e) {
+      console.error("导入失败:", e);
+      window.alert(`导入失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [currentProject, projectChapters, addChapter]);
 
   /** 把章移动到目标位置并重排全局顺序 */
   const moveChapter = useCallback(
@@ -683,6 +726,15 @@ export function ChaptersPage() {
             >
               <GitCompare size={14} />
               版本对比
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleImportText()}
+              title="导入 TXT/MD，按标题行自动分章"
+            >
+              <Upload size={14} />
+              导入
             </Button>
             <Button variant="primary" size="sm" onClick={() => setShowAddVolume(true)}>
               <Plus size={14} />
