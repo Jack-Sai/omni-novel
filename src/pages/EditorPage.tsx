@@ -12,13 +12,10 @@ import {
   Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
-  Plus,
   Save,
   Sparkles,
-  Trash2,
 } from "lucide-react";
-import { NewProjectDialog, NewProject, VersionHistoryDialog } from "../components/dialog";
-import { invoke } from "@tauri-apps/api/core";
+import { VersionHistoryDialog } from "../components/dialog";
 import { useNavigate } from "react-router-dom";
 import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter } from "../stores/chapterStore";
@@ -34,10 +31,8 @@ import {
   ExportService,
   versionDb,
   loadProjectStores,
-  createProjectDir,
   builtinPromptList,
   getSystemPrompt,
-  projectDb,
 } from "../services";
 import { cn } from "../lib/cn";
 import { useAutoSave } from "../hooks";
@@ -49,9 +44,7 @@ import {
 import { useSettingsStore } from "../stores/settingsStore";
 import { useUIStore } from "../stores/uiStore";
 import {
-  Badge,
   Button,
-  Card,
   EmptyState,
   Menu,
   MenuContent,
@@ -66,18 +59,7 @@ import {
   WritingInsights,
 } from "../components/ui";
 
-const genreLabels: Record<string, string> = {
-  fantasy: "玄幻",
-  urban: "都市",
-  suspense: "悬疑",
-  scifi: "科幻",
-  romance: "言情",
-  historical: "历史",
-  other: "其他",
-};
-
 export function EditorPage() {
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -97,8 +79,7 @@ export function EditorPage() {
   const [focusMode, setFocusMode] = useState(false);
   const editorRef = useRef<EditorRef>(null);
   const navigate = useNavigate();
-  const { projects, currentProject, addProject, setCurrentProject, updateProject, deleteProject } =
-    useProjectStore();
+  const { projects, currentProject, setCurrentProject } = useProjectStore();
   const {
     chapters,
     currentChapter,
@@ -271,36 +252,6 @@ export function EditorPage() {
     return { pct, over: stats.chapterWords > editor.chapterWordTarget };
   }, [stats.chapterWords, editor.chapterWordTarget]);
 
-  const handleCreateProject = async (project: NewProject) => {
-    addProject(project);
-    // 快速创建的项目同样落到默认项目目录，并接管持久化
-    try {
-      const basePath = await invoke<string>("default_projects_dir");
-      const created = useProjectStore.getState().currentProject;
-      if (!created) return;
-      const dir = `${basePath}/${created.title}`;
-      await createProjectDir(basePath, created.title, {
-        id: created.id,
-        title: created.title,
-        author: created.author,
-        genre: created.genre,
-        synopsis: created.synopsis,
-      });
-      updateProject(created.id, { storagePath: dir });
-      await loadProjectStores(dir);
-    } catch (err) {
-      console.error("初始化项目目录失败:", err);
-      await loadProjectStores("");
-    }
-  };
-
-  /** 从项目列表进入某个项目：加载其章节与设定数据 */
-  const handleSwitchProject = async (project: Parameters<typeof setCurrentProject>[0]) => {
-    setCurrentProject(project);
-    setCurrentChapter(null);
-    await loadProjectStores(project?.storagePath || "");
-  };
-
   const handleSelectChapter = (chapter: Chapter) => {
     setCurrentChapter(chapter);
   };
@@ -365,93 +316,33 @@ export function EditorPage() {
     await ExportService.exportProject(currentProject.id, format);
   };
 
-  /* ================= 项目列表 ================= */
+  /* ================= 未打开项目 ================= */
   if (!currentProject) {
     return (
       <Page>
-        <PageHeader
-          title="我的项目"
-          description={projects.length > 0 ? `共 ${projects.length} 个项目` : "开始你的第一部作品"}
-          actions={
-            <Button variant="primary" onClick={() => setDialogOpen(true)}>
-              <Plus size={15} />
-              新建项目
-            </Button>
-          }
-        />
+        <PageHeader title="编辑器" description="未打开任何项目" />
 
         <PageBody center>
-          {projects.length === 0 ? (
-            <EmptyState
-              icon={BookOpen}
-              title="还没有项目"
-              description="创建第一个项目，开始你的故事。"
-              action={
-                <Button variant="primary" size="lg" onClick={() => setDialogOpen(true)}>
-                  <Plus size={16} />
-                  创建第一个项目
-                </Button>
-              }
-            />
-          ) : (
-            <div className="grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {projects.map((project) => (
-                <Card
-                  key={project.id}
-                  interactive
-                  className="group relative flex flex-col"
-                  onClick={() => void handleSwitchProject(project)}
-                >
-                  <div className="flex items-start justify-between gap-2 pr-6">
-                    <h3 className="truncate text-sm font-medium text-ink">{project.title}</h3>
-                  </div>
-
-                  <p className="mt-0.5 text-[12px] text-ink-3">
-                    {project.author ? `作者：${project.author}` : "未署名"}
-                  </p>
-
-                  {project.genre && (
-                    <Badge variant="primary" size="sm" className="mt-2 w-fit">
-                      {genreLabels[project.genre] ?? project.genre}
-                    </Badge>
-                  )}
-
-                  {project.synopsis && (
-                    <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-ink-2">
-                      {project.synopsis}
-                    </p>
-                  )}
-
-                  <div className="mt-auto pt-3 text-[11px] text-ink-3">
-                    创建于 {new Date(project.createdAt).toLocaleDateString()}
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`删除 ${project.title}`}
-                    className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteProject(project.id);
-                      void projectDb
-                        .delete(project.id)
-                        .catch((err) => console.warn("删除项目数据库记录失败:", err));
-                    }}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </Card>
-              ))}
-            </div>
-          )}
+          <EmptyState
+            icon={BookOpen}
+            title="尚未打开项目"
+            description={
+              projects.length > 0
+                ? "请先在书架打开一个项目，再进入编辑器写作。"
+                : "还没有任何项目，先去书架创建一部作品吧。"
+            }
+            action={
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => void navigate("/bookshelf")}
+              >
+                <BookOpen size={16} />
+                前往书架
+              </Button>
+            }
+          />
         </PageBody>
-
-        <NewProjectDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          onCreateProject={handleCreateProject}
-        />
       </Page>
     );
   }
