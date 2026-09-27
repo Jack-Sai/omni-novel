@@ -2049,17 +2049,6 @@ export function SettingsPage() {
                   <ExternalLink size={12} />
                 </button>
               </dd>
-              <dt className="text-ink-3">掘金主页</dt>
-              <dd>
-                <button
-                  type="button"
-                  onClick={() => openUrl("https://juejin.cn/user/3946585868220169")}
-                  className="inline-flex items-center gap-1.5 text-primary hover:underline"
-                >
-                  juejin.cn/user/3946585868220169
-                  <ExternalLink size={12} />
-                </button>
-              </dd>
             </dl>
           </Section>
           </div>

@@ -8,7 +8,8 @@ import { projectDb, createProjectDir, loadProjectStores } from "../services";
 import { useProjectStore } from "../stores/projectStore";
 import { Page, PageHeader, PageBody } from "../components/ui/Page";
 import { Section } from "../components/ui/Section";
-import { Field, Input, Select, Textarea } from "../components/ui/Input";
+import { Field, Input, Textarea } from "../components/ui/Input";
+import { Select } from "../components/ui/Select";
 import { Button } from "../components/ui/Button";
 
 const genres = [

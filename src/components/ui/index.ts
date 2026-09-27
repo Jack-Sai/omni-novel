@@ -13,14 +13,16 @@ export type { EmptyStateProps } from "./EmptyState";
 export { Skeleton, SkeletonCard } from "./Skeleton";
 export type { SkeletonProps, SkeletonCardProps } from "./Skeleton";
 
-export { Field, Input, Label, Select, Textarea } from "./Input";
+export { Field, Input, Label, Textarea } from "./Input";
 export type {
   ControlSize,
   FieldProps,
   InputProps,
-  SelectProps,
   TextareaProps,
 } from "./Input";
+
+export { Select } from "./Select";
+export type { SelectProps } from "./Select";
 
 export { SearchSelect } from "./SearchSelect";
 export type { SearchSelectOption, SearchSelectProps } from "./SearchSelect";
