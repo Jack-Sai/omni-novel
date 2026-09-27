@@ -35,6 +35,15 @@ import {
   type TemplateState,
 } from "../lib/exportTemplates";
 import type { ChapterHeadingStyle } from "../lib/exportTemplates";
+import {
+  loadModelLibrary,
+  saveModelLibrary,
+  recordModelSwitch,
+  registerModel,
+  toggleFavorite,
+  removeLibraryModel,
+  type ModelLibraryState,
+} from "../lib/modelLibrary";
 import { useProjectStore } from "../stores/projectStore";
 import {
   createAIService,
@@ -111,6 +120,8 @@ export function SettingsPage() {
   const [settingsTab, setSettingsTab] = useState("appearance");
   const [saved, setSaved] = useState(false);
   const [tplState, setTplState] = useState<TemplateState | null>(null);
+  const [libState, setLibState] = useState<ModelLibraryState | null>(null);
+  const [registerLabel, setRegisterLabel] = useState("");
   const [models, setModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "failure" | null>(null);
@@ -130,6 +141,8 @@ export function SettingsPage() {
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    // 保存设置时记录当前模型到切换历史（recordModelSwitch 内部按 model 去重）
+    if (ai.model.trim()) void recordSwitch(ai.model);
   };
 
   const handleBackendChange = (backend: BackendType) => {
@@ -227,6 +240,68 @@ export function SettingsPage() {
       cancelled = true;
     };
   }, []);
+
+  // 加载模型库（注册/收藏/切换历史）
+  useEffect(() => {
+    let cancelled = false;
+    void loadModelLibrary()
+      .then((s) => {
+        if (!cancelled) setLibState(s);
+      })
+      .catch((e) => console.warn("加载模型库失败:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** 记录模型切换并持久化 */
+  const recordSwitch = useCallback(async (model: string) => {
+    const base = libState ?? (await loadModelLibrary());
+    const next = recordModelSwitch(base, model);
+    setLibState(next);
+    try {
+      await saveModelLibrary(next);
+    } catch (e) {
+      console.warn("保存模型切换历史失败:", e);
+    }
+  }, [libState]);
+
+  const handleRegisterModel = useCallback(() => {
+    if (!libState || !ai.model.trim()) return;
+    const next = registerModel(libState, ai.model, registerLabel, false);
+    setRegisterLabel("");
+    setLibState(next);
+    void saveModelLibrary(next).catch((e) =>
+      console.warn("保存模型库失败:", e)
+    );
+  }, [libState, ai.model, registerLabel]);
+
+  const handleToggleFavorite = useCallback(
+    (id: string) => {
+      if (!libState) return;
+      const next = toggleFavorite(libState, id);
+      setLibState(next);
+      void saveModelLibrary(next).catch((e) =>
+        console.warn("保存模型库失败:", e)
+      );
+    },
+    [libState],
+  );
+
+  const handleRemoveLibraryModel = useCallback(
+    (id: string) => {
+      if (!libState) return;
+      const target = libState.models.find((m) => m.id === id);
+      if (!target) return;
+      if (!window.confirm(`从模型库移除「${target.label}」？`)) return;
+      const next = removeLibraryModel(libState, id);
+      setLibState(next);
+      void saveModelLibrary(next).catch((e) =>
+        console.warn("保存模型库失败:", e)
+      );
+    },
+    [libState],
+  );
 
   useEffect(() => {
     if (ai.backend !== "llamacpp") {
@@ -1240,7 +1315,10 @@ export function SettingsPage() {
                     <button
                       key={model}
                       type="button"
-                      onClick={() => updateAISettings({ model })}
+                      onClick={() => {
+                        updateAISettings({ model });
+                        void recordSwitch(model);
+                      }}
                       className={
                         "rounded-full border px-2.5 py-1 text-xs transition-colors " +
                         (ai.model === model
@@ -1252,6 +1330,160 @@ export function SettingsPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* 模型库：注册 / 收藏 / 切换历史 */}
+            {libState && (
+              <div className="omni-pop space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[12px] font-medium text-ink-2">模型库</p>
+                  <span className="text-[11px] text-ink-3">
+                    已注册 {libState.models.length} · 收藏{" "}
+                    {libState.models.filter((m) => m.favorite).length}
+                  </span>
+                </div>
+
+                {/* 注册当前模型 */}
+                <div className="flex gap-2">
+                  <Input
+                    inputSize="sm"
+                    className="flex-1"
+                    value={registerLabel}
+                    placeholder={
+                      ai.model ? `备注（当前模型：${ai.model}）` : "请先填写模型名称"
+                    }
+                    onChange={(e) => setRegisterLabel(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRegisterModel();
+                    }}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={!ai.model.trim()}
+                    onClick={handleRegisterModel}
+                  >
+                    <Plus size={14} />
+                    注册当前模型
+                  </Button>
+                </div>
+
+                {/* 收藏快捷 chips */}
+                {libState.models.some((m) => m.favorite) && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-ink-3">收藏：</span>
+                    {libState.models
+                      .filter((m) => m.favorite)
+                      .map((m) => (
+                        <span
+                          key={m.id}
+                          className="flex items-center gap-1 rounded-full border border-primary-line bg-primary-soft px-2 py-0.5 text-xs text-primary"
+                        >
+                          <button
+                            type="button"
+                            className="max-w-40 truncate"
+                            title={m.model}
+                            onClick={() => {
+                              updateAISettings({ model: m.model });
+                              void recordSwitch(m.model);
+                            }}
+                          >
+                            {m.label}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`取消收藏 ${m.label}`}
+                            className="text-warning"
+                            onClick={() => handleToggleFavorite(m.id)}
+                          >
+                            ★
+                          </button>
+                        </span>
+                      ))}
+                  </div>
+                )}
+
+                {/* 已注册模型列表 */}
+                {libState.models.length > 0 && (
+                  <ul className="space-y-1">
+                    {libState.models.map((m) => (
+                      <li
+                        key={m.id}
+                        className="flex items-center gap-2 rounded border border-line px-2 py-1 text-xs"
+                      >
+                        <button
+                          type="button"
+                          className={
+                            "min-w-0 flex-1 truncate text-left hover:text-ink " +
+                            (ai.model === m.model
+                              ? "font-medium text-primary"
+                              : "text-ink-2")
+                          }
+                          title={m.model}
+                          onClick={() => {
+                            updateAISettings({ model: m.model });
+                            void recordSwitch(m.model);
+                          }}
+                        >
+                          {m.label}
+                          {m.label !== m.model && (
+                            <span className="text-ink-3"> · {m.model}</span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          title={m.favorite ? "取消收藏" : "收藏"}
+                          className={
+                            m.favorite
+                              ? "text-warning"
+                              : "text-ink-3 hover:text-warning"
+                          }
+                          onClick={() => handleToggleFavorite(m.id)}
+                        >
+                          ★
+                        </button>
+                        <button
+                          type="button"
+                          title="从模型库移除"
+                          className="text-ink-3 hover:text-danger"
+                          onClick={() => handleRemoveLibraryModel(m.id)}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* 切换历史 */}
+                {libState.history.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-[11px] text-ink-3">最近切换</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {libState.history.slice(0, 8).map((h, i) => (
+                        <button
+                          key={`${h.model}-${i}`}
+                          type="button"
+                          title={new Date(h.at).toLocaleString()}
+                          className={
+                            "rounded-full border px-2 py-0.5 text-[11px] transition-colors " +
+                            (ai.model === h.model
+                              ? "border-primary-line bg-primary-soft text-primary"
+                              : "border-line text-ink-2 hover:bg-hover hover:text-ink")
+                          }
+                          onClick={() => {
+                            updateAISettings({ model: h.model });
+                            void recordSwitch(h.model);
+                          }}
+                        >
+                          {h.model}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
