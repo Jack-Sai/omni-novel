@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout, WindowControls } from "./components/layout";
+import { DataRecoveryBanner } from "./components/DataRecoveryBanner";
 import {
   LoginPage,
   BookshelfPage,
@@ -18,6 +19,7 @@ function App() {
   return (
     <BrowserRouter>
       <WindowControls />
+      <DataRecoveryBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Layout />}>

@@ -21,6 +21,66 @@ struct AppState {
 
 // ── File System Commands ─────────────────────────────────────────────────────
 
+/// 原子保存 JSON：写 tmp → 旧文件留 .bak → rename 覆盖。
+/// 崩溃时主文件要么是完整旧版、要么是完整新版（半截文件只可能出现在 tmp 上）。
+fn atomic_save_json(path: &PathBuf, data_json: &str) -> Result<(), String> {
+    let dir = path.parent().ok_or_else(|| "无效文件路径".to_string())?;
+    let name = path
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let tmp = dir.join(format!("{}.tmp", name));
+    fs::write(&tmp, data_json).map_err(|e| format!("写入临时文件失败: {}", e))?;
+    if path.exists() {
+        // 上一版留底（copy 失败不阻断保存）
+        let _ = fs::copy(path, dir.join(format!("{}.bak", name)));
+    }
+    fs::rename(&tmp, path).map_err(|e| format!("替换文件失败: {}", e))?;
+    Ok(())
+}
+
+/// 韧性读取 JSON：
+/// - 合法 → Ok((内容, None))
+/// - 损坏 → 损坏件改名 *.corrupt-<ts> 留证，读 .bak 恢复并回写主文件 → Ok((备份内容, Some(文件名)))
+/// - 不存在 → Err（与旧语义一致，前端 catch 后返回 null）
+fn read_json_resilient(path: &PathBuf) -> Result<(String, Option<String>), String> {
+    let content = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => return Err(format!("读取文件失败: {}", e)),
+    };
+    if serde_json::from_str::<serde_json::Value>(&content).is_ok() {
+        return Ok((content, None));
+    }
+
+    let dir = path.parent().ok_or_else(|| "无效文件路径".to_string())?;
+    let name = path
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let corrupt = dir.join(format!("{}.corrupt-{}", name, ts));
+    let _ = fs::rename(path, &corrupt);
+
+    let bak = dir.join(format!("{}.bak", name));
+    if let Ok(bak_content) = fs::read_to_string(&bak) {
+        if serde_json::from_str::<serde_json::Value>(&bak_content).is_ok() {
+            let _ = fs::write(path, &bak_content);
+            return Ok((bak_content, Some(name)));
+        }
+    }
+    Err(format!(
+        "{} 已损坏且无有效备份（损坏件已留证为 {}）",
+        name,
+        corrupt
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default()
+    ))
+}
+
 #[tauri::command]
 fn create_project_dir(base_path: String, project_title: String, metadata_json: String) -> Result<String, String> {
     let project_dir = PathBuf::from(&base_path).join(&project_title);
@@ -80,14 +140,18 @@ fn load_chapter(project_dir: String, filename: String, volume: Option<String>) -
 fn save_novel_json(project_dir: String, sub_dir: String, filename: String, data_json: String) -> Result<(), String> {
     let dir = PathBuf::from(&project_dir).join(".novel").join(&sub_dir);
     fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败: {}", e))?;
-    fs::write(dir.join(&filename), data_json).map_err(|e| format!("保存JSON失败: {}", e))?;
-    Ok(())
+    atomic_save_json(&dir.join(&filename), &data_json)
 }
 
 #[tauri::command]
-fn load_novel_json(project_dir: String, sub_dir: String, filename: String) -> Result<String, String> {
+fn load_novel_json(app: tauri::AppHandle, project_dir: String, sub_dir: String, filename: String) -> Result<String, String> {
     let path = PathBuf::from(&project_dir).join(".novel").join(&sub_dir).join(&filename);
-    fs::read_to_string(&path).map_err(|e| format!("读取JSON失败: {}", e))
+    let (content, recovered) = read_json_resilient(&path)?;
+    if let Some(name) = recovered {
+        use tauri::Emitter;
+        let _ = app.emit("data-recovered", format!("{}/{}.novel/{}/{}", project_dir, ".novel", sub_dir, name));
+    }
+    Ok(content)
 }
 
 #[derive(Serialize)]
@@ -121,15 +185,19 @@ fn save_global_json(sub_path: String, filename: String, data_json: String) -> Re
     let base = global_config_dir();
     let dir = base.join(&sub_path);
     fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
-    fs::write(dir.join(&filename), data_json).map_err(|e| format!("保存配置失败: {}", e))?;
-    Ok(())
+    atomic_save_json(&dir.join(&filename), &data_json)
 }
 
 #[tauri::command]
-fn load_global_json(sub_path: String, filename: String) -> Result<String, String> {
+fn load_global_json(app: tauri::AppHandle, sub_path: String, filename: String) -> Result<String, String> {
     let base = global_config_dir();
     let path = base.join(&sub_path).join(&filename);
-    fs::read_to_string(&path).map_err(|e| format!("读取配置失败: {}", e))
+    let (content, recovered) = read_json_resilient(&path)?;
+    if let Some(name) = recovered {
+        use tauri::Emitter;
+        let _ = app.emit("data-recovered", format!("{}/{}", sub_path, name));
+    }
+    Ok(content)
 }
 
 // ── llama-server 托管 Commands ──────────────────────────────────────────────
