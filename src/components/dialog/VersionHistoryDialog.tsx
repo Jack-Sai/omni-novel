@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { diffLines } from "diff";
 import { History, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { versionDb, type ChapterVersionRow } from "../../services";
 import { Badge, Button, Dialog, EmptyState, Skeleton } from "../ui";
+import { computeDiffParts, formatVersionTime, textWordCount } from "../../lib/textDiff";
 import { cn } from "../../lib/cn";
 
 interface VersionHistoryDialogProps {
@@ -21,32 +21,6 @@ const sourceLabels: Record<string, string> = {
   manual: "手动",
   restore: "恢复前",
 };
-
-/** HTML → 纯文本（按块换行），仅用于对比展示 */
-function htmlToText(html: string): string {
-  return html
-    .replace(/<\/(p|div|h[1-6]|li|blockquote|pre)>/gi, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso.includes("T") ? iso : iso.replace(" ", "T") + "Z");
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 const MAX_DIFF_LINES = 600;
 
@@ -117,24 +91,15 @@ export function VersionHistoryDialog({
     [versions, selectedId],
   );
 
-  const diffParts = useMemo(() => {
-    if (!selected) return [];
-    const parts = diffLines(htmlToText(currentContent), htmlToText(selected.content));
-    let total = 0;
-    const out: { value: string; added?: boolean; removed?: boolean }[] = [];
-    for (const p of parts) {
-      const lines = p.value.split("\n");
-      if (total + lines.length > MAX_DIFF_LINES) {
-        out.push({ value: "…（差异过长，已截断）" });
-        break;
-      }
-      out.push(p);
-      total += lines.length;
-    }
-    return out;
-  }, [selected, currentContent]);
+  const diffParts = useMemo(
+    () =>
+      selected
+        ? computeDiffParts(currentContent, selected.content, MAX_DIFF_LINES)
+        : [],
+    [selected, currentContent],
+  );
 
-  const currentWords = htmlToText(currentContent).replace(/\s/g, "").length;
+  const currentWords = textWordCount(currentContent);
 
   return (
     <Dialog
@@ -208,7 +173,7 @@ export function VersionHistoryDialog({
                           {sourceLabels[v.source] ?? v.source}
                         </Badge>
                         <span className="shrink-0 text-[13px] text-ink-2">
-                          {formatTime(v.created_at)}
+                          {formatVersionTime(v.created_at)}
                         </span>
                         <span className="truncate text-[12px] text-ink-3">
                           {v.title} · {v.word_count} 字

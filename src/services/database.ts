@@ -1114,6 +1114,33 @@ export const versionDb = {
       [projectId, chapterId]
     );
   },
+
+  /** 项目级对比：全部版本轻量行（不含 content），按时间升序 */
+  async listMetaByProject(projectId: string): Promise<ChapterVersionRow[]> {
+    const db = await getDatabase();
+    return db.select<ChapterVersionRow[]>(
+      `SELECT id, project_id, chapter_id, title, '' AS content, word_count, source, created_at
+       FROM chapter_versions WHERE project_id = ?
+       ORDER BY created_at ASC, rowid ASC`,
+      [projectId]
+    );
+  },
+
+  /** 某章在指定时间点（≤ iso）的最新快照 */
+  async getLatestAt(
+    projectId: string,
+    chapterId: string,
+    iso: string
+  ): Promise<ChapterVersionRow | null> {
+    const db = await getDatabase();
+    const rows = await db.select<ChapterVersionRow[]>(
+      `SELECT * FROM chapter_versions
+       WHERE project_id = ? AND chapter_id = ? AND created_at <= ?
+       ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+      [projectId, chapterId, iso]
+    );
+    return rows[0] || null;
+  },
 };
 
 // ── 文风卡片（文风系统） ──

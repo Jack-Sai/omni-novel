@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
+  GitCompare,
   Pencil,
   Plus,
   Trash2,
@@ -13,6 +14,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useChapterStore, Chapter, ChapterStatus } from "../stores/chapterStore";
 import { useVolumeStore, Volume } from "../stores/volumeStore";
 import { deleteChapterCascade } from "../lib/chapterActions";
+import { ProjectCompareDialog } from "../components/dialog";
 import { htmlWordCount } from "../lib/text";
 import { cn } from "../lib/cn";
 import {
@@ -60,6 +62,7 @@ export function ChaptersPage() {
   const [editText, setEditText] = useState("");
   const [dragChapterId, setDragChapterId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const projectVolumes = useMemo(
     () =>
@@ -458,10 +461,21 @@ export function ChaptersPage() {
         title="章节"
         description={`${projectVolumes.length} 卷 · ${projectChapters.length} 章 · ${totalWords.toLocaleString()} 字`}
         actions={
-          <Button variant="primary" size="sm" onClick={() => setShowAddVolume(true)}>
-            <Plus size={14} />
-            新建卷
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setCompareOpen(true)}
+              title="跨时间点比较全书章节增删改"
+            >
+              <GitCompare size={14} />
+              版本对比
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setShowAddVolume(true)}>
+              <Plus size={14} />
+              新建卷
+            </Button>
+          </>
         }
       />
       <PageBody>
@@ -658,6 +672,12 @@ export function ChaptersPage() {
           </div>
         )}
       </PageBody>
+
+      <ProjectCompareDialog
+        open={compareOpen}
+        onOpenChange={setCompareOpen}
+        projectId={currentProject.id}
+      />
     </Page>
   );
 }
