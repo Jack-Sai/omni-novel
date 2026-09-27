@@ -62,4 +62,12 @@ export type { ProjectMetadata } from "./fileStorage";
 
 export { initGlobalStores, loadProjectStores } from "./storeInit";
 
+export {
+  CURRENT_PROJECT_VERSION,
+  compareVersion,
+  registerProjectMigration,
+  migrateProjectIfNeeded,
+} from "./projectMigrations";
+export type { ProjectMigration } from "./projectMigrations";
+
 export { saveGlobalConfig, loadGlobalConfig, saveProjectJson, loadProjectJson } from "./storage";

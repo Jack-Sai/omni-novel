@@ -7,6 +7,7 @@ import { useVolumeStore, Volume } from "../stores/volumeStore";
 import { useForeshadowingStore } from "../stores/foreshadowingStore";
 import { useRelationStore } from "../stores/relationStore";
 import { loadProjectJson, saveProjectJson } from "./storage";
+import { migrateProjectIfNeeded } from "./projectMigrations";
 
 /**
  * 应用启动时调用，从磁盘加载全局数据
@@ -160,11 +161,13 @@ async function migrateOutlineIfNeeded(projectDir: string): Promise<void> {
 }
 
 /**
- * 切换项目时调用，从磁盘加载项目数据
+ * 切换项目时调用，从磁盘加载项目数据。
+ * 顺序：版本迁移（projectVersion）→ 数据加载 → 大纲特例迁移。
  */
 export async function loadProjectStores(projectDir: string): Promise<void> {
   activeProjectDir = projectDir;
   installProjectPersistence();
+  await migrateProjectIfNeeded(projectDir);
   await Promise.all([
     useChapterStore.getState().loadFromDisk(projectDir),
     useCharacterStore.getState().loadFromDisk(projectDir),
