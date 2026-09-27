@@ -953,4 +953,39 @@ mod tests {
         // 幂等：已加密输入不再加密
         assert_eq!(super::encrypt_secret(enc.clone()).unwrap(), enc);
     }
+
+    /// #15 spike：sqlite-vec 与 tauri-plugin-sql（sqlx）同进程共存验证。
+    /// sqlite3_auto_extension 全局注册后，sqlx 新建连接应能创建/查询 vec0 虚表。
+    #[tokio::test]
+    async fn sqlx_vec0_spike() {
+        unsafe {
+            libsqlite3_sys::sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
+        }
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("sqlx 连接失败");
+        sqlx::query("CREATE VIRTUAL TABLE mem_vec USING vec0(embedding float[4])")
+            .execute(&pool)
+            .await
+            .expect("创建 vec0 虚表失败");
+        sqlx::query(
+            "INSERT INTO mem_vec(rowid, embedding) VALUES (1, '[1,0,0,0]'), (2, '[0,1,0,0]')",
+        )
+        .execute(&pool)
+        .await
+        .expect("插入向量失败");
+        let (rowid, dist): (i64, f32) = sqlx::query_as(
+            "SELECT rowid, distance FROM mem_vec WHERE embedding MATCH '[1,0,0,0]' AND k = 1",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("kNN 查询失败");
+        assert_eq!(rowid, 1);
+        assert!(dist < 1e-4, "distance={dist}");
+        pool.close().await;
+    }
 }

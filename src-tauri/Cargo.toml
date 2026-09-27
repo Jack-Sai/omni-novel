@@ -33,6 +33,11 @@ futures-util = "0.3"
 log = "0.4"
 bcrypt = "0.15"
 base64 = "0.22"
+sqlite-vec = "0.1.9"
+
+[dev-dependencies]
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
+libsqlite3-sys = "0.30"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
