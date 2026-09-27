@@ -65,7 +65,7 @@ function enumValue<T extends string>(v: unknown, allowed: readonly T[], fallback
 }
 
 /** 从模型输出中提取 JSON 对象（剥代码围栏/截取花括号/去尾逗号，均失败返回 null） */
-function parseJsonObject(raw: string): Record<string, unknown> | null {
+export function parseJsonObject(raw: string): Record<string, unknown> | null {
   let text = raw.trim();
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (fence) text = fence[1].trim();
@@ -110,7 +110,7 @@ function buildUserMessage(input: GenerateStructuredInput): string {
   return context.join("\n");
 }
 
-function createChatService() {
+export function createChatService() {
   const { ai } = useSettingsStore.getState();
   return createAIService({
     backend: ai.backend,

@@ -10,6 +10,7 @@ import {
   Layers,
   Pencil,
   Plus,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import { useVolumeStore, Volume } from "../stores/volumeStore";
 import { deleteChapterCascade } from "../lib/chapterActions";
 import { splitImportedText } from "../lib/importText";
 import { ProjectCompareDialog } from "../components/dialog";
+import { OutlineAIDialog } from "../components/ai/OutlineAIDialog";
 import { htmlWordCount } from "../lib/text";
 import { cn } from "../lib/cn";
 import {
@@ -71,6 +73,7 @@ export function ChaptersPage() {
   const [dragChapterId, setDragChapterId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [outlineAIOpen, setOutlineAIOpen] = useState(false);
   /** 展开了场景列表的章 id */
   const [expandedScenes, setExpandedScenes] = useState<Set<string>>(new Set());
   /** 正在添加场景的章 id */
@@ -721,6 +724,15 @@ export function ChaptersPage() {
             <Button
               variant="secondary"
               size="sm"
+              onClick={() => setOutlineAIOpen(true)}
+              title="AI 生成大纲、检查逻辑节奏、建议冲突爽点"
+            >
+              <Sparkles size={14} />
+              AI 大纲
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setCompareOpen(true)}
               title="跨时间点比较全书章节增删改"
             >
@@ -943,6 +955,7 @@ export function ChaptersPage() {
         onOpenChange={setCompareOpen}
         projectId={currentProject.id}
       />
+      <OutlineAIDialog open={outlineAIOpen} onOpenChange={setOutlineAIOpen} />
     </Page>
   );
 }
