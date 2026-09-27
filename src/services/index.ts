@@ -20,6 +20,8 @@ export type { PromptKey, PromptMeta } from "./prompts";
 export { retrieveMemories } from "./memoryService";
 export type { RetrievedMemory, RetrievedKind } from "./memoryService";
 
+export { getActiveStylePrompt, formatStylePrompt } from "./styleService";
+
 export { generateCharacter, generateWorldviewItem, generateForeshadowing } from "./aiGenerate";
 export type { GenerateKind, GenerateStructuredInput } from "./aiGenerate";
 export type { NewCharacter, NewWorldviewItem, NewForeshadowing } from "./aiGenerate";

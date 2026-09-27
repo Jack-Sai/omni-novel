@@ -28,13 +28,12 @@ import {
   aiDb,
   promptDb,
   retrieveMemories,
-  styleDb,
+  getActiveStylePrompt,
   type PromptKey,
   type AiMessageRow,
   type AiSessionRow,
   type CustomPromptRow,
   type RetrievedMemory,
-  type StyleProfileRow,
 } from "../../services";
 import { createAIService, toLlamaConfig } from "../../services/aiService";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -446,7 +445,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
 
       // 检索相关记忆 + 启用的文风卡片（注入 AI 上下文）
       let memories: RetrievedMemory[] = [];
-      let styleProfile: StyleProfileRow | null = null;
+      let stylePromptText = "";
       const project = useProjectStore.getState().currentProject;
       if (project) {
         if (ai.memoryInject) {
@@ -460,11 +459,7 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
             console.warn("记忆检索失败:", e);
           }
         }
-        try {
-          styleProfile = await styleDb.getActive(project.id);
-        } catch (e) {
-          console.warn("读取文风卡片失败:", e);
-        }
+        stylePromptText = await getActiveStylePrompt(project.id);
       }
 
       let userMsgId: string | undefined;
@@ -537,8 +532,8 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
         if (effectiveThink) {
           systemParts.push("思考过程（reasoning）请一律使用中文。");
         }
-        if (styleProfile) {
-          systemParts.push(`[文风要求]\n${styleProfile.content}`);
+        if (stylePromptText) {
+          systemParts.push(stylePromptText);
         }
         if (memories.length > 0) {
           systemParts.push(

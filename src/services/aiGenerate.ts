@@ -1,6 +1,8 @@
 import { createAIService, toLlamaConfig } from "./aiService";
 import { structuredPrompts, characterAIPrompts } from "./prompts";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useProjectStore } from "../stores/projectStore";
+import { getActiveStylePrompt } from "./styleService";
 import type { Character } from "../stores/characterStore";
 import type { WorldviewItem, WorldviewType } from "../stores/worldviewStore";
 import { worldviewTypes } from "../stores/worldviewStore";
@@ -128,16 +130,18 @@ function createChatService() {
   });
 }
 
-/** 发起一次 system+user 的非流式调用并解析 JSON（失败返回 null） */
+/** 发起一次 system+user 的非流式调用并解析 JSON（失败返回 null）。自动注入项目激活文风。 */
 async function chatWithPrompt(
   system: string,
   user: string,
   numPredict = 1600,
 ): Promise<Record<string, unknown> | null> {
   const service = createChatService();
+  const style = await getActiveStylePrompt(useProjectStore.getState().currentProject?.id);
+  const systemContent = style ? `${system}\n\n${style}` : system;
   const raw = await service.chat(
     [
-      { role: "system", content: system },
+      { role: "system", content: systemContent },
       { role: "user", content: user },
     ],
     { temperature: 0.5, numPredict, think: false },
