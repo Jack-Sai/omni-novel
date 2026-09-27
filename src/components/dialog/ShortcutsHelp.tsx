@@ -35,6 +35,8 @@ const shortcutGroups = [
     category: "通用",
     items: [
       { keys: ["Ctrl", "K"], description: "搜索" },
+      { keys: ["Ctrl", "F"], description: "编辑器内查找" },
+      { keys: ["Ctrl", "H"], description: "编辑器内替换" },
       { keys: ["Ctrl", "N"], description: "新建项目" },
       { keys: ["Ctrl", "E"], description: "导出" },
       { keys: ["?"], description: "显示快捷键帮助" },

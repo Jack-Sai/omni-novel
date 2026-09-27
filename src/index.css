@@ -373,6 +373,17 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--char-hl-color, #4f6ef7) 45%, transparent);
   }
 
+  /* 查找命中（查找替换）：黄底为普通命中，橙底为当前命中 */
+  .search-hit {
+    border-radius: 2px;
+    background: color-mix(in srgb, #f59e0b 32%, transparent);
+  }
+
+  .search-hit-current {
+    background: color-mix(in srgb, #f97316 55%, transparent);
+    box-shadow: 0 0 0 1px #f97316;
+  }
+
   .tiptap p {
     margin-bottom: 0;
   }

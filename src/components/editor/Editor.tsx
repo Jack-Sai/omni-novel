@@ -1,8 +1,12 @@
-import { forwardRef, useImperativeHandle, useEffect } from "react";
+import { forwardRef, useImperativeHandle, useEffect, useState } from "react";
 import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CharacterCount } from "@tiptap/extensions";
+import { Search, Replace } from "lucide-react";
 import { Toolbar } from "./Toolbar";
+import { FindReplaceBar } from "./FindReplaceBar";
+import { SearchExtension } from "./search";
+import { Button } from "../ui";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useCharacterStore } from "../../stores/characterStore";
 import { CharacterHighlight, CHARACTER_HIGHLIGHT_KEY } from "./characterHighlight";
@@ -23,7 +27,7 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
   ref,
 ) {
   const editor = useEditor({
-    extensions: [StarterKit, CharacterCount, CharacterHighlight],
+    extensions: [StarterKit, CharacterCount, CharacterHighlight, SearchExtension],
     content,
     editorProps: {
       attributes: {
@@ -47,6 +51,24 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
   useImperativeHandle(ref, () => ({
     getEditor: () => editor,
   }));
+
+  // 查找替换栏：Ctrl+F 查找 / Ctrl+H 替换（阻止浏览器默认整页查找）
+  const [findMode, setFindMode] = useState<"find" | "replace" | null>(null);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === "f") {
+        e.preventDefault();
+        setFindMode((prev) => (prev === "find" ? prev : "find"));
+      } else if (key === "h") {
+        e.preventDefault();
+        setFindMode((prev) => (prev === "replace" ? prev : "replace"));
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // 把字体/字号/行高设置写入 CSS 变量（.tiptap 通过 var() 消费）
   const { fontSize, lineHeight, fontFamily } = useSettingsStore((s) => s.editor);
@@ -93,7 +115,45 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
     <div className="flex min-h-0 flex-1 flex-col bg-surface">
       <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface px-4 py-2">
         <Toolbar editor={editor} />
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="查找（Ctrl+F）"
+            aria-label="查找"
+            onClick={() => setFindMode(findMode === "find" ? null : "find")}
+            className={
+              findMode === "find"
+                ? "bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary"
+                : undefined
+            }
+          >
+            <Search size={15} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="查找替换（Ctrl+H）"
+            aria-label="查找替换"
+            onClick={() => setFindMode(findMode === "replace" ? null : "replace")}
+            className={
+              findMode === "replace"
+                ? "bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary"
+                : undefined
+            }
+          >
+            <Replace size={15} />
+          </Button>
+        </div>
       </div>
+
+      {findMode && (
+        <FindReplaceBar
+          editor={editor}
+          mode={findMode}
+          onClose={() => setFindMode(null)}
+        />
+      )}
 
       <div className="flex-1 overflow-auto bg-surface" onMouseDown={handleCanvasMouseDown}>
         <div className="mx-auto w-full max-w-[var(--app-reading-measure)] px-8 py-12 pb-32">
