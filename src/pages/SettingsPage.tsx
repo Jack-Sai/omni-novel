@@ -1016,6 +1016,73 @@ export function SettingsPage() {
               </button>
             </SettingRow>
 
+            <SettingRow
+              title="地点高亮"
+              description="正文中出现的地点名称按统一色高亮（来自世界观-地点）"
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={editor.highlightLocations}
+                onClick={() =>
+                  updateEditorSettings({ highlightLocations: !editor.highlightLocations })
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                  editor.highlightLocations ? "bg-primary" : "bg-line-strong"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                    editor.highlightLocations ? "translate-x-5.5" : "translate-x-0.5"
+                  } mt-0.5`}
+                />
+              </button>
+            </SettingRow>
+
+            <SettingRow
+              title="伏笔高亮"
+              description="正文中出现的伏笔名称按统一色高亮（来自伏笔列表）"
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={editor.highlightForeshadowing}
+                onClick={() =>
+                  updateEditorSettings({ highlightForeshadowing: !editor.highlightForeshadowing })
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                  editor.highlightForeshadowing ? "bg-primary" : "bg-line-strong"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                    editor.highlightForeshadowing ? "translate-x-5.5" : "translate-x-0.5"
+                  } mt-0.5`}
+                />
+              </button>
+            </SettingRow>
+
+            <SettingRow
+              title="拼写检查"
+              description="启用浏览器原生拼写检查（对英文内容有效，中文不受影响）"
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={editor.spellcheck}
+                onClick={() => updateEditorSettings({ spellcheck: !editor.spellcheck })}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                  editor.spellcheck ? "bg-primary" : "bg-line-strong"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                    editor.spellcheck ? "translate-x-5.5" : "translate-x-0.5"
+                  } mt-0.5`}
+                />
+              </button>
+            </SettingRow>
+
             <Field
               label={`章节目标字数 · ${editor.chapterWordTarget || "关闭"}`}
               hint="编辑器底部显示章节进度条；0 = 不显示"

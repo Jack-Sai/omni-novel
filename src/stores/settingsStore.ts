@@ -72,6 +72,12 @@ export interface EditorSettings {
   chapterWordTarget: number;
   /** 正文中人名/别名高亮 */
   highlightNames: boolean;
+  /** 正文地点高亮（世界观 type=location） */
+  highlightLocations: boolean;
+  /** 正文伏笔高亮（伏笔名） */
+  highlightForeshadowing: boolean;
+  /** 浏览器原生拼写检查（对英文有效） */
+  spellcheck: boolean;
 }
 
 /** llama.cpp 模型档案：记录模型位置与启动参数，切换模型时一键套用 */
@@ -139,6 +145,9 @@ const defaultEditorSettings: EditorSettings = {
   typewriterScroll: false,
   chapterWordTarget: 3000,
   highlightNames: true,
+  highlightLocations: true,
+  highlightForeshadowing: true,
+  spellcheck: true,
 };
 
 const AI_PANEL_MIN_WIDTH = 240;

@@ -400,6 +400,59 @@
     border-bottom: 1.5px dotted #9ca3af;
   }
 
+  /* ── 修订标记：pending 新文本（蓝下划线）与 AI 建议高亮（紫虚线） ── */
+  .rev-hl {
+    background: color-mix(in srgb, #2563eb 10%, transparent);
+    border-bottom: 1.5px solid #2563eb;
+    cursor: pointer;
+  }
+
+  .rev-suggest {
+    background: color-mix(in srgb, #a855f7 14%, transparent);
+    border-bottom: 1.5px dashed color-mix(in srgb, #a855f7 80%, transparent);
+    cursor: pointer;
+  }
+
+  .rev-suggest-active {
+    background: color-mix(in srgb, #2563eb 20%, transparent);
+    border-bottom: 1.5px solid #2563eb;
+  }
+
+  /* 删除修订的正文锚点（插入在删除点位置） */
+  .rev-del-anchor {
+    display: inline-block;
+    margin: 0 1px;
+    color: #ef4444;
+    font-size: 0.85em;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    vertical-align: middle;
+    opacity: 0.75;
+  }
+
+  .rev-del-anchor:hover,
+  .rev-del-anchor-active {
+    opacity: 1;
+    text-shadow: 0 0 4px color-mix(in srgb, #ef4444 60%, transparent);
+  }
+
+  /* ── 地点 / 伏笔实体高亮 ── */
+  .entity-hl {
+    border-radius: 3px;
+    padding: 0 1px;
+  }
+
+  .entity-hl-location {
+    background: color-mix(in srgb, #14b8a6 16%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, #14b8a6 30%, transparent);
+  }
+
+  .entity-hl-foreshadow {
+    background: color-mix(in srgb, #a855f7 14%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, #a855f7 32%, transparent);
+  }
+
   .tiptap p {
     margin-bottom: 0;
   }

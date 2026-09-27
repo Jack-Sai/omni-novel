@@ -2,7 +2,8 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import { buildIndex, flatToPm, type TextSeg } from "./search";
+import { buildIndex, flatToPm } from "./search";
+import { locateQuote } from "./locateText";
 import { useAnnotationStore } from "../../stores/annotationStore";
 
 export const ANNOTATION_HIGHLIGHT_KEY = new PluginKey("omniAnnotationHighlight");
@@ -15,51 +16,6 @@ interface RangeSpec {
   textFrom: number | null;
   active: boolean;
   resolved: boolean;
-}
-
-/** 归一化定位：去掉 \n \r 后在归一化串中查找，映射回原文偏移 */
-function locateNormalized(full: string, quote: string): [number, number] | null {
-  const map: number[] = [];
-  let norm = "";
-  for (let i = 0; i < full.length; i++) {
-    const ch = full[i];
-    if (ch === "\n" || ch === "\r") continue;
-    norm += ch;
-    map.push(i);
-  }
-  const nq = quote.replace(/[\r\n]/g, "");
-  if (!nq) return null;
-  const pos = norm.indexOf(nq);
-  if (pos < 0) return null;
-  const start = map[pos];
-  const end = map[pos + nq.length - 1] + 1;
-  return [start, end];
-}
-
-/** 在纯文本索引中定位批注选区（偏移漂移时按 quote 兜底搜索） */
-function locate(index: { full: string; segs: TextSeg[] }, r: RangeSpec): [number, number] | null {
-  if (!r.quote) return null;
-  const { full } = index;
-  // 1) 精确偏移仍匹配
-  if (
-    r.textFrom != null &&
-    full.slice(r.textFrom, r.textFrom + r.quote.length) === r.quote
-  ) {
-    return [r.textFrom, r.textFrom + r.quote.length];
-  }
-  // 2) 直接搜索
-  let pos = full.indexOf(r.quote);
-  if (pos >= 0) return [pos, pos + r.quote.length];
-  // 3) 跨段 quote：去换行归一化搜索
-  const normalized = locateNormalized(full, r.quote);
-  if (normalized) return normalized;
-  // 4) 首行片段兜底
-  const firstLine = r.quote.split(/\r?\n/)[0];
-  if (firstLine && firstLine !== r.quote) {
-    pos = full.indexOf(firstLine);
-    if (pos >= 0) return [pos, pos + firstLine.length];
-  }
-  return null;
 }
 
 function buildDecorations(doc: PMNode, chapterId: string | null): DecorationSet {
@@ -79,7 +35,7 @@ function buildDecorations(doc: PMNode, chapterId: string | null): DecorationSet 
   const index = buildIndex(doc);
   const decos: Decoration[] = [];
   for (const r of specs) {
-    const range = locate(index, r);
+    const range = locateQuote(index, r.quote, r.textFrom);
     if (!range) continue;
     const from = flatToPm(index.segs, range[0]);
     const to = flatToPm(index.segs, range[1]);

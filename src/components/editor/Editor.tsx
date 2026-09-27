@@ -10,11 +10,20 @@ import { Button } from "../ui";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useCharacterStore } from "../../stores/characterStore";
 import { CharacterHighlight, CHARACTER_HIGHLIGHT_KEY } from "./characterHighlight";
+import { EntityHighlight, ENTITY_HIGHLIGHT_KEY } from "./entityHighlight";
 import {
   createAnnotationHighlight,
   ANNOTATION_HIGHLIGHT_KEY,
 } from "./annotationHighlight";
+import {
+  createRevisionHighlight,
+  REVISION_HIGHLIGHT_KEY,
+} from "./revisionHighlight";
+import { RevisionMark } from "./revisionMark";
 import { useAnnotationStore } from "../../stores/annotationStore";
+import { useRevisionStore } from "../../stores/revisionStore";
+import { useWorldviewStore } from "../../stores/worldviewStore";
+import { useForeshadowingStore } from "../../stores/foreshadowingStore";
 
 export interface EditorRef {
   getEditor: () => TiptapEditor | null;
@@ -39,19 +48,25 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
   },
   ref,
 ) {
+  const spellcheck = useSettingsStore((s) => s.editor.spellcheck);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
       CharacterCount,
       CharacterHighlight,
+      EntityHighlight,
+      RevisionMark,
       SearchExtension,
       createAnnotationHighlight(chapterId),
+      createRevisionHighlight(chapterId),
     ],
     content,
     editorProps: {
       attributes: {
         class: "tiptap",
         "data-placeholder": placeholder,
+        spellcheck: spellcheck ? "true" : "false",
       },
     },
     onUpdate: ({ editor }) => {
@@ -128,6 +143,55 @@ export const Editor = forwardRef<EditorRef, EditorProps>(function Editor(
     const unsub = useAnnotationStore.subscribe(refresh);
     refresh();
     return unsub;
+  }, [editor]);
+
+  // 修订增删改 / 接受拒绝时重建 AI 建议高亮 Decoration
+  useEffect(() => {
+    if (!editor) return;
+    const refresh = () => {
+      editor.view.dispatch(editor.state.tr.setMeta(REVISION_HIGHLIGHT_KEY, true));
+    };
+    const unsub = useRevisionStore.subscribe(refresh);
+    refresh();
+    return unsub;
+  }, [editor]);
+
+  // 拼写检查开关动态生效（避免仅切章后才应用）
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.setOptions({
+      editorProps: {
+        attributes: {
+          class: "tiptap",
+          "data-placeholder": placeholder,
+          spellcheck: spellcheck ? "true" : "false",
+        },
+      },
+    });
+  }, [editor, spellcheck, placeholder]);
+
+  // 地点/伏笔增删改与高亮开关变化时重建实体高亮 Decoration
+  useEffect(() => {
+    if (!editor) return;
+    const refresh = () => {
+      editor.view.dispatch(editor.state.tr.setMeta(ENTITY_HIGHLIGHT_KEY, true));
+    };
+    const unsubWv = useWorldviewStore.subscribe(refresh);
+    const unsubFs = useForeshadowingStore.subscribe(refresh);
+    const unsubSettings = useSettingsStore.subscribe((state, prev) => {
+      if (
+        state.editor.highlightLocations !== prev.editor.highlightLocations ||
+        state.editor.highlightForeshadowing !== prev.editor.highlightForeshadowing
+      ) {
+        refresh();
+      }
+    });
+    refresh();
+    return () => {
+      unsubWv();
+      unsubFs();
+      unsubSettings();
+    };
   }, [editor]);
 
   if (!editor) {

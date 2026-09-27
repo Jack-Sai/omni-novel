@@ -14,7 +14,9 @@ import {
   MessageSquarePlus,
   MessageSquareText,
   PanelLeftOpen,
+  PenLine,
   Save,
+  ScanText,
   Sparkles,
 } from "lucide-react";
 import { VersionHistoryDialog } from "../components/dialog";
@@ -32,6 +34,20 @@ import { AnnotationPanel } from "../components/annotations/AnnotationPanel";
 import { AddAnnotationDialog } from "../components/annotations/AddAnnotationDialog";
 import { AnnotationAIDialog } from "../components/annotations/AnnotationAIDialog";
 import type { AnnotationAIAction } from "../services/annotationAIService";
+import { RevisionPanel } from "../components/revisions/RevisionPanel";
+import { RevisionAIDialog } from "../components/revisions/RevisionAIDialog";
+import { RevisionCompareDialog } from "../components/revisions/RevisionCompareDialog";
+import { StyleCheckDialog } from "../components/revisions/StyleCheckDialog";
+import type { RevisionAIAction } from "../services/revisionAIService";
+import { useRevisionStore, type Revision } from "../stores/revisionStore";
+import {
+  applyManualDiff,
+  createRevisionsFromDiff,
+  resolveRevision,
+  resolveAll,
+  revisionSnapshot,
+} from "../services/revisionService";
+import { computeChapterTextStats } from "../lib/textStats";
 import { ChapterList } from "../components/chapter";
 import {
   ExportService,
@@ -83,6 +99,10 @@ export function EditorPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [annotationPanelOpen, setAnnotationPanelOpen] = useState(false);
+  const [revisionPanelOpen, setRevisionPanelOpen] = useState(false);
+  const [revAiDlg, setRevAiDlg] = useState<RevisionAIAction | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [styleCheckOpen, setStyleCheckOpen] = useState(false);
   const [addDlg, setAddDlg] = useState<{ scope: AnnotationScope; prefill?: { quote: string; textFrom: number | null; textTo: number | null } } | null>(null);
   const [aiDlg, setAiDlg] = useState<AnnotationAIAction | null>(null);
   const [locateReq, setLocateReq] = useState<{ id: string; chapterId: string | null; quote: string; textFrom: number | null } | null>(null);
@@ -112,6 +132,178 @@ export function EditorPage() {
   } = useChapterStore();
 
   const { editor } = useSettingsStore();
+
+  // ── 修订模式 ──
+  const trackMode = useRevisionStore((s) => s.trackMode);
+  const revisions = useRevisionStore((s) => s.revisions);
+  const pendingForChapter = useMemo(
+    () =>
+      currentChapter
+        ? revisions.filter((r) => r.chapterId === currentChapter.id && r.status === "pending")
+            .length
+        : 0,
+    [revisions, currentChapter],
+  );
+  const compareBaseline = useRevisionStore((s) =>
+    currentChapter ? (s.baselines[currentChapter.id] ?? "") : "",
+  );
+  /** 手动修订 diff 的防抖定时器 */
+  const manualDiffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** 进入/退出修订模式：进入时记录同步点并打版本快照 */
+  const handleToggleTrackMode = useCallback(() => {
+    const store = useRevisionStore.getState();
+    const ed = editorRef.current?.getEditor();
+    if (!currentChapter || !currentProject || !ed || ed.isDestroyed) return;
+    const next = !store.trackMode;
+    if (next) {
+      store.setBaseline(currentChapter.id, buildIndex(ed.state.doc).full);
+      void revisionSnapshot(
+        currentProject.id,
+        currentChapter.id,
+        currentChapter.content,
+        "进入修订模式",
+      );
+    }
+    store.setTrackMode(next);
+  }, [currentChapter, currentProject]);
+
+  /** 修订模式下编辑 → 防抖后按同步点 diff 生成修订 */
+  const scheduleManualDiff = useCallback(
+    (chapterId: string, projectId: string) => {
+      if (manualDiffTimerRef.current) clearTimeout(manualDiffTimerRef.current);
+      manualDiffTimerRef.current = setTimeout(() => {
+        manualDiffTimerRef.current = null;
+        const ed = editorRef.current?.getEditor();
+        if (!ed || ed.isDestroyed) return;
+        if (useChapterStore.getState().currentChapter?.id !== chapterId) return;
+        const n = applyManualDiff(ed, projectId, chapterId);
+        if (n > 0) setRevisionPanelOpen(true);
+      }, 1500);
+    },
+    [],
+  );
+
+  // 切章 / 卸载时取消未决的手动 diff
+  useEffect(() => {
+    return () => {
+      if (manualDiffTimerRef.current) {
+        clearTimeout(manualDiffTimerRef.current);
+        manualDiffTimerRef.current = null;
+      }
+    };
+  }, [currentChapter?.id]);
+
+  // 修订模式下切章：立即为新章记录同步点（否则切章后的首批编辑会丢失）
+  useEffect(() => {
+    if (!trackMode || !currentChapter) return;
+    const ed = editorRef.current?.getEditor();
+    if (!ed || ed.isDestroyed) return;
+    const store = useRevisionStore.getState();
+    if (store.baselines[currentChapter.id] == null) {
+      store.setBaseline(currentChapter.id, buildIndex(ed.state.doc).full);
+    }
+  }, [trackMode, currentChapter]);
+
+  const getAliveEditor = () => {
+    const ed = editorRef.current?.getEditor();
+    return ed && !ed.isDestroyed ? ed : null;
+  };
+
+  const handleAcceptRevision = (rev: Revision) => {
+    const ed = getAliveEditor();
+    if (!ed) return;
+    const res = resolveRevision(ed, rev, "accept");
+    if (!res.ok && res.message) window.alert(res.message);
+  };
+
+  const handleRejectRevision = (rev: Revision) => {
+    const ed = getAliveEditor();
+    if (!ed) return;
+    const res = resolveRevision(ed, rev, "reject");
+    if (!res.ok && res.message) window.alert(res.message);
+  };
+
+  /** 批量接受/拒绝本章待处理修订（完成后打版本快照） */
+  const handleResolveAll = (action: "accept" | "reject") => {
+    const ed = getAliveEditor();
+    if (!ed || !currentChapter || !currentProject) return;
+    const list = useRevisionStore
+      .getState()
+      .getByChapter(currentChapter.id, "pending");
+    if (list.length === 0) return;
+    const { ok, failed } = resolveAll(ed, list, action);
+    void revisionSnapshot(
+      currentProject.id,
+      currentChapter.id,
+      ed.getHTML(),
+      action === "accept" ? "接受全部修订" : "拒绝全部修订",
+    );
+    window.alert(
+      `${action === "accept" ? "已接受" : "已拒绝"} ${ok} 条修订${failed ? `，${failed} 条失败（原文已变化）` : ""}`,
+    );
+  };
+
+  /** AI 改写应用：无论修订模式是否开启，一律生成修订并高亮新文 */
+  const handleAiContentApplied = useCallback(
+    (html: string, beforeFull?: string) => {
+      if (!currentChapter || !currentProject) return;
+      updateChapterContent(currentChapter.id, html);
+      const ed = getAliveEditor();
+      if (!ed || beforeFull == null) return;
+      const index = buildIndex(ed.state.doc);
+      if (beforeFull === index.full) return;
+      const n = createRevisionsFromDiff(
+        ed,
+        currentProject.id,
+        currentChapter.id,
+        beforeFull,
+        "ai-rewrite",
+        "AI 改写",
+      );
+      if (n > 0) {
+        setRevisionPanelOpen(true);
+        void revisionSnapshot(
+          currentProject.id,
+          currentChapter.id,
+          html,
+          "AI 改写进入修订",
+        );
+      }
+    },
+    [currentChapter, currentProject, updateChapterContent],
+  );
+
+  /** 修订卡片点击：激活 + 必要时切章 + 正文定位 */
+  const handleLocateRevision = (rev: Revision) => {
+    useRevisionStore.getState().setActiveRevisionId(rev.id);
+    if (rev.chapterId !== currentChapter?.id) {
+      const target = chapters.find((c) => c.id === rev.chapterId);
+      if (target) setCurrentChapter(target);
+    }
+    const quote =
+      rev.kind === "insert" || rev.kind === "replace"
+        ? rev.quoteAfter
+        : rev.quoteBefore;
+    if (!quote) return;
+    setLocateReq({
+      id: rev.id,
+      chapterId: rev.chapterId,
+      quote,
+      textFrom: rev.textFrom,
+    });
+  };
+
+  /** 文风检查结果定位正文 */
+  const handleStyleLocate = (quote: string, textFrom: number) => {
+    if (!currentChapter) return;
+    setLocateReq({
+      id: `style-${textFrom}`,
+      chapterId: currentChapter.id,
+      quote,
+      textFrom,
+    });
+  };
 
   /** 人名高亮点击弹出的人物速览 */
   const [charPopover, setCharPopover] = useState<{
@@ -248,6 +440,10 @@ export function EditorPage() {
       noteActivity();
       if (!currentChapter) return;
       updateChapterContent(currentChapter.id, content);
+      // 修订模式：防抖 diff 记录手动修改
+      if (useRevisionStore.getState().trackMode && currentProject) {
+        scheduleManualDiff(currentChapter.id, currentProject.id);
+      }
       if (!editor.typewriterScroll) return;
       if (typewriterRafRef.current !== null) return;
       typewriterRafRef.current = requestAnimationFrame(() => {
@@ -263,7 +459,7 @@ export function EditorPage() {
         }
       });
     },
-    [currentChapter, editor.typewriterScroll, updateChapterContent],
+    [currentChapter, currentProject, editor.typewriterScroll, updateChapterContent, scheduleManualDiff],
   );
 
   // 快捷键：Ctrl+S 保存、专注模式下 Esc 退出
@@ -313,6 +509,12 @@ export function EditorPage() {
     const pct = Math.min(100, Math.round((stats.chapterWords / editor.chapterWordTarget) * 100));
     return { pct, over: stats.chapterWords > editor.chapterWordTarget };
   }, [stats.chapterWords, editor.chapterWordTarget]);
+
+  /** 段落统计与阅读时长（底栏展示） */
+  const textStats = useMemo(
+    () => (currentChapter ? computeChapterTextStats(currentChapter.content) : null),
+    [currentChapter],
+  );
 
   const handleSelectChapter = (chapter: Chapter) => {
     setCurrentChapter(chapter);
@@ -513,6 +715,21 @@ export function EditorPage() {
               <MessageSquareText size={15} />
               批注
             </Button>
+            <Button
+              variant={revisionPanelOpen ? "primary" : "secondary"}
+              onClick={() => setRevisionPanelOpen(!revisionPanelOpen)}
+              aria-pressed={revisionPanelOpen}
+              title={trackMode ? "修订模式进行中" : "修订面板"}
+              className="relative"
+            >
+              <PenLine size={15} />
+              修订
+              {pendingForChapter > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-none text-white">
+                  {pendingForChapter > 99 ? "99+" : pendingForChapter}
+                </span>
+              )}
+            </Button>
 
             <Button
               variant="secondary"
@@ -619,6 +836,19 @@ export function EditorPage() {
                   <span>
                     本章 <span className="tabular-nums text-ink-2">{stats.chapterWords}</span> 字
                   </span>
+                  {textStats && (
+                    <>
+                      <span>
+                        段落 <span className="tabular-nums text-ink-2">{textStats.paragraphs}</span>
+                        <span className="text-ink-3">（均 {textStats.avgParagraph} 字）</span>
+                      </span>
+                      <span>
+                        阅读约{" "}
+                        <span className="tabular-nums text-ink-2">{textStats.readingMinutes}</span>{" "}
+                        分钟
+                      </span>
+                    </>
+                  )}
                   {targetProgress && (
                     <span className="flex items-center gap-2">
                       <span>
@@ -644,6 +874,17 @@ export function EditorPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setStyleCheckOpen(true)}
+                    title="文风检查：重复词 / 口水词 / AI 腔"
+                    className="h-6 gap-1 text-xs"
+                  >
+                    <ScanText size={12} />
+                    文风
+                  </Button>
+                  <div className="h-3 w-px bg-line" />
                   <Button
                     variant="ghost"
                     size="sm"
@@ -679,7 +920,9 @@ export function EditorPage() {
             getEditor={() => editorRef.current?.getEditor() ?? null}
             selectedText={selectedText}
             chapterContent={currentChapter.content}
-            onContentApplied={(html) => updateChapterContent(currentChapter.id, html)}
+            onContentApplied={(html, beforeFull) =>
+              handleAiContentApplied(html, beforeFull)
+            }
             prefill={askAiPrefill}
             onPrefillConsumed={() => setAskAiPrefill("")}
             quickActionRequest={aiQuickAction}
@@ -696,6 +939,23 @@ export function EditorPage() {
             onRunAI={(action) => setAiDlg(action)}
             onExport={handleExportAnnotations}
             onClose={() => setAnnotationPanelOpen(false)}
+          />
+        )}
+
+        {revisionPanelOpen && !focusMode && currentProject && (
+          <RevisionPanel
+            projectId={currentProject.id}
+            currentChapterId={currentChapter?.id ?? null}
+            trackMode={trackMode}
+            onToggleTrackMode={handleToggleTrackMode}
+            onRunAI={(action) => setRevAiDlg(action)}
+            onCompare={() => setCompareOpen(true)}
+            onLocate={handleLocateRevision}
+            onAccept={handleAcceptRevision}
+            onReject={handleRejectRevision}
+            onAcceptAll={() => handleResolveAll("accept")}
+            onRejectAll={() => handleResolveAll("reject")}
+            onClose={() => setRevisionPanelOpen(false)}
           />
         )}
       </div>
@@ -859,6 +1119,38 @@ export function EditorPage() {
           action={aiDlg}
           chapterId={currentChapter.id}
           onCreated={() => setAnnotationPanelOpen(true)}
+        />
+      )}
+
+      {currentProject && revAiDlg && currentChapter && (
+        <RevisionAIDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setRevAiDlg(null);
+          }}
+          action={revAiDlg}
+          chapterId={currentChapter.id}
+          onCreated={() => setRevisionPanelOpen(true)}
+        />
+      )}
+
+      {currentChapter && (
+        <RevisionCompareDialog
+          open={compareOpen}
+          onOpenChange={setCompareOpen}
+          chapterTitle={currentChapter.title}
+          baselineText={compareBaseline}
+          currentText={currentChapter.content.replace(/<[^>]*>/g, "")}
+        />
+      )}
+
+      {currentChapter && (
+        <StyleCheckDialog
+          open={styleCheckOpen}
+          onOpenChange={setStyleCheckOpen}
+          chapterTitle={currentChapter.title}
+          chapterContent={currentChapter.content}
+          onLocate={handleStyleLocate}
         />
       )}
     </Page>

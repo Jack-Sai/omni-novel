@@ -36,6 +36,7 @@ import {
   type RetrievedMemory,
 } from "../../services";
 import { createAIService, toLlamaConfig } from "../../services/aiService";
+import { buildIndex } from "../editor/search";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useProjectStore } from "../../stores/projectStore";
 import {
@@ -55,8 +56,8 @@ interface AIPanelProps {
   getEditor: () => Editor | null;
   selectedText: string;
   chapterContent: string;
-  /** 应用内容到正文后的同步回调（把最新 HTML 显式写回 store，保证文件同步） */
-  onContentApplied?: (html: string) => void;
+  /** 应用内容到正文后的同步回调（把最新 HTML 显式写回 store，保证文件同步）；第二参为改写前纯文本（修订联动用） */
+  onContentApplied?: (html: string, beforeFull?: string) => void;
   /** 外部触发的预填输入（点「问 AI」时传入，消费后由调用方清空） */
   prefill?: string;
   onPrefillConsumed?: () => void;
@@ -811,6 +812,9 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
     const content = formatForApply(msg.content);
     if (!content) return;
 
+    // 改写前纯文本（修订联动：AI 改写自动进入修订模式）
+    const beforeFull = buildIndex(editor.state.doc).full;
+
     if (msg.applyMode === "append") {
       editor.chain().focus().setContent(editor.getHTML() + content).run();
     } else {
@@ -821,8 +825,8 @@ export function AIPanel({ getEditor, selectedText, chapterContent, onContentAppl
         editor.chain().focus().insertContent(content).run();
       }
     }
-    // 显式同步回 store（onUpdate 之外的兜底，保证自动保存写入最新内容）
-    onContentApplied?.(editor.getHTML());
+    // 显式同步到 store（onUpdate 之外的兜底，保证自动保存写入最新内容）
+    onContentApplied?.(editor.getHTML(), beforeFull);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
