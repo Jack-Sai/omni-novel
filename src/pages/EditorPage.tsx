@@ -41,6 +41,11 @@ import {
 } from "../services";
 import { cn } from "../lib/cn";
 import { useAutoSave } from "../hooks";
+import {
+  noteActivity,
+  startWritingTracker,
+  stopWritingTracker,
+} from "../services/writingTracker";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useUIStore } from "../stores/uiStore";
 import {
@@ -58,6 +63,7 @@ import {
   PageBody,
   PageHeader,
   WordStats,
+  WritingInsights,
 } from "../components/ui";
 
 const genreLabels: Record<string, string> = {
@@ -129,6 +135,14 @@ export function EditorPage() {
     setSelectionPos(null);
   }, [currentChapter?.id]);
 
+  // 写作时长/热力图追踪：编辑器页挂载期间按项目启停（writingTracker 30s 心跳）
+  const trackerProjectId = currentProject?.id;
+  useEffect(() => {
+    if (!trackerProjectId) return;
+    startWritingTracker(trackerProjectId);
+    return () => stopWritingTracker();
+  }, [trackerProjectId]);
+
   // 跨页定位章节（一致性报告「定位章节」等）：检测到 pending id 时打开对应章节并清空
   useEffect(() => {
     const pending = useUIStore.getState().pendingOpenChapterId;
@@ -188,6 +202,7 @@ export function EditorPage() {
   const typewriterRafRef = useRef<number | null>(null);
   const handleEditorUpdate = useCallback(
     (content: string) => {
+      noteActivity();
       if (!currentChapter) return;
       updateChapterContent(currentChapter.id, content);
       if (!editor.typewriterScroll) return;
@@ -576,6 +591,7 @@ export function EditorPage() {
               targetWords={100000}
               averageWordsPerChapter={stats.averageWordsPerChapter}
             />
+            <WritingInsights projectId={currentProject.id} />
           </div>
         )}
 

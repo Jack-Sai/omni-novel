@@ -190,6 +190,18 @@ async function initializeTables(db: Database) {
     )
   `);
 
+  // 按日写作统计（写作时长 + 产出字数热力图）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS writing_stats (
+      project_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      duration_sec INTEGER NOT NULL DEFAULT 0,
+      words_written INTEGER NOT NULL DEFAULT 0,
+      sessions INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (project_id, date)
+    )
+  `);
+
   console.log("Database tables initialized successfully");
 
   // Schema migration: 确保 users 表有 phone 和 password 列
@@ -915,6 +927,86 @@ export function parseReportRow(row: ConsistencyReportRow): {
     issues: parseArr<ConsistencyIssue>(row.issues),
   };
 }
+
+// ── 按日写作统计（写作时长、热力图） ──
+
+export interface WritingStatRow {
+  project_id: string;
+  /** YYYY-MM-DD（本地日期） */
+  date: string;
+  duration_sec: number;
+  words_written: number;
+  sessions: number;
+}
+
+export const writingStatsDb = {
+  /** 累加时长（秒）；当日无行则创建 */
+  async addDuration(projectId: string, date: string, seconds: number): Promise<void> {
+    if (seconds <= 0) return;
+    const db = await getDatabase();
+    await db.execute(
+      `INSERT INTO writing_stats (project_id, date, duration_sec, words_written, sessions)
+       VALUES (?, ?, ?, 0, 0)
+       ON CONFLICT(project_id, date) DO UPDATE SET duration_sec = duration_sec + excluded.duration_sec`,
+      [projectId, date, seconds]
+    );
+  },
+
+  /** 累加产出字数 */
+  async addWords(projectId: string, date: string, words: number): Promise<void> {
+    if (words <= 0) return;
+    const db = await getDatabase();
+    await db.execute(
+      `INSERT INTO writing_stats (project_id, date, duration_sec, words_written, sessions)
+       VALUES (?, ?, 0, ?, 0)
+       ON CONFLICT(project_id, date) DO UPDATE SET words_written = words_written + excluded.words_written`,
+      [projectId, date, words]
+    );
+  },
+
+  /** 开启一次写作会话（sessions 计数，用于"今日 N 次"） */
+  async startSession(projectId: string, date: string): Promise<void> {
+    const db = await getDatabase();
+    await db.execute(
+      `INSERT INTO writing_stats (project_id, date, duration_sec, words_written, sessions)
+       VALUES (?, ?, 0, 0, 1)
+       ON CONFLICT(project_id, date) DO UPDATE SET sessions = sessions + 1`,
+      [projectId, date]
+    );
+  },
+
+  async getRange(
+    projectId: string,
+    fromDate: string,
+    toDate: string
+  ): Promise<WritingStatRow[]> {
+    const db = await getDatabase();
+    return db.select<WritingStatRow[]>(
+      `SELECT * FROM writing_stats
+       WHERE project_id = ? AND date >= ? AND date <= ?
+       ORDER BY date ASC`,
+      [projectId, fromDate, toDate]
+    );
+  },
+
+  /** 全项目累计：{durationSec, words, days, sessions} */
+  async getTotals(
+    projectId: string
+  ): Promise<{ duration_sec: number; words_written: number; days: number; sessions: number }> {
+    const db = await getDatabase();
+    const rows = await db.select<
+      { duration_sec: number; words_written: number; days: number; sessions: number }[]
+    >(
+      `SELECT COALESCE(SUM(duration_sec), 0) AS duration_sec,
+              COALESCE(SUM(words_written), 0) AS words_written,
+              COUNT(*) AS days,
+              COALESCE(SUM(sessions), 0) AS sessions
+       FROM writing_stats WHERE project_id = ?`,
+      [projectId]
+    );
+    return rows[0] ?? { duration_sec: 0, words_written: 0, days: 0, sessions: 0 };
+  },
+};
 
 // ── 章节版本快照（版本对比） ──
 

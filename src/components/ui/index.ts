@@ -48,3 +48,4 @@ export type { MetricRowProps, ProgressProps } from "./Progress";
 export { ThemeToggle } from "./ThemeToggle";
 export { ThemeSwitcher } from "./ThemeSwitcher";
 export { WordStats } from "./WordStats";
+export { WritingInsights } from "./WritingInsights";
